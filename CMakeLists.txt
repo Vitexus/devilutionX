@@ -235,7 +235,16 @@ target_link_libraries(devilutionx PRIVATE
   PKWare
   StormLib
   smacker
-  Radon)
+  Radon
+  ${SDL_LIBRARY}
+  ${SDL_TTF_LIBRARY}
+  ${SDL_MIXER_LIBRARY}
+  ${FREETYPE_LIBRARIES}
+  ${SDL_LIBRARY}
+  )
+if(AMIGA)
+  target_link_libraries(devilutionx PRIVATE -ldebug)
+endif()
 
 if(NOT NONET)
   target_link_libraries(devilutionx PRIVATE sodium)
@@ -308,6 +317,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   target_compile_options(devilution PRIVATE "/W0")
 endif()
 
+endif()
+  add_definitions(-D_GNU_SOURCE)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # Style issues
   target_compile_options(devilutionx PRIVATE -Wno-parentheses -Wno-logical-op-parentheses -Wno-bitwise-op-parentheses)
