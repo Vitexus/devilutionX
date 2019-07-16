@@ -600,6 +600,10 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 			SDL_Log(SDL_GetError());
 		}
 	}
+#else
+#if D_BPP == 8
+	SDL_SetVideoMode(SVidWidth, SVidHeight, D_BPP, surface->flags);
+#endif
 #endif
 	memcpy(SVidPreviousPalette, orig_palette, 1024);
 
@@ -623,6 +627,10 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 	if (SDL_SetPalette(SVidSurface, SDL_LOGPAL, SVidPalette->colors, 0, SVidPalette->ncolors) != 1) {
 #else
 	if (SDL_SetSurfacePalette(SVidSurface, SVidPalette) <= -1) {
+#endif
+
+#if defined(USE_SDL1) && D_BPP == 8
+		SDL_SetColors(surface, SVidPalette->colors, 0, SVidPalette->ncolors);
 #endif
 		SDL_Log(SDL_GetError());
 		if (HaveAudio())
@@ -681,6 +689,9 @@ BOOL SVidPlayContinue(void)
 			SDL_Log(SDL_GetError());
 			return false;
 		}
+#if defined(USE_SDL1) && D_BPP == 8
+		SDL_SetColors(surface, SVidPalette->colors, 0, SVidPalette->ncolors);
+#endif
 #endif
 	}
 
@@ -733,6 +744,9 @@ BOOL SVidPlayContinue(void)
 		SDL_Surface *tmp = SDL_ConvertSurface(SVidSurface, window->format, 0);
 		// NOTE: Consider resolution switching instead if video doesn't play
 		// fast enough.
+#if D_BPP == 8
+		pal_surface_offset = { 0, 0, SVidWidth, SVidHeight };
+#endif
 #else
 		Uint32 format = SDL_GetWindowPixelFormat(window);
 		SDL_Surface *tmp = SDL_ConvertSurfaceFormat(SVidSurface, format, 0);
@@ -785,6 +799,10 @@ BOOL SVidPlayEnd(HANDLE video)
 
 	SFileCloseFile(video);
 	video = NULL;
+
+#if D_BPP == 8
+	SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, D_BPP, surface->flags);
+#endif
 
 	memcpy(orig_palette, SVidPreviousPalette, 1024);
 #ifndef USE_SDL1

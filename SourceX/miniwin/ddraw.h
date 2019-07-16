@@ -1,6 +1,12 @@
 #include "devilution.h"
 #include <SDL.h>
 
+#if defined(__AMIGA__) // Add other systems that require an 8bit screen here
+#define D_BPP 8
+#else
+#define D_BPP 0
+#endif
+
 namespace dvl {
 
 extern SDL_Window *window;
