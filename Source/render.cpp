@@ -102,15 +102,10 @@ inline static void RenderLine(BYTE **dst, BYTE **src, int n, BYTE *tbl, DWORD ma
 			(*dst) += n;
 			return;
 		}
-	} else {
-		if ((*dst) < &gpBuffer[(-17 + 160) * BUFFER_WIDTH]
-		    || (*dst) > &gpBuffer[(160 + 160) * BUFFER_WIDTH]) {
-			(*src) += n;
-			(*dst) += n;
-			return;
-		}
-	}
-#endif
+		src = pSpeedCels
+		    + SDL_SwapLE32(*(DWORD *)&gpCelFrame[4 * (light_table_index + 16 * (level_cel_block & 0xFFF))]);
+		cel_type_16 = (BYTE)(level_cel_block >> 12);
+	LABEL_11:
 
 	if (mask == 0xFFFFFFFF) {
 		if (light_table_index == lightmax) {

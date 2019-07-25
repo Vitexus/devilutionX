@@ -1007,7 +1007,7 @@ void SetTownMicros()
 				lv--;
 				pPiece = (WORD *)&pLevelPieces[32 * lv];
 				for (i = 0; i < 16; i++) {
-					pMap->mt[i] = pPiece[(i & 1) + 14 - (i & 0xE)];
+					pMap->mt[i] = SDL_SwapLE16(pPiece[(i & 1) + 14 - (i & 0xE)]);
 				}
 			} else {
 				for (i = 0; i < 16; i++) {
@@ -1043,11 +1043,14 @@ void T_FillSector(BYTE *P3Tiles, BYTE *pSector, int xi, int yi, int w, int h)
 			WORD *Map;
 
 			Map = (WORD *)&pSector[ii];
-			if (*Map) {
-				v1 = *((WORD *)&P3Tiles[(*Map - 1) * 8]) + 1;
-				v2 = *((WORD *)&P3Tiles[(*Map - 1) * 8] + 1) + 1;
-				v3 = *((WORD *)&P3Tiles[(*Map - 1) * 8] + 2) + 1;
-				v4 = *((WORD *)&P3Tiles[(*Map - 1) * 8] + 3) + 1;
+			int nMap = SDL_SwapLE16(*Map);
+			if (nMap) {
+			    WORD *Sector = (((WORD *)&P3Tiles[(nMap - 1) * 8]));
+				v1 = SDL_SwapLE16(*(Sector)) + 1;
+				v2 = SDL_SwapLE16(*(Sector + 1)) + 1;
+				v3 = SDL_SwapLE16(*(Sector + 2)) + 1;
+				v4 = SDL_SwapLE16(*(Sector + 3)) + 1;
+
 			} else {
 				v1 = 0;
 				v2 = 0;
@@ -1069,10 +1072,11 @@ void T_FillTile(BYTE *P3Tiles, int xx, int yy, int t)
 {
 	long v1, v2, v3, v4;
 
-	v1 = *((WORD *)&P3Tiles[(t - 1) * 8]) + 1;
-	v2 = *((WORD *)&P3Tiles[(t - 1) * 8] + 1) + 1;
-	v3 = *((WORD *)&P3Tiles[(t - 1) * 8] + 2) + 1;
-	v4 = *((WORD *)&P3Tiles[(t - 1) * 8] + 3) + 1;
+	WORD *Tiles = ((WORD *)&P3Tiles[(t - 1) * 8]);
+	v1 = SDL_SwapLE16(*(Tiles)) + 1;
+	v2 = SDL_SwapLE16(*(Tiles + 1)) + 1;
+	v3 = SDL_SwapLE16(*(Tiles + 2)) + 1;
+	v4 = SDL_SwapLE16(*(Tiles + 3)) + 1;
 
 	dPiece[xx][yy] = v1;
 	dPiece[xx + 1][yy] = v2;
