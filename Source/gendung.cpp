@@ -149,10 +149,10 @@ void MakeSpeedCels()
 		for (x = 0; x < MAXDUNX; x++) {
 			for (i = 0; i < blocks; i++) {
 				pMap = &dpiece_defs_map_2[x][y];
-				mt = pMap->mt[i];
+				mt = SDL_SwapLE32(pMap->mt[i]);
 				if (mt) {
-					level_frame_count[pMap->mt[i] & 0xFFF]++;
-					level_frame_types[pMap->mt[i] & 0xFFF] = mt & 0x7000;
+					level_frame_count[SDL_SwapLE32(pMap->mt[i] & 0xFFF)]++;
+					level_frame_types[SDL_SwapLE32(pMap->mt[i] & 0xFFF)] = mt & 0x7000;
 				}
 			}
 		}
@@ -284,10 +284,10 @@ void MakeSpeedCels()
 			if (dPiece[x][y]) {
 				pMap = &dpiece_defs_map_2[x][y];
 				for (i = 0; i < blocks; i++) {
-					if (pMap->mt[i]) {
+					if (SDL_SwapLE16(pMap->mt[i])) {
 						for (m = 0; m < total_frames; m++) {
-							if ((pMap->mt[i] & 0xFFF) == tile_defs[m]) {
-								pMap->mt[i] = m + level_frame_types[m] + 0x8000;
+							if ((SDL_SwapLE32(pMap->mt[i] & 0xFFF)) == tile_defs[m]) {
+								pMap->mt[i] = SDL_SwapLE32(m + level_frame_types[m] + 0x8000);
 								m = total_frames;
 							}
 						}
@@ -380,7 +380,7 @@ void SetDungeonMicros()
 				else
 					pPiece = (WORD *)&pLevelPieces[32 * lv];
 				for (i = 0; i < blocks; i++)
-					pMap->mt[i] = pPiece[(i & 1) + blocks - 2 - (i & 0xE)];
+					pMap->mt[i] = SDL_SwapLE16(pPiece[(i & 1) + blocks - 2 - (i & 0xE)]);
 			} else {
 				for (i = 0; i < blocks; i++)
 					pMap->mt[i] = 0;
