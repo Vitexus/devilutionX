@@ -52,6 +52,14 @@ if(HAIKU)
   set(ASAN OFF)
 endif()
 
+if(AMIGA)
+  set(ASAN OFF)
+  set(NONET ON)
+  set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -DNONET")
+  set(ASAN "Enable address sanitizer" OFF)
+  set(USE_SDL1 "Use SDL1.2 instead of SDL2" ON)
+endif()
+
 if(DIST)
   set(sodium_USE_STATIC_LIBS ON)
 endif()
@@ -317,10 +325,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   target_compile_options(devilution PRIVATE "/W0")
 endif()
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  add_definitions(-D_GNU_SOURCE )
 endif()
   add_definitions(-D_GNU_SOURCE)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   # Style issues
   target_compile_options(devilutionx PRIVATE -Wno-parentheses -Wno-logical-op-parentheses -Wno-bitwise-op-parentheses)
   # Silence warnings about __int64 alignment hack not always being applicable
