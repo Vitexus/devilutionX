@@ -55,9 +55,9 @@ endif()
 if(AMIGA)
   set(ASAN OFF)
   set(NONET ON)
-  set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -DNONET")
-  set(ASAN "Enable address sanitizer" OFF)
   set(USE_SDL1 "Use SDL1.2 instead of SDL2" ON)
+  find_package(Freetype REQUIRED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fexceptions")
 endif()
 
 if(DIST)
@@ -243,19 +243,27 @@ target_link_libraries(devilutionx PRIVATE
   PKWare
   StormLib
   smacker
-  Radon
-  ${SDL_LIBRARY}
-  ${SDL_TTF_LIBRARY}
-  ${SDL_MIXER_LIBRARY}
-  ${FREETYPE_LIBRARIES}
-  ${SDL_LIBRARY}
-  )
-if(AMIGA)
-  target_link_libraries(devilutionx PRIVATE -ldebug)
-endif()
+  Radon)
 
 if(NOT NONET)
   target_link_libraries(devilutionx PRIVATE sodium)
+endif()
+
+if(AMIGA)
+  if(USE_SDL1)
+    target_link_libraries(devilutionx PRIVATE
+      ${SDL_LIBRARY}
+      ${SDL_TTF_LIBRARY}
+      ${SDL_MIXER_LIBRARY}
+      ${FREETYPE_LIBRARIES})
+  endif()
+  target_link_libraries(devilutionx PRIVATE zlib)
+  if(NOT WARPOS)
+    target_link_libraries(devilutionx PRIVATE -ldebug)
+  endif()
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    add_definitions(-D_GNU_SOURCE)
+  endif()
 endif()
 
 target_compile_definitions(devilution PRIVATE DEVILUTION_ENGINE)
@@ -325,13 +333,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   target_compile_options(devilution PRIVATE "/W0")
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  add_definitions(-D_GNU_SOURCE )
-endif()
-  add_definitions(-D_GNU_SOURCE)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
   # Style issues
   target_compile_options(devilutionx PRIVATE -Wno-parentheses -Wno-logical-op-parentheses -Wno-bitwise-op-parentheses)
   # Silence warnings about __int64 alignment hack not always being applicable
