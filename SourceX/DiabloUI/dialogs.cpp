@@ -7,6 +7,11 @@
 #include "DiabloUI/button.h"
 #include "DiabloUI/fonts.h"
 
+#include <SDL.h>
+#ifdef USE_SDL1
+#include "sdl2_to_1_2_backports.h"
+#endif
+
 namespace dvl {
 
 extern HANDLE diabdat_mpq;
