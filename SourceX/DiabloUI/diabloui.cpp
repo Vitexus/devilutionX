@@ -528,7 +528,7 @@ void UiInitialize()
 {
 	LoadUiGFX();
 	LoadArtFonts();
-	ShowCursor(false);
+	ShowCursor(ArtCursor.surface == nullptr);
 }
 
 int UiProfileGetString()

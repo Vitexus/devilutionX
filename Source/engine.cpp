@@ -1274,21 +1274,6 @@ int random(BYTE idx, int v)
 	return GetRndSeed() % v;
 }
 
-void engine_debug_trap(BOOL show_cursor)
-{
-	/*
-	TMemBlock *pCurr;
-
-	sgMemCrit.Enter();
-	while(sgpMemBlock != NULL) {
-		pCurr = sgpMemBlock->pNext;
-		SMemFree(sgpMemBlock, __FILE__, __LINE__);
-		sgpMemBlock = pCurr;
-	}
-	sgMemCrit.Leave();
-*/
-}
-
 BYTE *DiabloAllocPtr(DWORD dwBytes)
 {
 	BYTE *buf;

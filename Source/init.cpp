@@ -22,7 +22,7 @@ HANDLE patch_rt_mpq;
 char gszVersionNumber[MAX_PATH] = "internal version unknown";
 char gszProductName[MAX_PATH] = "Diablo v1.09";
 
-void init_cleanup(BOOL show_cursor)
+void init_cleanup()
 {
 	pfile_flush_W();
 
@@ -44,18 +44,14 @@ void init_cleanup(BOOL show_cursor)
 	sound_cleanup();
 	NetClose();
 	dx_cleanup();
-	engine_debug_trap(show_cursor);
-
-	if (show_cursor)
-		ShowCursor(TRUE);
 }
 
-void init_create_window(int nCmdShow)
+void init_create_window()
 {
 	if (!SpawnWindow(PROJECT_NAME, SCREEN_WIDTH, SCREEN_HEIGHT))
 		app_fatal("Unable to create main window");
-	LoadFallbackPalette();
 	dx_init(NULL);
+	gbActive = true;
 	SDL_DisableScreenSaver();
 }
 
@@ -119,12 +115,8 @@ LRESULT __stdcall MainWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	switch (Msg) {
 	case WM_ERASEBKGND:
 		return 0;
-	case WM_CREATE:
-		ghMainWnd = hWnd;
-		break;
 	case WM_DESTROY:
-		init_cleanup(1);
-		ghMainWnd = 0;
+		init_cleanup();
 		PostQuitMessage(0);
 		break;
 	case WM_PAINT:

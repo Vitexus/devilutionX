@@ -103,7 +103,7 @@ void __cdecl app_fatal(const char *pszFmt, ...)
 	va_end(va);
 
 	dx_cleanup();
-	init_cleanup(FALSE);
+	init_cleanup();
 	exit(1);
 }
 

@@ -144,12 +144,10 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 	SDL_Event event;
 	state = State::DEFAULT;
 	if (render_behind_size == 0) {
-		if (diabdat_mpq == nullptr) {
+		LoadBackgroundArt("ui_art\\black.pcx");
+		if (ArtBackground.surface == nullptr) {
 			LoadFallbackPalette();
-		} else {
-			LoadBackgroundArt("ui_art\\black.pcx");
 		}
-		ShowCursor(diabdat_mpq == nullptr);
 	}
 	do {
 		while (SDL_PollEvent(&event)) {
@@ -181,8 +179,7 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 			UiRenderItems(render_behind, render_behind_size);
 		}
 		UiRenderItems(items, num_items);
-		if (diabdat_mpq != nullptr)
-			DrawMouse();
+        DrawMouse();
 		UiFadeIn();
 	} while (state == State::DEFAULT);
 }

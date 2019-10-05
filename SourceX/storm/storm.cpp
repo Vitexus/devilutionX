@@ -321,6 +321,16 @@ BOOL SMemFree(void *location, char *logfilename, int logline, char defaultValue)
 	return true;
 }
 
+bool getIniBool(const char *sectionName, const char *keyName, bool defaultValue)
+{
+	char string[2];
+
+	if (!getIniValue(sectionName, keyName, string, 2))
+		return defaultValue;
+		
+	return strtol(string, NULL, 10) != 0;
+}
+
 bool getIniValue(const char *sectionName, const char *keyName, char *string, int stringSize, int *dataSize)
 {
 	radon::Section *section = ini.getSection(sectionName);
