@@ -21,7 +21,6 @@
 #define PeekMessage PeekMessageA
 #define DispatchMessage DispatchMessageA
 #define PostMessage PostMessageA
-#define CreateWindowEx CreateWindowExA
 #define RegisterClassEx RegisterClassExA
 #define LoadImage LoadImageA
 
@@ -94,8 +93,6 @@
 
 #define SECTION_ALL_ACCESS \
 	(STANDARD_RIGHTS_REQUIRED | SECTION_QUERY | SECTION_MAP_WRITE | SECTION_MAP_READ | SECTION_MAP_EXECUTE | SECTION_EXTEND_SIZE)
-
-#define MessageBox MessageBoxA
 
 #define HKEY_CURRENT_USER 1
 #define KEY_READ 0x20019

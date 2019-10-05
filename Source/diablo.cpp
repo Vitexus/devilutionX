@@ -237,22 +237,24 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 	ghInst = hInstance;
 
+	init_create_window(nCmdShow);
+	gbActive = true;
+
 	if (ReadOnlyTest()) {
 		GetPrefPath(szFileName, sizeof(szFileName));
 		DirErrorDlg(szFileName);
 	}
 
-	ShowCursor(FALSE);
 	srand(GetTickCount());
 	InitHash();
 
 	{
-#ifdef _DEBUG
-		SFileEnableDirectAccess(TRUE);
-#endif
 		diablo_init_screen();
 		diablo_parse_flags(lpCmdLine);
-		init_create_window(nCmdShow);
+		SFileEnableDirectAccess(TRUE);
+		init_archives();
+		ShowCursor(FALSE);
+		snd_init(NULL);
 		sound_init();
 		UiInitialize();
 #ifdef SPAWN

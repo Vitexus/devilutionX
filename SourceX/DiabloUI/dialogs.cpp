@@ -2,6 +2,7 @@
 
 #include "devilution.h"
 #include "dx.h"
+#include "errorart.h"
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/button.h"
 #include "DiabloUI/fonts.h"
@@ -44,13 +45,6 @@ void DialogActionCancel()
 constexpr auto DIALOG_ART_S = UiImage(&dialogArt, { 180, 168, 280, 144 });
 constexpr auto DIALOG_ART_L = UiImage(&dialogArt, { 127, 100, 385, 280 });
 
-UiItem OKCANCEL_DIALOG[] = {
-	DIALOG_ART_S,
-	UiText(dialogText, { 200, 211, 240, 80 }, UIS_CENTER),
-	MakeSmlButton("OK", &DialogActionOK, 200, 265),
-	MakeSmlButton("Cancel", &DialogActionCancel, 330, 265),
-};
-
 UiItem OK_DIALOG[] = {
 	DIALOG_ART_S,
 	UiText(dialogText, { 200, 211, 240, 80 }, UIS_CENTER),
@@ -59,7 +53,7 @@ UiItem OK_DIALOG[] = {
 
 UiItem OK_DIALOG_WITH_CAPTION[] = {
 	DIALOG_ART_L,
-	UiText(dialogText, SDL_Color{ 255, 255, 0, 0 }, { 147, 110, 345, 20 }, UIS_CENTER),
+	UiText(dialogText, SDL_Color { 255, 255, 0, 0 }, { 147, 110, 345, 20 }, UIS_CENTER),
 	UiText(dialogCaption, { 147, 141, 345, 190 }, UIS_CENTER),
 	MakeSmlButton("OK", &DialogActionOK, 264, 335),
 };
@@ -80,48 +74,35 @@ UiItem SELOK_DIALOG[] = {
 };
 
 UiItem SPAWNERR_DIALOG[] = {
-	UiText("The Rogue and Sorcerer are only available in the full retail version of Diablo. For ordering information call (800) 953-SNOW.", { 140, 199, 400, 177 }),
+	UiText("The Rogue and Sorcerer are only available in the full retail version of Diablo. For ordering information visit https://www.gog.com/game/diablo.", { 140, 199, 400, 177 }),
 	UiArtTextButton("OK", &DialogActionOK, { 230, 407, 180, 43 }),
 };
 
-const std::uint_fast8_t DEFAULT_BG_DIALOG_IDX = 4;
-const std::uint_fast8_t DEFAULT_BG_BUTTON_IDX = 5;
-
-void LoadFallbackPalette()
+void StubArt(Art *art, int w, int h, BYTE *artData, int frames)
 {
-	PALETTEENTRY fallback_palette[256] = { 0 };
-	fallback_palette[1] = { 255, 255, 255, 0 };
-	fallback_palette[2] = { 255, 255, 0, 0 };
-	fallback_palette[3] = { 243, 243, 243, 0 };
-	fallback_palette[DEFAULT_BG_DIALOG_IDX] = { 100, 20, 20, 0 };
-	fallback_palette[DEFAULT_BG_BUTTON_IDX] = { 130, 110, 80, 0 };
-	LoadPalInMem(fallback_palette);
-	ApplyGamma(logical_palette, orig_palette, 256);
+	art->frames = frames;
+	art->surface = SDL_CreateRGBSurfaceWithFormatFrom(artData, w, h, 8, w, SDL_PIXELFORMAT_INDEX8);
+	art->frame_height = h / frames;
 }
 
-void StubArt(Art *art, int w, int h, std::uint_fast8_t color_idx)
+void LoadSmlButtonArt()
 {
-	art->surface = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h * art->frames, 8, 0, 0, 0, 0);
-	SDL_FillRect(art->surface, nullptr, color_idx);
-	art->frame_height = h;
+	const auto &btn = dialogItems[dialogItemsSize - 1].button;
+	StubArt(btn.art, btn.rect.w, btn.rect.h * 2, btnArt, 2);
 }
 
 void Init(const char *text, const char *caption, bool error)
 {
 	strcpy(dialogText, text);
 	if (caption == nullptr) {
-		if (diabdat_mpq != nullptr) {
-			LoadMaskedArt(error ? "ui_art\\srpopup.pcx" : "ui_art\\spopup.pcx", &dialogArt);
-		} else {
-			StubArt(&dialogArt, DIALOG_ART_S.rect.w, DIALOG_ART_S.rect.h, DEFAULT_BG_DIALOG_IDX);
-		}
+		LoadMaskedArt(error ? "ui_art\\srpopup.pcx" : "ui_art\\spopup.pcx", &dialogArt);
 		dialogItems = OK_DIALOG;
 		dialogItemsSize = size(OK_DIALOG);
 	} else {
-		if (diabdat_mpq != nullptr) {
-			LoadMaskedArt(error ? "ui_art\\lrpopup.pcx" : "ui_art\\lpopup.pcx", &dialogArt);
+		if (error) {
+			StubArt(&dialogArt, DIALOG_ART_L.rect.w, DIALOG_ART_L.rect.h, srpopupArt, 1);
 		} else {
-			StubArt(&dialogArt, DIALOG_ART_L.rect.w, DIALOG_ART_L.rect.h, DEFAULT_BG_DIALOG_IDX);
+			LoadMaskedArt("ui_art\\lpopup.pcx", &dialogArt);
 		}
 		strcpy(dialogCaption, caption);
 		dialogItems = OK_DIALOG_WITH_CAPTION;
@@ -131,9 +112,6 @@ void Init(const char *text, const char *caption, bool error)
 
 	if (diabdat_mpq == nullptr) {
 		ShowCursor(true);
-		LoadFallbackPalette();
-		const auto &btn = dialogItems[dialogItemsSize - 1].button;
-		StubArt(btn.art, btn.rect.w, btn.rect.h, DEFAULT_BG_BUTTON_IDX);
 	}
 
 	fontWasLoaded = font != nullptr;
@@ -160,8 +138,14 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 {
 	SDL_Event event;
 	state = State::DEFAULT;
-	if (render_behind_size == 0)
-		SDL_FillRect(pal_surface, nullptr, 0);
+	if (render_behind_size == 0) {
+		if (diabdat_mpq == nullptr) {
+			LoadFallbackPalette();
+		} else {
+			LoadBackgroundArt("ui_art\\black.pcx");
+		}
+		ShowCursor(diabdat_mpq == nullptr);
+	}
 	do {
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
@@ -185,9 +169,15 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 				exit(0);
 			}
 		}
-		UiRenderItems(render_behind, render_behind_size);
+
+		if (render_behind_size == 0) {
+			SDL_FillRect(pal_surface, nullptr, 0);
+		} else {
+			UiRenderItems(render_behind, render_behind_size);
+		}
 		UiRenderItems(items, num_items);
-		DrawMouse();
+		if (diabdat_mpq != nullptr)
+			DrawMouse();
 		UiFadeIn();
 	} while (state == State::DEFAULT);
 }
@@ -196,6 +186,16 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 
 void UiOkDialog(const char *text, const char *caption, bool error, UiItem *render_behind, std::size_t render_behind_size)
 {
+	if (!gbActive) {
+		ShowCursor(true);
+		if (SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, text, caption, NULL) <= -1) {
+			SDL_Log(SDL_GetError());
+			SDL_Log(text);
+			SDL_Log(caption);
+		}
+		return;
+	}
+
 	Init(text, caption, error);
 	DialogLoop(dialogItems, dialogItemsSize, render_behind, render_behind_size);
 	Deinit();
@@ -204,6 +204,11 @@ void UiOkDialog(const char *text, const char *caption, bool error, UiItem *rende
 void UiErrorOkDialog(const char *text, const char *caption, UiItem *render_behind, std::size_t render_behind_size)
 {
 	UiOkDialog(text, caption, /*error=*/true, render_behind, render_behind_size);
+}
+
+void UiErrorOkDialog(const char *text, const char *caption, bool error)
+{
+	UiOkDialog(text, caption, error, nullptr, 0);
 }
 
 void UiErrorOkDialog(const char *text, UiItem *render_behind, std::size_t render_behind_size)

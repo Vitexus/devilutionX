@@ -205,23 +205,7 @@ WINBOOL WINAPI TranslateMessage(const MSG *lpMsg);
 LRESULT WINAPI DispatchMessageA(const MSG *lpMsg);
 WINBOOL WINAPI PostMessageA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
-HWND CreateWindowExA(
-    DWORD dwExStyle,
-    LPCSTR lpClassName,
-    LPCSTR lpWindowName,
-    DWORD dwStyle,
-    int X,
-    int Y,
-    int nWidth,
-    int nHeight,
-    HWND hWndParent,
-    HMENU hMenu,
-    HINSTANCE hInstance,
-    LPVOID lpParam);
-BOOL InvalidateRect(HWND hWnd, const RECT *lpRect, BOOL bErase);
-BOOL UpdateWindow(HWND hWnd);
-BOOL ShowWindow(HWND hWnd, int nCmdShow);
-int GetSystemMetrics(int nIndex);
+bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight);
 
 typedef LONG(WINAPI *PTOP_LEVEL_EXCEPTION_FILTER)(
     struct _EXCEPTION_POINTERS *ExceptionInfo);
@@ -370,7 +354,6 @@ BOOL GetVersionExA(LPOSVERSIONINFOA lpVersionInformation);
 
 void lstrcpynA(LPSTR lpString1, LPCSTR lpString2, int iMaxLength);
 
-int MessageBoxA(HWND hWnd, const char *Text, const char *Title, UINT Flags);
 typedef LONG LSTATUS, HKEY, REGSAM, PHKEY;
 
 void PostQuitMessage(int nExitCode);

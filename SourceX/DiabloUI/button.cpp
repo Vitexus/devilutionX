@@ -8,18 +8,16 @@ Art SmlButton;
 
 void LoadSmlButtonArt()
 {
-	LoadArt("ui_art\\but_sml.pcx", &SmlButton, 15);
+	//LoadArt("ui_art\\but_sml.pcx", &SmlButton, 15); //TODO fix loading the button
 }
 
 void RenderButton(UiButton *button)
 {
 	int frame;
-	if (button->has_flag(UIS_DISABLED)) {
-		frame = button->frame_map[UiButton::DISABLED];
-	} else if (button->pressed) {
-		frame = button->frame_map[UiButton::PRESSED];
+	if (button->pressed) {
+		frame = UiButton::PRESSED;
 	} else {
-		frame = button->frame_map[UiButton::DEFAULT];
+		frame = UiButton::DEFAULT;
 	}
 	DrawArt(button->rect.x, button->rect.y, button->art, frame, button->rect.w, button->rect.h);
 

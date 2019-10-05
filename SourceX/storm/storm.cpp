@@ -825,11 +825,6 @@ int SStrCopy(char *dest, const char *src, int max_length)
 	return strlen(dest);
 }
 
-void SDrawMessageBox(char *Text, char *Title, int Flags)
-{
-	MessageBoxA(NULL, Text, Title, Flags);
-}
-
 BOOL SFileSetBasePath(char *)
 {
 	DUMMY();

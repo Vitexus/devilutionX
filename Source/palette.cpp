@@ -22,14 +22,10 @@ void SaveGamma()
 
 void palette_init()
 {
-	DWORD error_code;
-
 	LoadGamma();
 	memcpy(system_palette, orig_palette, sizeof(orig_palette));
 	LoadSysPal();
-	error_code = CreatePalette();
-	if (error_code)
-		ERR_DLG(IDD_DIALOG8, error_code);
+	CreatePalette();
 }
 
 void LoadGamma()

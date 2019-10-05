@@ -40,7 +40,6 @@ bool UiItemsWraps;
 char *UiTextInput;
 int UiTextInputLen;
 
-
 namespace {
 
 int fadeValue = 0;
@@ -53,27 +52,11 @@ struct {
 
 const char *const errorTitle[] = {
 	"SDL Error",
-	"Out of Memory Error",
 	"SDL Error",
-	"Data File Error",
-	"SDL Error",
-	"Out of Disk Space",
-	"SDL Error",
-	"Data File Error",
-	"Windows 2000 Restricted User Advisory",
-	"Read-Only Directory Error",
 };
 const char *const errorMessages[] = {
-	"Diablo was unable to properly initialize SDL.\nPlease try the following solutions to correct the problem:\n\n    Install the most recent SDL provided for your distribution.\n\nIf you continue to have problems with SDL, create an issue on GitHub:\n    https://github.com/diasurgical/devilutionX/issues\n\n\nThe error encountered while trying to initialize was:\n\n    %s",
-	"Diablo has exhausted all the memory on your system.\nMake sure you have at least 512MB of free system memory\n\nThe error encountered was:\n\n    %s",
-	"Diablo was unable to open a required file.\nPlease ensure that the diabdat.mpq is in the same folder as Devilution.\nIf this problem persists, try checking that the md5 of diabdat.mpq is either 011bc6518e6166206231080a4440b373 or 68f049866b44688a7af65ba766bef75a.\n\nThe problem occurred while trying to load %s",
-	"Diablo was unable to find the file \"ddraw.dll\", which is a component of Microsoft DirectX.\nPlease run the program \"SETUP.EXE\" on the Diablo CD-ROM and install Microsoft DirectX.\n\nIf you continue to have problems with DirectX, please contact Microsoft's Technical Support at:\n\n    USA telephone: 1-800-426-9400\n    International telephone: 206-882-8080\n    http://www.microsoft.com\n\n\nThe error encountered while trying to initialize DirectX was:\n\n    %s",
-	"Diablo was unable to find the file \"dsound.dll\", which is a component of Microsoft DirectX.\nPlease run the program \"SETUP.EXE\" on the Diablo CD-ROM and install Microsoft DirectX.\n\nIf you continue to have problems with DirectX, please contact Microsoft's Technical Support at:\n\n    USA telephone: 1-800-426-9400\n    International telephone: 206-882-8080\n    http://www.microsoft.com\n\n\nThe error encountered while trying to initialize DirectX was:\n\n    %s",
-	"Diablo requires at least 10 megabytes of free disk space to run properly.\nThe disk:\n\n%s\n\nhas less than 10 megabytes of free space left.\n\nPlease free some space on your drive and run Diablo again.",
+	"Unable to properly initialize SDL.\nPlease try the following solutions to correct the problem:\n\n    Install the most recent SDL provided for your distribution.\n\nIf you continue to have problems with SDL, create an issue on GitHub:\n    https://github.com/diasurgical/devilutionX/issues\n\n\nThe error encountered while trying to initialize was:\n\n    %s",
 	"Diablo was unable to switch video modes.\nThis is a common problem for computers with more than one video card.\nTo correct this problem, please set your video resolution to 640 x 480 and try running Diablo again.\n\nFor Windows 95 and Windows NT\n    Select \"Settings - Control Panel\" from the \"Start\" menu\n    Run the \"Display\" control panel applet\n    Select the \"Settings\" tab\n    Set the \"Desktop Area\" to \"640 x 480 pixels\"\n\n\nThe error encountered while trying to switch video modes was:\n\n    %s",
-	"Diablo cannot read a required data file.\nYour diabdat.mpq may not be in the Devilution folder.\nPlease ensure that the filename is in all lower case and try again.\n    %s",
-	"In order to install, play or patch Diablo using the Windows 2000 operating system,\nyou will need to log in as either an Administrator or as a Power User.\n\nUsers, also known as Restricted Users, do not have sufficient access to install or play the game properly.\n\nIf you have further questions regarding User Rights in Windows 2000, please refer to your Windows 2000 documentation or contact your system administrator.",
-	"Diablo is being run from:\n\n    %s\n\n\nDiablo or the current user does not seem to have write privilages in this directory. Contact your system administrator.\n\nNote that Windows 2000 Restricted Users can not write to the Windows or Program Files directory hierarchies.",
 };
 
 } // namespace
@@ -96,24 +79,8 @@ LPCSTR DVL_MAKEINTRESOURCE(int i)
 	switch (i) {
 	case IDD_DIALOG1:
 		return (LPCSTR)0;
-	case IDD_DIALOG2:
-		return (LPCSTR)1;
-	case IDD_DIALOG3:
-		return (LPCSTR)2;
-	case IDD_DIALOG4:
-		return (LPCSTR)3;
-	case IDD_DIALOG5:
-		return (LPCSTR)4;
-	case IDD_DIALOG7:
-		return (LPCSTR)5;
 	case IDD_DIALOG8:
-		return (LPCSTR)6;
-	case IDD_DIALOG9:
-		return (LPCSTR)7;
-	case IDD_DIALOG10:
-		return (LPCSTR)8;
-	case IDD_DIALOG11:
-		return (LPCSTR)9;
+		return (LPCSTR)1;
 	}
 
 	return (LPCSTR)-1;
@@ -125,16 +92,6 @@ int DialogBoxParam(HINSTANCE hInstance, LPCSTR msgId, HWND hWndParent, DLGPROC l
 	snprintf(text, 1024, errorMessages[(intptr_t)msgId], dwInitParam);
 	UiErrorOkDialog(errorTitle[(intptr_t)msgId], text, nullptr, 0);
 	return 0;
-}
-
-BOOL SetDlgItemText(HWND hDlg, int nIDDlgItem, LPCSTR lpString)
-{
-	return false;
-}
-
-BOOL EndDialog(HWND hDlg, INT_PTR nResult)
-{
-	return false;
 }
 
 BOOL SetWindowPos(HWND hWnd, HWND hWndInsertAfter, int X, int Y, int cx, int cy, UINT uFlags)
@@ -177,7 +134,8 @@ void UiInitList(int min, int max, void (*fnFocus)(int value), void (*fnSelect)(i
 	}
 }
 
-void UiInitScrollBar(UiScrollBar *ui_sb, std::size_t viewport_size, const std::size_t *current_offset) {
+void UiInitScrollBar(UiScrollBar *ui_sb, std::size_t viewport_size, const std::size_t *current_offset)
+{
 	ListViewportSize = viewport_size;
 	ListOffset = current_offset;
 	if (ListViewportSize >= static_cast<std::size_t>(SelectedItemMax - SelectedItemMin + 1)) {
@@ -429,13 +387,141 @@ bool IsInsideRect(const SDL_Event &event, const SDL_Rect &rect)
 	return SDL_PointInRect(&point, &rect);
 }
 
-void LoadUiGFX() {
+void LoadUiGFX()
+{
 	LoadMaskedArt("ui_art\\smlogo.pcx", &ArtLogos[LOGO_MED], 15);
 	LoadMaskedArt("ui_art\\focus16.pcx", &ArtFocus[FOCUS_SMALL], 8);
 	LoadMaskedArt("ui_art\\focus.pcx", &ArtFocus[FOCUS_MED], 8);
 	LoadMaskedArt("ui_art\\focus42.pcx", &ArtFocus[FOCUS_BIG], 8);
 	LoadMaskedArt("ui_art\\cursor.pcx", &ArtCursor, 1, 0);
 	LoadArt("ui_art\\heros.pcx", &ArtHero, 4);
+}
+
+// clang-format off
+#define BLANKCOLOR { 0, 0xFF, 0, 0 }
+// clang-format on
+
+void LoadFallbackPalette()
+{
+	// clang-format off
+	PALETTEENTRY fallback_palette[256] = {
+		{ 0x00, 0x00, 0x00, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR,
+		{ 0xff, 0xfd, 0x9f, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		{ 0xe8, 0xca, 0xca, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		{ 0x05, 0x07, 0x0c, 0 },
+		{ 0xff, 0xe3, 0xa4, 0 },
+		{ 0xee, 0xd1, 0x8c, 0 },
+		{ 0xdd, 0xc4, 0x7e, 0 },
+		{ 0xcc, 0xb7, 0x75, 0 },
+		{ 0xbc, 0xa8, 0x6c, 0 },
+		{ 0xab, 0x9a, 0x63, 0 },
+		{ 0x98, 0x8b, 0x5d, 0 },
+		{ 0x87, 0x7e, 0x54, 0 },
+		{ 0x78, 0x6f, 0x49, 0 },
+		{ 0x69, 0x60, 0x3f, 0 },
+		{ 0x5b, 0x51, 0x34, 0 },
+		{ 0x48, 0x40, 0x27, 0 },
+		{ 0x39, 0x31, 0x1d, 0 },
+		{ 0x31, 0x28, 0x16, 0 },
+		{ 0x1a, 0x14, 0x08, 0 },
+		{ 0x14, 0x0b, 0x00, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR,
+		{ 0xff, 0xbd, 0xbd, 0 },
+		{ 0xf4, 0x96, 0x96, 0 },
+		{ 0xe8, 0x7d, 0x7d, 0 },
+		{ 0xe0, 0x6c, 0x6c, 0 },
+		{ 0xd8, 0x5b, 0x5b, 0 },
+		{ 0xcf, 0x49, 0x49, 0 },
+		{ 0xc7, 0x38, 0x38, 0 },
+		{ 0xbf, 0x27, 0x27, 0 },
+		{ 0xa9, 0x22, 0x22, 0 },
+		{ 0x93, 0x1e, 0x1e, 0 },
+		{ 0x7c, 0x19, 0x19, 0 },
+		{ 0x66, 0x15, 0x15, 0 },
+		{ 0x4f, 0x11, 0x11, 0 },
+		{ 0x39, 0x0d, 0x0d, 0 },
+		{ 0x23, 0x09, 0x09, 0 },
+		{ 0x0c, 0x05, 0x05, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR,
+		{ 0xf3, 0xf3, 0xf3, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR,
+		{ 0xff, 0xff, 0x00, 0 },
+		BLANKCOLOR, BLANKCOLOR, BLANKCOLOR,
+		BLANKCOLOR,
+	};
+	// clang-format on
+	ApplyGamma(logical_palette, fallback_palette, 256);
 }
 
 void UiInitialize()
@@ -474,11 +560,6 @@ void UiSetupPlayerInfo(char *infostr, _uiheroinfo *pInfo, DWORD type)
 	    pInfo->vitality,
 	    pInfo->gold,
 	    pInfo->spawned);
-}
-
-void UiAppActivate(BOOL bActive)
-{
-	DUMMY();
 }
 
 BOOL UiValidPlayerName(char *name)
@@ -621,7 +702,8 @@ void DrawSelector(const SDL_Rect &rect)
 	DrawArt(rect.x + rect.w - art->w(), y, art, frame);
 }
 
-void UiPollAndRender() {
+void UiPollAndRender()
+{
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		UiFocusNavigation(&event);
@@ -678,7 +760,8 @@ void Render(const UiList &ui_list)
 	}
 }
 
-void Render(const UiScrollBar &ui_sb) {
+void Render(const UiScrollBar &ui_sb)
+{
 	// Bar background (tiled):
 	{
 		const std::size_t bg_y_end = DownArrowRect(ui_sb).y;
@@ -705,7 +788,7 @@ void Render(const UiScrollBar &ui_sb) {
 	// Thumb:
 	{
 		const SDL_Rect rect = ThumbRect(
-			    ui_sb, SelectedItem - SelectedItemMin, SelectedItemMax - SelectedItemMin + 1);
+		    ui_sb, SelectedItem - SelectedItemMin, SelectedItemMax - SelectedItemMin + 1);
 		DrawArt(rect.x, rect.y, ui_sb.thumb);
 	}
 }
@@ -778,7 +861,8 @@ bool HandleMouseEventList(const SDL_Event &event, const UiList &ui_list)
 	return true;
 }
 
-bool HandleMouseEventScrollBar(const SDL_Event &event, const UiScrollBar &ui_sb) {
+bool HandleMouseEventScrollBar(const SDL_Event &event, const UiScrollBar &ui_sb)
+{
 	if (event.button.button != SDL_BUTTON_LEFT)
 		return false;
 	if (event.type == SDL_MOUSEBUTTONUP) {
@@ -849,7 +933,8 @@ void UiRenderItems(UiItem *items, std::size_t size)
 
 bool UiItemMouseEvents(SDL_Event *event, UiItem *items, std::size_t size)
 {
-	if (!items || size == 0) return false;
+	if (!items || size == 0)
+		return false;
 
 	bool handled = false;
 	for (std::size_t i = 0; i < size; i++) {
@@ -911,4 +996,4 @@ void DvlStringSetting(const char *valuename, char *string, int len)
 		SRegSaveString("devilutionx", valuename, 0, string);
 	}
 }
-}
+} // namespace dvl

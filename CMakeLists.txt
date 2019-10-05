@@ -249,6 +249,7 @@ if(NOT NONET)
   target_link_libraries(devilutionx PRIVATE sodium)
 endif()
 
+
 target_compile_definitions(devilution PRIVATE DEVILUTION_ENGINE)
 target_compile_definitions(devilution PUBLIC
   "$<$<BOOL:${DEBUG}>:_DEBUG>"
@@ -300,6 +301,9 @@ if(HAIKU)
 endif()
 
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-macro-redefined -D'__FILE__=\"$(subst $(realpath ${CMAKE_SOURCE_DIR})/,,$(abspath $<))\"'")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-builtin-macro-redefined -D'__FILE__=\"$(subst $(realpath ${CMAKE_SOURCE_DIR})/,,$(abspath $<))\"'")
+
   if(DEBUG)
     # Note: For Valgrind suppor.
     target_compile_options(devilution PUBLIC -fno-omit-frame-pointer)
