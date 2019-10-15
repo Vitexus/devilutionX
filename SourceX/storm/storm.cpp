@@ -1,6 +1,6 @@
 #include "devilution.h"
 
-#ifdef USE_SDL1
+#if !SDL_VERSION_ATLEAST(2, 0, 4)
 #include <queue>
 #endif
 
@@ -77,6 +77,7 @@ BOOL SFileDdaBeginEx(HANDLE hFile, DWORD flags, DWORD mask, unsigned __int32 lDi
 	SDL_RWops *rw = SDL_RWFromConstMem(SFXbuffer, bytestoread);
 	if (rw == NULL) {
 		SDL_Log(SDL_GetError());
+		return false;
 	}
 	SFileChunk = Mix_LoadWAV_RW(rw, 1);
 	free(SFXbuffer);
@@ -119,12 +120,6 @@ BOOL SFileDdaSetVolume(HANDLE hFile, signed int bigvolume, signed int volume)
 {
 	Mix_VolumeMusic(MIX_MAX_VOLUME - MIX_MAX_VOLUME * bigvolume / VOLUME_MIN);
 
-	return true;
-}
-
-BOOL SFileGetFileArchive(HANDLE hFile, HANDLE *archive)
-{
-	UNIMPLEMENTED();
 	return true;
 }
 
@@ -442,7 +437,7 @@ void SVidRestartMixer()
 	Mix_ReserveChannels(1);
 }
 
-#ifdef USE_SDL1
+#if !SDL_VERSION_ATLEAST(2, 0, 4)
 struct AudioQueueItem {
 	unsigned char *data;
 	unsigned long len;
@@ -526,10 +521,10 @@ private:
 static AudioQueue *sVidAudioQueue = new AudioQueue();
 #endif
 
-BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HANDLE *video)
+void SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HANDLE *video)
 {
 	if (flags & 0x10000 || flags & 0x20000000) {
-		return false;
+		return;
 	}
 
 	SVidLoop = flags & 0x40000;
@@ -549,7 +544,7 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 
 	SVidSMK = smk_open_memory(SVidBuffer, bytestoread);
 	if (SVidSMK == NULL) {
-		return false;
+		return;
 	}
 
 	unsigned char channels[7], depth[7];
@@ -565,20 +560,19 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 
 		Mix_CloseAudio();
 
-#ifdef USE_SDL1
+#if !SDL_VERSION_ATLEAST(2, 0, 4)
 		sVidAudioQueue->Subscribe(&audioFormat);
+#endif
+
+#ifdef USE_SDL1
 		if (SDL_OpenAudio(&audioFormat, NULL) != 0) {
-			SDL_Log(SDL_GetError());
-			SVidRestartMixer();
-			return false;
+			ErrSdl();
 		}
 		SDL_PauseAudio(0);
 #else
 		deviceId = SDL_OpenAudioDevice(NULL, 0, &audioFormat, NULL, 0);
 		if (deviceId == 0) {
-			SDL_Log(SDL_GetError());
-			SVidRestartMixer();
-			return false;
+			ErrSdl();
 		}
 
 		SDL_PauseAudioDevice(deviceId, 0); /* start audio playing. */
@@ -596,12 +590,12 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 #ifndef USE_SDL1
 	if (renderer) {
 		SDL_DestroyTexture(texture);
-		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, SVidWidth, SVidHeight);
+		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, SVidWidth, SVidHeight);
 		if (texture == NULL) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 		if (SDL_RenderSetLogicalSize(renderer, SVidWidth, SVidHeight) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 	}
 #endif
@@ -616,27 +610,18 @@ BOOL SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 	    SVidWidth,
 	    SDL_PIXELFORMAT_INDEX8);
 	if (SVidSurface == NULL) {
-		SDL_Log(SDL_GetError());
+		ErrSdl();
 	}
 
 	SVidPalette = SDL_AllocPalette(256);
 	if (SVidPalette == NULL) {
-		SDL_Log(SDL_GetError());
+		ErrSdl();
 	}
-#ifdef USE_SDL1
-	if (SDL_SetPalette(SVidSurface, SDL_LOGPAL, SVidPalette->colors, 0, SVidPalette->ncolors) != 1) {
-#else
-	if (SDL_SetSurfacePalette(SVidSurface, SVidPalette) <= -1) {
-#endif
-		SDL_Log(SDL_GetError());
-		if (HaveAudio())
-			SVidRestartMixer();
-		return false;
+	if (SDLC_SetSurfaceColors(SVidSurface, SVidPalette) <= -1) {
+		ErrSdl();
 	}
 
 	SVidFrameEnd = SDL_GetTicks() * 1000 + SVidFrameLength;
-
-	return true;
 }
 
 BOOL SVidLoadNextFrame()
@@ -675,17 +660,10 @@ BOOL SVidPlayContinue(void)
 		}
 		memcpy(logical_palette, orig_palette, 1024);
 
-		if (SDL_SetPaletteColors(SVidPalette, colors, 0, 256) <= -1) {
+		if (SDLC_SetSurfaceAndPaletteColors(SVidSurface, SVidPalette, colors, 0, 256) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;
 		}
-
-#ifdef USE_SDL1
-		if (SDL_SetPalette(SVidSurface, SDL_LOGPAL, SVidPalette->colors, 0, SVidPalette->ncolors) != 1) {
-			SDL_Log(SDL_GetError());
-			return false;
-		}
-#endif
 	}
 
 	if (SDL_GetTicks() * 1000 >= SVidFrameEnd) {
@@ -693,13 +671,13 @@ BOOL SVidPlayContinue(void)
 	}
 
 	if (HaveAudio()) {
-#ifdef USE_SDL1
-		sVidAudioQueue->Enqueue(smk_get_audio(SVidSMK, 0), smk_get_audio_size(SVidSMK, 0));
-#else
+#if SDL_VERSION_ATLEAST(2, 0, 4)
 		if (SDL_QueueAudio(deviceId, smk_get_audio(SVidSMK, 0), smk_get_audio_size(SVidSMK, 0)) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;
 		}
+#else
+	sVidAudioQueue->Enqueue(smk_get_audio(SVidSMK, 0), smk_get_audio_size(SVidSMK, 0));
 #endif
 	}
 
@@ -709,7 +687,7 @@ BOOL SVidPlayContinue(void)
 
 #ifndef USE_SDL1
 	if (renderer) {
-		if (SDL_BlitSurface(SVidSurface, NULL, surface, NULL) <= -1) {
+		if (SDL_BlitSurface(SVidSurface, NULL, GetOutputSurface(), NULL) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;
 		}
@@ -741,7 +719,7 @@ BOOL SVidPlayContinue(void)
 		Uint32 format = SDL_GetWindowPixelFormat(window);
 		SDL_Surface *tmp = SDL_ConvertSurfaceFormat(SVidSurface, format, 0);
 #endif
-		if (SDL_BlitScaled(tmp, NULL, surface, &pal_surface_offset) <= -1) {
+		if (SDL_BlitScaled(tmp, NULL, GetOutputSurface(), &pal_surface_offset) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;
 		}
@@ -759,16 +737,20 @@ BOOL SVidPlayContinue(void)
 	return SVidLoadNextFrame();
 }
 
-BOOL SVidPlayEnd(HANDLE video)
+void SVidPlayEnd(HANDLE video)
 {
 	if (HaveAudio()) {
-#ifdef USE_SDL1
-		SDL_CloseAudio();
-		sVidAudioQueue->Clear();
-#else
+#if SDL_VERSION_ATLEAST(2, 0, 4)
 		SDL_ClearQueuedAudio(deviceId);
 		SDL_CloseAudioDevice(deviceId);
 		deviceId = 0;
+#elif SDL_VERSION_ATLEAST(2, 0, 0)
+		SDL_CloseAudioDevice(deviceId);
+		deviceId = 0;
+		sVidAudioQueue->Clear();
+#else // USE_SDL1
+		SDL_CloseAudio();
+		sVidAudioQueue->Clear();
 #endif
 		SVidRestartMixer();
 	}
@@ -794,17 +776,15 @@ BOOL SVidPlayEnd(HANDLE video)
 #ifndef USE_SDL1
 	if (renderer) {
 		SDL_DestroyTexture(texture);
-		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
+		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
 		if (texture == NULL) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 		if (renderer && SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH, SCREEN_HEIGHT) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 	}
 #endif
-
-	return true;
 }
 
 DWORD SErrGetLastError()

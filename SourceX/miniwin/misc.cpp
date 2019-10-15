@@ -26,14 +26,6 @@ void SetLastError(DWORD dwErrCode)
 	last_error = dwErrCode;
 }
 
-char *_strlwr(char *str)
-{
-	for (char *p = str; *p; ++p) {
-		*p = tolower(*p);
-	}
-	return str;
-}
-
 int wsprintfA(LPSTR dest, LPCSTR format, ...)
 {
 	va_list args;
@@ -106,11 +98,6 @@ WINBOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD nSize)
 	return true;
 }
 
-UINT GetDriveTypeA(LPCSTR lpRootPathName)
-{
-	return DVL_DRIVE_CDROM;
-}
-
 WINBOOL DeleteFileA(LPCSTR lpFileName)
 {
 	char name[DVL_MAX_PATH];
@@ -129,17 +116,10 @@ WINBOOL DeleteFileA(LPCSTR lpFileName)
 	return true;
 }
 
-void FakeWMDestroy()
-{
-	init_cleanup();
-	PostMessageA(NULL, DVL_WM_QUERYENDSESSION, 0, 0);
-}
-
 bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 {
 	if (SDL_Init(SDL_INIT_EVERYTHING & ~SDL_INIT_HAPTIC) <= -1) {
-		SDL_Log(SDL_GetError());
-		return false;
+		ErrSdl();
 	}
 
 	atexit(SDL_Quit);
@@ -157,15 +137,14 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 
 #ifdef USE_SDL1
 	int flags = SDL_SWSURFACE | SDL_DOUBLEBUF | SDL_HWPALETTE;
-	if (fullscreen) {
-		SDL_Log("fullscreen not yet supported with SDL1");
-	}
-	// flags |= fullscreen ? SDL_FULLSCREEN : SDL_RESIZABLE;
+	if (fullscreen)
+		flags |= SDL_FULLSCREEN;
 	SDL_WM_SetCaption(lpWindowName, WINDOW_ICON_NAME);
 	SDL_SetVideoMode(nWidth, nHeight, /*bpp=*/0, flags);
 	window = SDL_GetVideoSurface();
 	if (grabInput)
 		SDL_WM_GrabInput(SDL_GRAB_ON);
+	atexit(SDL_VideoQuit); // Without this video mode is not restored after fullscreen.
 #else
 	int flags = 0;
 	if (upscale) {
@@ -185,9 +164,8 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 	window = SDL_CreateWindow(lpWindowName, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, nWidth, nHeight, flags);
 #endif
 	if (window == NULL) {
-		SDL_Log(SDL_GetError());
+		ErrSdl();
 	}
-	atexit(FakeWMDestroy);
 
 	if (upscale) {
 #ifdef USE_SDL1
@@ -195,33 +173,20 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 #else
 		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
 		if (renderer == NULL) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 
-		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, nWidth, nHeight);
+		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, nWidth, nHeight);
 		if (texture == NULL) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 
 		if (SDL_RenderSetLogicalSize(renderer, nWidth, nHeight) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 #endif
 	}
 
 	return window != NULL;
-}
-
-BOOL GetVersionExA(LPOSVERSIONINFOA lpVersionInformation)
-{
-	lpVersionInformation->dwMajorVersion = 5;
-	lpVersionInformation->dwMinorVersion = 0;
-	lpVersionInformation->dwPlatformId = DVL_VER_PLATFORM_WIN32_NT;
-	return true;
-}
-
-void lstrcpynA(LPSTR lpString1, LPCSTR lpString2, int iMaxLength)
-{
-	strncpy(lpString1, lpString2, iMaxLength);
 }
 } // namespace dvl

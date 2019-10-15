@@ -22,8 +22,8 @@ SDL_Texture *texture;
 SDL_Palette *palette;
 unsigned int pal_surface_palette_version = 0;
 
-/** 32-bit in-memory backbuffer surface */
-SDL_Surface *surface;
+/** 24-bit renderer texture surface */
+SDL_Surface *renderer_texture_surface = nullptr;
 
 /** 8-bit surface wrapper around #gpBuffer */
 SDL_Surface *pal_surface;
@@ -44,19 +44,13 @@ void dx_create_back_buffer()
 {
 	pal_surface = SDL_CreateRGBSurfaceWithFormat(0, BUFFER_WIDTH, BUFFER_HEIGHT, 8, SDL_PIXELFORMAT_INDEX8);
 	if (pal_surface == NULL) {
-		SDL_Log(SDL_GetError());
-		UiErrorOkDialog("SDL Error", SDL_GetError());
+		ErrSdl();
 	}
 
 	gpBuffer = (BYTE *)pal_surface->pixels;
 
-#ifdef USE_SDL1
-	if (SDL_SetPalette(pal_surface, SDL_LOGPAL, palette->colors, 0, palette->ncolors) != 1) {
-#else
-	if (SDL_SetSurfacePalette(pal_surface, palette) <= -1) {
-#endif
-		SDL_Log(SDL_GetError());
-		UiErrorOkDialog("SDL Error", SDL_GetError());
+	if (SDLC_SetSurfaceColors(pal_surface, palette) <= -1) {
+		ErrSdl();
 	}
 
 	pal_surface_palette_version = 1;
@@ -64,23 +58,20 @@ void dx_create_back_buffer()
 
 void dx_create_primary_surface()
 {
-#ifdef USE_SDL1
-	surface = SDL_GetVideoSurface();
-#else
+#ifndef USE_SDL1
 	if (renderer) {
 		int width, height;
 		if (SDL_GetRendererOutputSize(renderer, &width, &height) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
-		// TODO Get format from render/window
-		surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_RGBA8888);
-	} else {
-		surface = SDL_GetWindowSurface(window);
+		Uint32 format;
+		if (SDL_QueryTexture(texture, &format, nullptr, nullptr, nullptr) < 0)
+			ErrSdl();
+		renderer_texture_surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, SDL_BITSPERPIXEL(format), format);
 	}
 #endif
-	if (surface == NULL) {
-		SDL_Log(SDL_GetError());
-		UiErrorOkDialog("SDL Error", SDL_GetError());
+	if (GetOutputSurface() == nullptr) {
+		ErrSdl();
 	}
 }
 
@@ -145,7 +136,7 @@ void dx_cleanup()
 	SDL_FreeSurface(pal_surface);
 	pal_surface = nullptr;
 	SDL_FreePalette(palette);
-	SDL_FreeSurface(surface);
+	SDL_FreeSurface(renderer_texture_surface);
 	SDL_DestroyTexture(texture);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
@@ -180,8 +171,7 @@ void CreatePalette()
 {
 	palette = SDL_AllocPalette(256);
 	if (palette == NULL) {
-		SDL_Log(SDL_GetError());
-		UiErrorOkDialog("SDL Error", SDL_GetError());
+		ErrSdl();
 	}
 }
 
@@ -201,10 +191,8 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 	};
 
 	// Convert from 8-bit to 32-bit
-	if (SDL_BlitSurface(pal_surface, &src_rect, surface, &dst_rect) <= -1) {
-		SDL_Log(SDL_GetError());
-		UiErrorOkDialog("SDL Error", SDL_GetError());
-		return;
+	if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+		ErrSdl();
 	}
 
 	bufferUpdated = true;
@@ -212,6 +200,7 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 
 void RenderPresent()
 {
+	SDL_Surface *surface = GetOutputSurface();
 	assert(!SDL_MUSTLOCK(surface));
 
 	if (!bufferUpdated) {
@@ -220,30 +209,30 @@ void RenderPresent()
 
 #ifdef USE_SDL1
 	if (SDL_Flip(surface) <= -1) {
-		SDL_Log(SDL_GetError());
+		ErrSdl();
 	}
 #else
 	if (renderer) {
 		if (SDL_UpdateTexture(texture, NULL, surface->pixels, surface->pitch) <= -1) { //pitch is 2560
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 
 		// Clear buffer to avoid artifacts in case the window was resized
 		if (SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255) <= -1) { // TODO only do this if window was resized
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 
 		if (SDL_RenderClear(renderer) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 
 		if (SDL_RenderCopy(renderer, texture, NULL, NULL) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 		SDL_RenderPresent(renderer);
 	} else {
 		if (SDL_UpdateWindowSurface(window) <= -1) {
-			SDL_Log(SDL_GetError());
+			ErrSdl();
 		}
 	}
 #endif
@@ -259,16 +248,5 @@ void PaletteGetEntries(DWORD dwNumEntries, LPPALETTEENTRY lpEntries)
 		lpEntries[i].peGreen = system_palette[i].peGreen;
 		lpEntries[i].peBlue = system_palette[i].peBlue;
 	}
-}
-
-void PaletteSetEntries(DWORD dwCount, LPPALETTEENTRY lpEntries)
-{
-	for (DWORD i = 0; i < dwCount; i++) {
-		system_palette[i].peFlags = 0;
-		system_palette[i].peRed = lpEntries[i].peRed;
-		system_palette[i].peGreen = lpEntries[i].peGreen;
-		system_palette[i].peBlue = lpEntries[i].peBlue;
-	}
-	palette_update();
 }
 } // namespace dvl
