@@ -414,17 +414,16 @@ SDL_Surface *SVidSurface;
 BYTE *SVidBuffer;
 unsigned long SVidWidth, SVidHeight;
 
-#ifdef USE_SDL1
-static bool HaveAudio()
-{
-	return SDL_GetAudioStatus() != SDL_AUDIO_STOPPED;
-}
-#else
+#if SDL_VERSION_ATLEAST(2, 0, 4)
 SDL_AudioDeviceID deviceId;
-
 static bool HaveAudio()
 {
 	return deviceId != 0;
+}
+#else
+static bool HaveAudio()
+{
+	return SDL_GetAudioStatus() != SDL_AUDIO_STOPPED;
 }
 #endif
 
@@ -459,9 +458,15 @@ public:
 
 	void Enqueue(const unsigned char *data, unsigned long len)
 	{
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+		SDL_LockAudioDevice(deviceId);
+		EnqueueUnsafe(data, len);
+		SDL_UnlockAudioDevice(deviceId);
+#else
 		SDL_LockAudio();
 		EnqueueUnsafe(data, len);
 		SDL_UnlockAudio();
+#endif
 	}
 
 	void Clear()
@@ -483,6 +488,7 @@ private:
 
 	void Dequeue(Uint8 *out, int out_len)
 	{
+		SDL_memset(out, 0, sizeof(out[0]) * out_len);
 		AudioQueueItem *item;
 		while ((item = Next()) != NULL) {
 			if (static_cast<unsigned long>(out_len) <= item->len) {
@@ -497,7 +503,6 @@ private:
 			out_len -= item->len;
 			Pop();
 		}
-		memset(out, 0, sizeof(out[0]) * out_len);
 	}
 
 	AudioQueueItem *Next()
@@ -560,22 +565,19 @@ void SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 
 		Mix_CloseAudio();
 
-#if !SDL_VERSION_ATLEAST(2, 0, 4)
-		sVidAudioQueue->Subscribe(&audioFormat);
-#endif
-
-#ifdef USE_SDL1
-		if (SDL_OpenAudio(&audioFormat, NULL) != 0) {
-			ErrSdl();
-		}
-		SDL_PauseAudio(0);
-#else
+#if SDL_VERSION_ATLEAST(2, 0, 4)
 		deviceId = SDL_OpenAudioDevice(NULL, 0, &audioFormat, NULL, 0);
 		if (deviceId == 0) {
 			ErrSdl();
 		}
 
 		SDL_PauseAudioDevice(deviceId, 0); /* start audio playing. */
+#else
+		sVidAudioQueue->Subscribe(&audioFormat);
+		if (SDL_OpenAudio(&audioFormat, NULL) != 0) {
+			ErrSdl();
+		}
+		SDL_PauseAudio(0);
 #endif
 	}
 
@@ -744,11 +746,7 @@ void SVidPlayEnd(HANDLE video)
 		SDL_ClearQueuedAudio(deviceId);
 		SDL_CloseAudioDevice(deviceId);
 		deviceId = 0;
-#elif SDL_VERSION_ATLEAST(2, 0, 0)
-		SDL_CloseAudioDevice(deviceId);
-		deviceId = 0;
-		sVidAudioQueue->Clear();
-#else // USE_SDL1
+#else
 		SDL_CloseAudio();
 		sVidAudioQueue->Clear();
 #endif

@@ -26,7 +26,7 @@ sudo apt-get install cmake g++ libsdl2-mixer-dev libsdl2-ttf-dev libsodium-dev
 ```
 ### Installing dependencies on Fedora
 ```
-sudo dnf install cmake glibc-devel SDL2-devel SDL2_ttf-devel SDL2_mixer-devel libsodium-devel libasan
+sudo dnf install cmake glibc-devel SDL2-devel SDL2_ttf-devel SDL2_mixer-devel libsodium-devel libasan libubsan
 ```
 ### Compiling
 ```
@@ -63,7 +63,7 @@ cmake --build . -j $(sysctl -n hw.ncpu)
 
 <details><summary>Windows via MinGW</summary>
 
-### Installing dependencies on Debian and Ubuntu
+### Installing dependencies on WSL, Debian and Ubuntu
 
 Download and place the 32bit MinGW Development Libraries of [SDL2](https://www.libsdl.org/download-2.0.php), [SDL2_mixer](https://www.libsdl.org/projects/SDL_mixer/), [SDL2_ttf](https://www.libsdl.org/projects/SDL_ttf/) and [Libsodium](https://github.com/jedisct1/libsodium/releases) in `/usr/i686-w64-mingw32`.
 
@@ -73,7 +73,7 @@ sudo apt-get install cmake gcc-mingw-w64-i686 g++-mingw-w64-i686
 ### Compiling
 ```
 cd build
-cmake -DASAN=OFF -DCMAKE_TOOLCHAIN_FILE=../CMake/mingwcc.cmake ..
+cmake -DASAN=OFF -UBSAN=OFF -DCMAKE_TOOLCHAIN_FILE=../CMake/mingwcc.cmake ..
 cmake --build . -j $(nproc)
 ```
 </details>
@@ -153,21 +153,33 @@ The build script does the following:
 
 The buildroot uses ~4 GiB of disk space and can take almost an hour to build.
 
-### OpenDingux
+For OpenDingux builds `mksquashfs` needs to be installed.
 
-The OpenDingux build uses the buildroot at `$HOME/buildroot-2018.02.9-opendingux-musl`.
+### RetroFW (RS97, RG300, LDK)
 
-~~~ bash
-Packaging/OpenDingux/build-opendingux-sdl1.sh
-~~~
-
-### RetroFW
-
-The OpenDingux build uses the buildroot at `$HOME/buildroot-2018.02.9-retrofw`.
+The RetroFW build uses the buildroot at `$HOME/buildroot-2018.02.9-retrofw`.
 
 ~~~ bash
 Packaging/OpenDingux/build-retrofw.sh
 ~~~
+
+### OpenDingux (RG350, GCW0)
+
+This OpenDingux build uses the buildroot at `$HOME/buildroot-rg350-devilutionx`.
+
+~~~ bash
+Packaging/OpenDingux/build-rg350.sh
+~~~
+
+
+### Old OpenDingux (RS90)
+
+This OpenDingux build uses the buildroot at `$HOME/buildroot-rs90-devilutionx`.
+
+~~~ bash
+Packaging/OpenDingux/build-rs90.sh
+~~~
+
 
 </details>
 
