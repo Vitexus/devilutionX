@@ -107,7 +107,7 @@ extern BOOL gbLoadGame;
 extern HINSTANCE ghInst;
 extern int DebugMonsters[10];
 extern BOOLEAN cineflag;
-extern int drawpanflag;
+extern int force_redraw;
 extern BOOL visiondebug;
 extern BOOL scrollflag; /* unused */
 extern BOOL light4flag;
@@ -171,11 +171,11 @@ extern int dbgplr;
 extern int dbgqst;
 extern int dbgmon;
 extern int arrowdebug;
+#endif
 extern int frameflag;
 extern int frameend;
 extern int framerate;
 extern int framestart;
-#endif
 extern BOOL FriendlyMode;
 extern char *spszMsgTbl[4];
 extern char *spszMsgHotKeyTbl[4];

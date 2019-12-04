@@ -102,15 +102,15 @@ void InitQuests()
 
 	if (gbMaxPlayers == 1) {
 		SetRndSeed(glSeedTbl[15]);
-		if (random(0, 2))
+		if (random_(0, 2))
 			quests[QTYPE_PW]._qactive = 0;
 		else
 			quests[QTYPE_KING]._qactive = 0;
 
-		quests[QuestGroup1[random(0, sizeof(QuestGroup1) / sizeof(int))]]._qactive = 0;
-		quests[QuestGroup2[random(0, sizeof(QuestGroup2) / sizeof(int))]]._qactive = 0;
-		quests[QuestGroup3[random(0, sizeof(QuestGroup3) / sizeof(int))]]._qactive = 0;
-		quests[QuestGroup4[random(0, sizeof(QuestGroup4) / sizeof(int))]]._qactive = 0;
+		quests[QuestGroup1[random_(0, sizeof(QuestGroup1) / sizeof(int))]]._qactive = 0;
+		quests[QuestGroup2[random_(0, sizeof(QuestGroup2) / sizeof(int))]]._qactive = 0;
+		quests[QuestGroup3[random_(0, sizeof(QuestGroup3) / sizeof(int))]]._qactive = 0;
+		quests[QuestGroup4[random_(0, sizeof(QuestGroup4) / sizeof(int))]]._qactive = 0;
 	}
 #ifdef _DEBUG
 	if (questdebug != -1)
@@ -735,7 +735,7 @@ void DrawQuestLog()
 	int y, i;
 
 	PrintQLString(0, 2, TRUE, "Quest Log", 3);
-	CelDraw(64, 511, pQLogCel, 1, 320);
+	CelDraw(SCREEN_X, SCREEN_Y + 351, pQLogCel, 1, SPANEL_WIDTH);
 	y = qtopline;
 	for (i = 0; i < numqlines; i++) {
 		PrintQLString(0, y, TRUE, questlist[qlist[i]]._qlstr, 0);

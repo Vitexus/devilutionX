@@ -2,6 +2,7 @@
 #ifndef __SCROLLRT_H__
 #define __SCROLLRT_H__
 
+extern bool sgbControllerActive;
 extern int light_table_index;
 extern BYTE *gpBufStart;
 extern BYTE *gpBufEnd;
@@ -18,8 +19,8 @@ void DrawView(int StartX, int StartY);
 void ClearScreenBuffer();
 #ifdef _DEBUG
 void ScrollView();
-void EnableFrameCount();
 #endif
+void EnableFrameCount();
 void scrollrt_draw_game_screen(BOOL draw_cursor);
 void DrawAndBlit();
 

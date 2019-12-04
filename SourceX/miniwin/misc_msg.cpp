@@ -1,8 +1,21 @@
+#include <cstdint>
 #include <deque>
 #include <SDL.h>
 
 #include "devilution.h"
+#include "miniwin/ddraw.h"
 #include "stubs.h"
+#include "controls/controller_motion.h"
+#include "controls/game_controls.h"
+#include "controls/plrctrls.h"
+#include "controls/touch.h"
+#include "miniwin/ddraw.h"
+#include "controls/controller.h"
+
+#ifdef __SWITCH__
+#include "platform/switch/docking.h"
+#include <switch.h>
+#endif
 
 /** @file
  * *
@@ -12,6 +25,57 @@
 namespace dvl {
 
 static std::deque<MSG> message_queue;
+
+bool mouseWarping = false;
+int mouseWarpingX;
+int mouseWarpingY;
+
+void SetCursorPos(int X, int Y)
+{
+	mouseWarpingX = X;
+	mouseWarpingY = Y;
+	mouseWarping = true;
+	LogicalToOutput(&X, &Y);
+	SDL_WarpMouseInWindow(window, X, Y);
+}
+
+// Moves the mouse to the first attribute "+" button.
+void FocusOnCharInfo()
+{
+	if (invflag || plr[myplr]._pStatPts <= 0)
+		return;
+
+	// Find the first incrementable stat.
+	int pc = plr[myplr]._pClass;
+	int stat = -1;
+	for (int i = 4; i >= 0; --i) {
+		switch (i) {
+		case ATTRIB_STR:
+			if (plr[myplr]._pBaseStr >= MaxStats[pc][ATTRIB_STR])
+				continue;
+			break;
+		case ATTRIB_MAG:
+			if (plr[myplr]._pBaseMag >= MaxStats[pc][ATTRIB_MAG])
+				continue;
+			break;
+		case ATTRIB_DEX:
+			if (plr[myplr]._pBaseDex >= MaxStats[pc][ATTRIB_DEX])
+				continue;
+			break;
+		case ATTRIB_VIT:
+			if (plr[myplr]._pBaseVit >= MaxStats[pc][ATTRIB_VIT])
+				continue;
+			break;
+		default:
+			continue;
+		}
+		stat = i;
+	}
+	if (stat == -1)
+		return;
+	const auto &rect = ChrBtnsRect[stat];
+	SetCursorPos(rect.x + (rect.w / 2), rect.y + (rect.h / 2));
+}
 
 static int translate_sdl_key(SDL_Keysym key)
 {
@@ -178,36 +242,100 @@ static int translate_sdl_key(SDL_Keysym key)
 	}
 }
 
-static WPARAM keystate_for_mouse(WPARAM ret)
+namespace {
+
+LPARAM position_for_mouse(int x, int y)
+{
+	return ((y & 0xFFFF) << 16) | (x & 0xFFFF);
+}
+
+WPARAM keystate_for_mouse(WPARAM ret)
 {
 	ret |= (SDL_GetModState() & KMOD_SHIFT) ? DVL_MK_SHIFT : 0;
 	// XXX: other DVL_MK_* codes not implemented
 	return ret;
 }
 
-static WINBOOL false_avail()
+WINBOOL false_avail(const char *name, int value)
 {
-	DUMMY_PRINT("return %s although event available", "false");
-	return false;
+	DUMMY_PRINT("Unhandled SDL event: %s %d", name, value);
+	return true;
 }
 
-WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
+// Moves the mouse to the first inventory slot.
+void FocusOnInventory()
 {
-	if (wMsgFilterMin != 0)
-		UNIMPLEMENTED();
-	if (wMsgFilterMax != 0)
-		UNIMPLEMENTED();
-	if (hWnd != NULL)
-		UNIMPLEMENTED();
+	SetCursorPos(InvRect[25].X + (INV_SLOT_SIZE_PX / 2), InvRect[25].Y - (INV_SLOT_SIZE_PX / 2));
+}
 
-	if (wRemoveMsg == DVL_PM_NOREMOVE) {
-		// This does not actually fill out lpMsg, but this is ok
-		// since the engine never uses it in this case
-		return !message_queue.empty() || SDL_PollEvent(NULL);
+void StoreSpellCoords()
+{
+	constexpr int START_X = 20;
+	constexpr int END_X = 636;
+	constexpr int END_Y = 495;
+	constexpr int BOX_SIZE = 56;
+	speedspellcount = 0;
+	int xo = END_X, yo = END_Y;
+	for (int i = 0; i < 4; i++) {
+		std::uint64_t spells;
+		switch (i) {
+		case RSPLTYPE_SKILL:
+			spells = plr[myplr]._pAblSpells;
+			break;
+		case RSPLTYPE_SPELL:
+			spells = plr[myplr]._pMemSpells;
+			break;
+		case RSPLTYPE_SCROLL:
+			spells = plr[myplr]._pScrlSpells;
+			break;
+		case RSPLTYPE_CHARGES:
+			spells = plr[myplr]._pISpells;
+			break;
+		default:
+			continue;
+		}
+		std::uint64_t spell = 1;
+		for (int j = 1; j < MAX_SPELLS; j++) {
+			if ((spell & spells)) {
+				speedspellscoords[speedspellcount] = { xo - 36, yo - 188 };
+				++speedspellcount;
+				xo -= BOX_SIZE;
+				if (xo == START_X) {
+					xo = END_X;
+					yo -= BOX_SIZE;
+				}
+			}
+			spell <<= 1;
+		}
+		if (spells && xo != END_X)
+			xo -= BOX_SIZE;
+		if (xo == START_X) {
+			xo = END_X;
+			yo -= BOX_SIZE;
+		}
 	}
-	if (wRemoveMsg != DVL_PM_REMOVE) {
-		UNIMPLEMENTED();
-	}
+}
+
+} // namespace
+
+/**
+ * @brief Clean the inventory related cursor states.
+ */
+void BlurInventory()
+{
+	if (pcurs >= CURSOR_FIRSTITEM) // drop item to allow us to pick up other items
+		DropItemBeforeTrig();
+	if (pcurs == CURSOR_REPAIR || pcurs == CURSOR_RECHARGE)
+		SetCursor_(CURSOR_HAND);
+	if (chrflag)
+		FocusOnCharInfo();
+}
+
+WINBOOL PeekMessageA(LPMSG lpMsg)
+{
+#ifdef __SWITCH__
+	HandleDocking();
+#endif
 
 	if (!message_queue.empty()) {
 		*lpMsg = message_queue.front();
@@ -220,11 +348,131 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 		return false;
 	}
 
-	lpMsg->hwnd = hWnd;
+	lpMsg->message = 0;
 	lpMsg->lParam = 0;
 	lpMsg->wParam = 0;
 
+	if (e.type == SDL_QUIT) {
+		lpMsg->message = DVL_WM_QUIT;
+		return true;
+	}
+
+#ifndef USE_SDL1
+	handle_touch(&e, MouseX, MouseY);
+#endif
+
+#ifdef USE_SDL1
+	if (e.type == SDL_MOUSEMOTION) {
+		OutputToLogical(&e.motion.x, &e.motion.y);
+	} else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+		OutputToLogical(&e.button.x, &e.button.y);
+	}
+#endif
+
+	if ((e.type == SDL_KEYUP || e.type == SDL_KEYDOWN) && e.key.keysym.sym == SDLK_UNKNOWN) {
+		// Erroneous events generated by RG350 kernel.
+		return true;
+	}
+
+	if (ProcessControllerMotion(e)) {
+		ScaleJoysticks();
+		return true;
+	}
+
+	GameAction action;
+	if (GetGameAction(e, &action)) {
+		if (action.type != GameActionType::NONE) {
+			sgbControllerActive = true;
+
+			if (movie_playing) {
+				lpMsg->message = DVL_WM_CHAR;
+				if (action.type == GameActionType::SEND_KEY)
+					lpMsg->wParam = action.send_key.vk_code;
+				return true;
+			}
+		}
+
+		switch (action.type) {
+		case GameActionType::NONE:
+			break;
+		case GameActionType::USE_HEALTH_POTION:
+			UseBeltItem(BLT_HEALING);
+			break;
+		case GameActionType::USE_MANA_POTION:
+			UseBeltItem(BLT_MANA);
+			break;
+		case GameActionType::PRIMARY_ACTION:
+			PerformPrimaryAction();
+			break;
+		case GameActionType::SECONDARY_ACTION:
+			PerformSecondaryAction();
+			break;
+		case GameActionType::CAST_SPELL:
+			PerformSpellAction();
+			break;
+		case GameActionType::TOGGLE_QUICK_SPELL_MENU:
+			lpMsg->message = DVL_WM_KEYDOWN;
+			lpMsg->wParam = 'S';
+			chrflag = false;
+			questlog = false;
+			invflag = false;
+			BlurInventory();
+			sbookflag = false;
+			StoreSpellCoords();
+			break;
+		case GameActionType::TOGGLE_CHARACTER_INFO:
+			chrflag = !chrflag;
+			if (chrflag) {
+				questlog = false;
+				spselflag = false;
+				FocusOnCharInfo();
+			}
+			break;
+		case GameActionType::TOGGLE_INVENTORY:
+			invflag = !invflag;
+			if (invflag) {
+				sbookflag = false;
+				spselflag = false;
+				FocusOnInventory();
+			} else {
+				BlurInventory();
+			}
+			break;
+		case GameActionType::SEND_KEY:
+			lpMsg->message = action.send_key.up ? DVL_WM_KEYUP : DVL_WM_KEYDOWN;
+			lpMsg->wParam = action.send_key.vk_code;
+			return true;
+		case GameActionType::SEND_MOUSE_CLICK:
+			sgbControllerActive = false;
+			switch (action.send_mouse_click.button) {
+			case GameActionSendMouseClick::LEFT:
+				lpMsg->message = action.send_mouse_click.up ? DVL_WM_LBUTTONUP : DVL_WM_LBUTTONDOWN;
+				break;
+			case GameActionSendMouseClick::RIGHT:
+				lpMsg->message = action.send_mouse_click.up ? DVL_WM_RBUTTONUP : DVL_WM_RBUTTONDOWN;
+				break;
+			}
+			lpMsg->lParam = position_for_mouse(MouseX, MouseY);
+			break;
+		}
+		return true;
+	} else if (e.type < SDL_JOYAXISMOTION || e.type >= 0x700) {
+		if (!mouseWarping || e.type != SDL_MOUSEMOTION)
+			sgbControllerActive = false;
+		if (mouseWarping && e.type == SDL_MOUSEMOTION)
+			mouseWarping = false;
+	}
+
 	switch (e.type) {
+#ifndef USE_SDL1
+	case SDL_CONTROLLERDEVICEADDED:
+	case SDL_CONTROLLERDEVICEREMOVED:
+		break;
+	case SDL_JOYDEVICEADDED:
+	case SDL_JOYDEVICEREMOVED:
+		InitController();
+		break;
+#endif
 	case SDL_QUIT:
 		lpMsg->message = DVL_WM_QUIT;
 		break;
@@ -232,7 +480,7 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 	case SDL_KEYUP: {
 		int key = translate_sdl_key(e.key.keysym);
 		if (key == -1)
-			return false_avail();
+			return false_avail(e.type == SDL_KEYDOWN ? "SDL_KEYDOWN" : "SDL_KEYUP", e.key.keysym.sym);
 		lpMsg->message = e.type == SDL_KEYDOWN ? DVL_WM_KEYDOWN : DVL_WM_KEYUP;
 		lpMsg->wParam = (DWORD)key;
 		// HACK: Encode modifier in lParam for TranslateMessage later
@@ -240,64 +488,103 @@ WINBOOL PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilter
 	} break;
 	case SDL_MOUSEMOTION:
 		lpMsg->message = DVL_WM_MOUSEMOVE;
-		lpMsg->lParam = (e.motion.y << 16) | (e.motion.x & 0xFFFF);
+		lpMsg->lParam = position_for_mouse(e.motion.x, e.motion.y);
 		lpMsg->wParam = keystate_for_mouse(0);
 		break;
 	case SDL_MOUSEBUTTONDOWN: {
 		int button = e.button.button;
-		if (button == SDL_BUTTON_LEFT) {
-			lpMsg->message = DVL_WM_LBUTTONDOWN;
-			lpMsg->lParam = (e.button.y << 16) | (e.button.x & 0xFFFF);
-			lpMsg->wParam = keystate_for_mouse(DVL_MK_LBUTTON);
-		} else if (button == SDL_BUTTON_RIGHT) {
-			lpMsg->message = DVL_WM_RBUTTONDOWN;
-			lpMsg->lParam = (e.button.y << 16) | (e.button.x & 0xFFFF);
-			lpMsg->wParam = keystate_for_mouse(DVL_MK_RBUTTON);
-		} else {
-			return false_avail();
+		if (e.button.x > 0 && e.button.y > 0 && e.button.x <= SCREEN_WIDTH && e.button.y <= SCREEN_HEIGHT) {
+			if (button == SDL_BUTTON_LEFT) {
+				lpMsg->message = DVL_WM_LBUTTONDOWN;
+				lpMsg->lParam = position_for_mouse(e.button.x, e.button.y);
+				lpMsg->wParam = keystate_for_mouse(DVL_MK_LBUTTON);
+			} else if (button == SDL_BUTTON_RIGHT) {
+				lpMsg->message = DVL_WM_RBUTTONDOWN;
+				lpMsg->lParam = position_for_mouse(e.button.x, e.button.y);
+				lpMsg->wParam = keystate_for_mouse(DVL_MK_RBUTTON);
+			}
 		}
 	} break;
 	case SDL_MOUSEBUTTONUP: {
 		int button = e.button.button;
-		if (button == SDL_BUTTON_LEFT) {
-			lpMsg->message = DVL_WM_LBUTTONUP;
-			lpMsg->lParam = (e.button.y << 16) | (e.button.x & 0xFFFF);
-			lpMsg->wParam = keystate_for_mouse(0);
-		} else if (button == SDL_BUTTON_RIGHT) {
-			lpMsg->message = DVL_WM_RBUTTONUP;
-			lpMsg->lParam = (e.button.y << 16) | (e.button.x & 0xFFFF);
-			lpMsg->wParam = keystate_for_mouse(0);
-		} else {
-			return false_avail();
+		if (e.button.x > 0 && e.button.y > 0 && e.button.x <= SCREEN_WIDTH && e.button.y <= SCREEN_HEIGHT) {
+			if (button == SDL_BUTTON_LEFT) {
+				lpMsg->message = DVL_WM_LBUTTONUP;
+				lpMsg->lParam = position_for_mouse(e.button.x, e.button.y);
+				lpMsg->wParam = keystate_for_mouse(0);
+			} else if (button == SDL_BUTTON_RIGHT) {
+				lpMsg->message = DVL_WM_RBUTTONUP;
+				lpMsg->lParam = position_for_mouse(e.button.x, e.button.y);
+				lpMsg->wParam = keystate_for_mouse(0);
+			}
 		}
 	} break;
 #ifndef USE_SDL1
 #if SDL_VERSION_ATLEAST(2, 0, 4)
 	case SDL_AUDIODEVICEADDED:
+		return false_avail("SDL_AUDIODEVICEADDED", e.adevice.which);
 	case SDL_AUDIODEVICEREMOVED:
+		return false_avail("SDL_AUDIODEVICEREMOVED", e.adevice.which);
 	case SDL_KEYMAPCHANGED:
+		return false_avail("SDL_KEYMAPCHANGED", 0);
 #endif
 	case SDL_TEXTEDITING:
+		return false_avail("SDL_TEXTEDITING", e.edit.length);
 	case SDL_TEXTINPUT:
-		return false_avail();
+		return false_avail("SDL_TEXTINPUT", e.text.windowID);
 	case SDL_WINDOWEVENT:
-		if (e.window.event == SDL_WINDOWEVENT_CLOSE) {
+		switch (e.window.event) {
+		case SDL_WINDOWEVENT_SHOWN:
+			gbActive = true;
+			lpMsg->message = DVL_WM_PAINT;
+			break;
+		case SDL_WINDOWEVENT_HIDDEN:
+			gbActive = false;
+			break;
+		case SDL_WINDOWEVENT_EXPOSED:
+			lpMsg->message = DVL_WM_PAINT;
+			break;
+		case SDL_WINDOWEVENT_MOVED:
+		case SDL_WINDOWEVENT_RESIZED:
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+		case SDL_WINDOWEVENT_MINIMIZED:
+		case SDL_WINDOWEVENT_MAXIMIZED:
+		case SDL_WINDOWEVENT_RESTORED:
+		case SDL_WINDOWEVENT_LEAVE:
+		case SDL_WINDOWEVENT_FOCUS_GAINED:
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+#if SDL_VERSION_ATLEAST(2, 0, 5)
+		case SDL_WINDOWEVENT_TAKE_FOCUS:
+#endif
+			break;
+		case SDL_WINDOWEVENT_ENTER:
+			lpMsg->message = DVL_WM_MOUSEHOVER;
+			// Bug in SDL, SDL_WarpMouseInWindow doesn't emit SDL_MOUSEMOTION
+			// and SDL_GetMouseState gives previous location if mouse was
+			// outside window (observed on Ubuntu 19.04)
+			if (mouseWarping) {
+				MouseX = mouseWarpingX;
+				MouseY = mouseWarpingY;
+				mouseWarping = false;
+			}
+			break;
+		case SDL_WINDOWEVENT_CLOSE:
 			lpMsg->message = DVL_WM_QUERYENDSESSION;
-		} else {
-			return false_avail();
+			break;
+		default:
+			return false_avail("SDL_WINDOWEVENT", e.window.event);
 		}
+
 		break;
 #endif
 	default:
-		DUMMY_PRINT("unknown SDL message 0x%X", e.type);
-		return false_avail();
+		return false_avail("unknown", e.type);
 	}
 	return true;
 }
 
 WINBOOL TranslateMessage(const MSG *lpMsg)
 {
-	assert(lpMsg->hwnd == 0);
 	if (lpMsg->message == DVL_WM_KEYDOWN) {
 		int key = lpMsg->wParam;
 		unsigned mod = (DWORD)lpMsg->lParam >> 16;
@@ -365,7 +652,7 @@ WINBOOL TranslateMessage(const MSG *lpMsg)
 #endif
 
 			// XXX: This does not add extended info to lParam
-			PostMessageA(lpMsg->hwnd, DVL_WM_CHAR, key, 0);
+			PostMessageA(DVL_WM_CHAR, key, 0);
 		}
 	}
 
@@ -374,61 +661,41 @@ WINBOOL TranslateMessage(const MSG *lpMsg)
 
 SHORT GetAsyncKeyState(int vKey)
 {
-#ifndef USE_SDL1
-	const Uint8 *state = SDL_GetKeyboardState(nullptr);
+	if (vKey == DVL_MK_LBUTTON)
+		return SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(SDL_BUTTON_LEFT);
+	if (vKey == DVL_MK_RBUTTON)
+		return SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(SDL_BUTTON_RIGHT);
+	const Uint8 *state = SDLC_GetKeyState();
 	switch (vKey) {
 	case DVL_VK_SHIFT:
-		return state[SDL_SCANCODE_LSHIFT] || state[SDL_SCANCODE_RSHIFT] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_LEFTSHIFT] || state[SDLC_KEYSTATE_RIGHTSHIFT] ? 0x8000 : 0;
 	case DVL_VK_MENU:
-		return state[SDL_SCANCODE_MENU] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_MENU] ? 0x8000 : 0;
 	case DVL_VK_LEFT:
-		return state[SDL_SCANCODE_LEFT] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_LEFT] ? 0x8000 : 0;
 	case DVL_VK_UP:
-		return state[SDL_SCANCODE_UP] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_UP] ? 0x8000 : 0;
 	case DVL_VK_RIGHT:
-		return state[SDL_SCANCODE_RIGHT] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_RIGHT] ? 0x8000 : 0;
 	case DVL_VK_DOWN:
-		return state[SDL_SCANCODE_DOWN] ? 0x8000 : 0;
+		return state[SDLC_KEYSTATE_DOWN] ? 0x8000 : 0;
 	default:
 		return 0;
 	}
-#else
-	const Uint8 *state = SDL_GetKeyState(nullptr);
-	switch (vKey) {
-	case DVL_VK_SHIFT:
-		return state[SDLK_LSHIFT] || state[SDLK_RSHIFT] ? 0x8000 : 0;
-	case DVL_VK_MENU:
-		return state[SDLK_MENU] ? 0x8000 : 0;
-	case DVL_VK_LEFT:
-		return state[SDLK_LEFT] ? 0x8000 : 0;
-	case DVL_VK_UP:
-		return state[SDLK_UP] ? 0x8000 : 0;
-	case DVL_VK_RIGHT:
-		return state[SDLK_RIGHT] ? 0x8000 : 0;
-	case DVL_VK_DOWN:
-		return state[SDLK_DOWN] ? 0x8000 : 0;
-	default:
-		return 0;
-	}
-#endif
 }
 
 LRESULT DispatchMessageA(const MSG *lpMsg)
 {
 	DUMMY_ONCE();
-	assert(lpMsg->hwnd == 0);
 	assert(CurrentProc);
 	// assert(CurrentProc == GM_Game);
 
-	return CurrentProc(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
+	return CurrentProc(NULL, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 }
 
-WINBOOL PostMessageA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+WINBOOL PostMessageA(UINT Msg, WPARAM wParam, LPARAM lParam)
 {
-	assert(hWnd == 0);
-
 	MSG msg;
-	msg.hwnd = hWnd;
 	msg.message = Msg;
 	msg.wParam = wParam;
 	msg.lParam = lParam;
@@ -438,4 +705,4 @@ WINBOOL PostMessageA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	return true;
 }
 
-}
+} // namespace dvl

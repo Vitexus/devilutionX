@@ -3,7 +3,7 @@
 DEVILUTION_BEGIN_NAMESPACE
 
 char msgtable[MAX_SEND_STR_LEN];
-char msgdelay;
+DWORD msgdelay;
 char msgflag;
 char msgcnt;
 
@@ -58,17 +58,19 @@ void InitDiabloMsg(char e)
 {
 	int i;
 
+	if (msgcnt >= sizeof(msgtable))
+		return;
+
 	for (i = 0; i < msgcnt; i++) {
 		if (msgtable[i] == e)
 			return;
 	}
 
 	msgtable[msgcnt] = e;
-	if (msgcnt < (BYTE)sizeof(msgtable))
-		msgcnt++;
+	msgcnt++;
 
 	msgflag = msgtable[0];
-	msgdelay = 70;
+	msgdelay = GetTickCount();
 }
 
 void ClrDiabloMsg()
@@ -87,31 +89,31 @@ void DrawDiabloMsg()
 	int i, len, width, sx, sy;
 	BYTE c;
 
-	CelDraw(165, 318, pSTextSlidCels, 1, 12);
-	CelDraw(591, 318, pSTextSlidCels, 4, 12);
-	CelDraw(165, 366, pSTextSlidCels, 2, 12);
-	CelDraw(591, 366, pSTextSlidCels, 3, 12);
+	CelDraw(PANEL_X + 101, DIALOG_Y, pSTextSlidCels, 1, 12);
+	CelDraw(PANEL_X + 527, DIALOG_Y, pSTextSlidCels, 4, 12);
+	CelDraw(PANEL_X + 101, DIALOG_Y + 48, pSTextSlidCels, 2, 12);
+	CelDraw(PANEL_X + 527, DIALOG_Y + 48, pSTextSlidCels, 3, 12);
 
-	sx = 173;
+	sx = PANEL_X + 109;
 	for (i = 0; i < 35; i++) {
-		CelDraw(sx, 318, pSTextSlidCels, 5, 12);
-		CelDraw(sx, 366, pSTextSlidCels, 7, 12);
+		CelDraw(sx, DIALOG_Y, pSTextSlidCels, 5, 12);
+		CelDraw(sx, DIALOG_Y + 48, pSTextSlidCels, 7, 12);
 		sx += 12;
 	}
-	sy = 330;
+	sy = DIALOG_Y + 12;
 	for (i = 0; i < 3; i++) {
-		CelDraw(165, sy, pSTextSlidCels, 6, 12);
-		CelDraw(591, sy, pSTextSlidCels, 8, 12);
+		CelDraw(PANEL_X + 101, sy, pSTextSlidCels, 6, 12);
+		CelDraw(PANEL_X + 527, sy, pSTextSlidCels, 8, 12);
 		sy += 12;
 	}
 
 	/// ASSERT: assert(gpBuffer);
 
-	trans_rect(104, 150, 432, 54);
+	trans_rect(PANEL_LEFT + 104, DIALOG_TOP - 8, 432, 54);
 
 	strcpy(tempstr, MsgStrings[msgflag]);
-	sx = 165;
-	sy = 342;
+	sx = PANEL_X + 101;
+	sy = DIALOG_Y + 24;
 	len = strlen(tempstr);
 	width = 0;
 
@@ -131,16 +133,16 @@ void DrawDiabloMsg()
 		sx += fontkern[c] + 1;
 	}
 
-	if (msgdelay > 0) {
-		msgdelay--;
+	if (msgdelay > 0 && msgdelay <= GetTickCount() - 3500) {
+		msgdelay = 0;
 	}
 	if (msgdelay == 0) {
 		msgcnt--;
-		msgdelay = 70;
 		if (msgcnt == 0) {
 			msgflag = 0;
 		} else {
 			msgflag = msgtable[msgcnt];
+			msgdelay = GetTickCount();
 		}
 	}
 }

@@ -179,22 +179,27 @@ void CheckCursMove()
 	sx = MouseX;
 	sy = MouseY;
 
-	if (chrflag || questlog) {
-		if (sx >= 160) {
-			sx -= 160;
-		} else {
-			sx = 0;
-		}
-	} else if (invflag || sbookflag) {
-		if (sx <= 320) {
-			sx += 160;
-		} else {
-			sx = 0;
+
+	if (PANELS_COVER) {
+		if (chrflag || questlog) {
+			if (sx >= 160) {
+				sx -= 160;
+			} else {
+				sx = 0;
+			}
+		} else if (invflag || sbookflag) {
+			if (sx <= 320) {
+				sx += 160;
+			} else {
+				sx = 0;
+			}
 		}
 	}
 	if (sy > PANEL_TOP - 1 && track_isscrolling()) {
 		sy = PANEL_TOP - 1;
 	}
+	sx -= (SCREEN_WIDTH % 64) / 2;
+	sy -= (VIEWPORT_HEIGHT % 32) / 2;
 	if (!zoomflag) {
 		sx >>= 1;
 		sy >>= 1;
@@ -204,8 +209,8 @@ void CheckCursMove()
 	sy -= ScrollInfo._syoff;
 
 	if (ScrollInfo._sdir != 0) {
-		sx += ((plr[myplr]._pVar6 + plr[myplr]._pxvel) >> 8) - (plr[myplr]._pVar6 >> 8);
-		sy += ((plr[myplr]._pVar7 + plr[myplr]._pyvel) >> 8) - (plr[myplr]._pVar7 >> 8);
+		sx += ((plr[myplr]._pVar6 + plr[myplr]._pxvel) / 256) - (plr[myplr]._pVar6 / 256);
+		sy += ((plr[myplr]._pVar7 + plr[myplr]._pyvel) / 256) - (plr[myplr]._pVar7 / 256);
 	}
 
 	if (sx < 0) {
@@ -221,14 +226,14 @@ void CheckCursMove()
 		sy = SCREEN_HEIGHT;
 	}
 
-	tx = sx >> 6;
-	ty = sy >> 5;
-	px = sx & 0x3F;
-	py = sy & 0x1F;
-	mx = ViewX + tx + ty - (zoomflag ? 10 : 5);
+	tx = sx >> 6; // sx / 64
+	ty = sy >> 5; // sy / 32
+	px = sx & 0x3F; // sx % 64
+	py = sy & 0x1F; // sx % 32
+	mx = ViewX + tx + ty - (zoomflag ? (SCREEN_WIDTH / 64) : (SCREEN_WIDTH / 2 / 64));
 	my = ViewY + ty - tx;
 
-	flipy = py<px>> 1;
+	flipy = py < (px >> 1);
 	if (flipy) {
 		my--;
 	}
@@ -273,21 +278,21 @@ void CheckCursMove()
 		cursmy = my;
 		return;
 	}
-	if (MouseY > PANEL_TOP) {
+	if (MouseY > PANEL_TOP && MouseX >= PANEL_LEFT && MouseX <= PANEL_LEFT + PANEL_WIDTH) {
 		CheckPanelInfo();
 		return;
 	}
 	if (doomflag) {
 		return;
 	}
-	if (invflag && MouseX > 320) {
+	if (invflag && MouseX > RIGHT_PANEL && MouseY <= SPANEL_HEIGHT) {
 		pcursinvitem = CheckInvHLight();
 		return;
 	}
-	if (sbookflag && MouseX > 320) {
+	if (sbookflag && MouseX > RIGHT_PANEL && MouseY <= SPANEL_HEIGHT) {
 		return;
 	}
-	if ((chrflag || questlog) && MouseX < 320) {
+	if ((chrflag || questlog) && MouseX < SPANEL_WIDTH && MouseY <= SPANEL_HEIGHT) {
 		return;
 	}
 

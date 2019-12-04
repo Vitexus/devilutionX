@@ -5,7 +5,7 @@
 //offset 0
 //pCelBuff->pFrameTable[0]
 
-extern char gbPixelCol; // automap pixel color 8-bit (palette entry)
+extern char gbPixelCol;  // automap pixel color 8-bit (palette entry)
 extern BOOL gbRotateMap; // flip - if y < x
 extern int orgseed;
 extern int SeedCount;
@@ -46,13 +46,13 @@ inline BYTE *CelGetFrameClipped(BYTE *pCelBuff, int nCel, int *nDataSize)
 void CelDraw(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
 void CelBlitFrame(BYTE *pBuff, BYTE *pCelBuff, int nCel, int nWidth);
 void CelClippedDraw(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
-void CelDrawLight(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth, BYTE *tbl = NULL);
+void CelDrawLight(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth, BYTE *tbl);
 void CelClippedDrawLight(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
 void CelClippedBlitLightTrans(BYTE *pBuff, BYTE *pCelBuff, int nCel, int nWidth);
 void CelDrawLightRed(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth, char light);
 void CelBlitSafe(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nWidth);
 void CelClippedDrawSafe(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth);
-void CelBlitLightSafe(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nWidth, BYTE *tbl = NULL);
+void CelBlitLightSafe(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nWidth, BYTE *tbl);
 void CelBlitLightTransSafe(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nWidth);
 void CelDrawLightRedSafe(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth, char light);
 void CelBlitWidth(BYTE *pBuff, int x, int y, int wdt, BYTE *pCelBuff, int nCel, int nWidth);
@@ -63,7 +63,7 @@ void DrawLine(int x0, int y0, int x1, int y1, BYTE col);
 int GetDirection(int x1, int y1, int x2, int y2);
 void SetRndSeed(int s);
 int GetRndSeed();
-int random(BYTE idx, int v);
+int random_(BYTE idx, int v);
 void engine_debug_trap(BOOL show_cursor);
 BYTE *DiabloAllocPtr(DWORD dwBytes);
 void mem_free_dbg(void *p);

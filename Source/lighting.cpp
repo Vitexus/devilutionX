@@ -11,7 +11,7 @@ BOOL dovision;
 int numvision;
 char lightmax;
 BOOL dolighting;
-BYTE lightblock[8][8][16][16];
+BYTE lightblock[64][16][16];
 int visionid;
 BYTE *pLightTbl;
 BOOL lightflag;
@@ -404,28 +404,27 @@ char CrawlTable[2749] = {
 
 // pCrawlTable maps from circle radius to the X- and Y-coordinate deltas from
 // the center of a circle.
-char *pCrawlTable[19] =
-    {
-	    CrawlTable,
-	    CrawlTable + 3,
-	    CrawlTable + 12,
-	    CrawlTable + 45,
-	    CrawlTable + 94,
-	    CrawlTable + 159,
-	    CrawlTable + 240,
-	    CrawlTable + 337,
-	    CrawlTable + 450,
-	    CrawlTable + 579,
-	    CrawlTable + 724,
-	    CrawlTable + 885,
-	    CrawlTable + 1062,
-	    CrawlTable + 1255,
-	    CrawlTable + 1464,
-	    CrawlTable + 1689,
-	    CrawlTable + 1930,
-	    CrawlTable + 2187,
-	    CrawlTable + 2460
-    };
+char *pCrawlTable[19] = {
+	CrawlTable,
+	CrawlTable + 3,
+	CrawlTable + 12,
+	CrawlTable + 45,
+	CrawlTable + 94,
+	CrawlTable + 159,
+	CrawlTable + 240,
+	CrawlTable + 337,
+	CrawlTable + 450,
+	CrawlTable + 579,
+	CrawlTable + 724,
+	CrawlTable + 885,
+	CrawlTable + 1062,
+	CrawlTable + 1255,
+	CrawlTable + 1464,
+	CrawlTable + 1689,
+	CrawlTable + 1930,
+	CrawlTable + 2187,
+	CrawlTable + 2460
+};
 BYTE vCrawlTable[23][30] = {
 	{ 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0 },
 	{ 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 1, 9, 1, 10, 1, 11, 1, 12, 1, 13, 1, 14, 1, 15, 1 },
@@ -559,7 +558,7 @@ void DoLighting(int nXPos, int nYPos, int nRadius, int Lnum)
 	mult = xoff + 8 * yoff;
 	for (y = 0; y < min_y; y++) {
 		for (x = 1; x < max_x; x++) {
-			radius_block = lightblock[0][mult][y][x];
+			radius_block = lightblock[mult][y][x];
 			if (radius_block < 128) {
 				temp_x = nXPos + x;
 				temp_y = nYPos + y;
@@ -576,7 +575,7 @@ void DoLighting(int nXPos, int nYPos, int nRadius, int Lnum)
 	mult = xoff + 8 * yoff;
 	for (y = 0; y < max_y; y++) {
 		for (x = 1; x < max_x; x++) {
-			radius_block = lightblock[0][mult][y + block_y][x + block_x];
+			radius_block = lightblock[mult][y + block_y][x + block_x];
 			if (radius_block < 128) {
 				temp_x = nXPos + y;
 				temp_y = nYPos - x;
@@ -593,7 +592,7 @@ void DoLighting(int nXPos, int nYPos, int nRadius, int Lnum)
 	mult = xoff + 8 * yoff;
 	for (y = 0; y < max_y; y++) {
 		for (x = 1; x < min_x; x++) {
-			radius_block = lightblock[0][mult][y + block_y][x + block_x];
+			radius_block = lightblock[mult][y + block_y][x + block_x];
 			if (radius_block < 128) {
 				temp_x = nXPos - x;
 				temp_y = nYPos - y;
@@ -610,7 +609,7 @@ void DoLighting(int nXPos, int nYPos, int nRadius, int Lnum)
 	mult = xoff + 8 * yoff;
 	for (y = 0; y < min_y; y++) {
 		for (x = 1; x < min_x; x++) {
-			radius_block = lightblock[0][mult][y + block_y][x + block_x];
+			radius_block = lightblock[mult][y + block_y][x + block_x];
 			if (radius_block < 128) {
 				temp_x = nXPos - y;
 				temp_y = nYPos + x;
@@ -749,10 +748,12 @@ void DoVision(int nXPos, int nYPos, int nRadius, BOOL doautomap, BOOL visible)
 					}
 					break;
 				}
-				if (nCrawlX >= 0 && nCrawlX <= MAXDUNX && nCrawlY >= 0 && nCrawlY <= MAXDUNY) {
+				if (nCrawlX >= 0 && nCrawlX < MAXDUNX && nCrawlY >= 0 && nCrawlY < MAXDUNY) {
 					nBlockerFlag = nBlockTable[dPiece[nCrawlX][nCrawlY]];
-					if (!nBlockTable[dPiece[x1adj + nCrawlX][y1adj + nCrawlY]]
-					    || !nBlockTable[dPiece[x2adj + nCrawlX][y2adj + nCrawlY]]) {
+					if ((x1adj + nCrawlX >= 0 && x1adj + nCrawlX < MAXDUNX && y1adj + nCrawlY >= 0 && y1adj + nCrawlY < MAXDUNY
+						&& !nBlockTable[dPiece[x1adj + nCrawlX][y1adj + nCrawlY]])
+					    || (x2adj + nCrawlX >= 0 && x2adj + nCrawlX < MAXDUNX && y2adj + nCrawlY >= 0 && y2adj + nCrawlY < MAXDUNY
+						&& !nBlockTable[dPiece[x2adj + nCrawlX][y2adj + nCrawlY]])) {
 						if (doautomap) {
 							if (dFlags[nCrawlX][nCrawlY] >= 0) {
 								SetAutomapView(nCrawlX, nCrawlY);
@@ -961,7 +962,7 @@ void MakeLightTable()
 					} else {
 						fa = 0.5;
 					}
-					lightblock[i][j][k][l] = fs + fa;
+					lightblock[i * 8 + j][k][l] = fs + fa;
 				}
 			}
 		}

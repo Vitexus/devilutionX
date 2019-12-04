@@ -113,7 +113,6 @@ typedef struct tagSIZE {
 } SIZE;
 
 typedef struct tagMSG {
-	HWND hwnd;
 	UINT message;
 	WPARAM wParam;
 	LPARAM lParam;
@@ -190,15 +189,16 @@ void SetEvent(HANDLE hEvent);
 void ResetEvent(HANDLE hEvent);
 int WINAPI WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
 
-WINBOOL WINAPI SetCursorPos(int X, int Y);
+void SetCursorPos(int X, int Y);
+void FocusOnCharInfo();
 
 SHORT WINAPI GetAsyncKeyState(int vKey);
 
-WINBOOL WINAPI PeekMessageA(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
+WINBOOL WINAPI PeekMessageA(LPMSG lpMsg);
 
 WINBOOL WINAPI TranslateMessage(const MSG *lpMsg);
 LRESULT WINAPI DispatchMessageA(const MSG *lpMsg);
-WINBOOL WINAPI PostMessageA(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
+WINBOOL WINAPI PostMessageA(UINT Msg, WPARAM wParam, LPARAM lParam);
 
 bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight);
 
@@ -221,22 +221,6 @@ char *__cdecl _itoa(int _Value, char *_Dest, int _Radix);
 //
 // File I/O
 //
-
-typedef struct _WIN32_FIND_DATAA {
-	DWORD dwFileAttributes;
-	FILETIME ftCreationTime;
-	FILETIME ftLastAccessTime;
-	FILETIME ftLastWriteTime;
-	DWORD nFileSizeHigh;
-	DWORD nFileSizeLow;
-	DWORD dwReserved0;
-	DWORD dwReserved1;
-	CHAR cFileName[DVL_MAX_PATH];
-	CHAR cAlternateFileName[14];
-	DWORD dwFileType;
-	DWORD dwCreatorType;
-	WORD wFinderFlags;
-} WIN32_FIND_DATAA, WIN32_FIND_DATA, *LPWIN32_FIND_DATAA;
 
 typedef void *LPOVERLAPPED;
 
@@ -343,9 +327,6 @@ DWORD WINAPI SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistance
 WINBOOL WINAPI SetEndOfFile(HANDLE hFile);
 DWORD WINAPI GetFileAttributesA(LPCSTR lpFileName);
 WINBOOL WINAPI SetFileAttributesA(LPCSTR lpFileName, DWORD dwFileAttributes);
-HANDLE WINAPI FindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData);
-BOOL FindNextFileA(HANDLE hFindFile, LPWIN32_FIND_DATAA lpFindFileData);
-WINBOOL WINAPI FindClose(HANDLE hFindFile);
 HANDLE WINAPI CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
     LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition,
     DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
@@ -482,8 +463,6 @@ constexpr auto DVL_FILE_BEGIN = 0;
 constexpr auto DVL_FILE_CURRENT = 1;
 constexpr auto DVL_ERROR_FILE_NOT_FOUND = 2;
 
-constexpr auto DVL_PM_NOREMOVE = 0x0000;
-constexpr auto DVL_PM_REMOVE = 0x0001;
 constexpr auto DVL_WM_QUIT = 0x0012;
 constexpr auto DVL_INFINITE = 0xFFFFFFFF;
 
@@ -497,7 +476,6 @@ constexpr auto DVL_WM_LBUTTONUP = 0x0202;
 constexpr auto DVL_WM_RBUTTONDOWN = 0x0204;
 constexpr auto DVL_WM_RBUTTONUP = 0x0205;
 
-constexpr auto DVL_WM_KEYFIRST = 0x0100;
 constexpr auto DVL_WM_KEYDOWN = 0x0100;
 constexpr auto DVL_WM_KEYUP = 0x0101;
 constexpr auto DVL_WM_SYSKEYDOWN = 0x0104;
@@ -512,6 +490,7 @@ constexpr auto DVL_WM_PAINT = 0x000F;
 constexpr auto DVL_WM_CLOSE = 0x0010;
 constexpr auto DVL_WM_QUERYENDSESSION = 0x0011;
 constexpr auto DVL_WM_ERASEBKGND = 0x0014;
+constexpr auto DVL_WM_MOUSEHOVER = 0x02A1;
 constexpr auto DVL_WM_QUERYNEWPALETTE = 0x030F;
 constexpr auto DVL_WM_PALETTECHANGED = 0x0311;
 

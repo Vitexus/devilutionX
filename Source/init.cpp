@@ -39,11 +39,7 @@ void init_cleanup()
 		hellfire_mpq = NULL;
 	}
 
-	UiDestroy();
-	effects_cleanup_sfx();
-	sound_cleanup();
 	NetClose();
-	dx_cleanup();
 }
 
 void init_create_window()
@@ -51,6 +47,7 @@ void init_create_window()
 	if (!SpawnWindow(PROJECT_NAME, SCREEN_WIDTH, SCREEN_HEIGHT))
 		app_fatal("Unable to create main window");
 	dx_init(NULL);
+	atexit(dx_cleanup);
 	gbActive = true;
 	gpBufStart = &gpBuffer[BUFFER_WIDTH * SCREEN_Y];
 	gpBufEnd = &gpBuffer[BUFFER_WIDTH * (SCREEN_HEIGHT + SCREEN_Y)];
@@ -70,7 +67,7 @@ void init_archives()
 #ifdef SPAWN
 		diabdat_mpq = init_test_access(diabdat_mpq_path, "spawn.mpq", "DiabloSpawn", 1000, FS_PC);
 #else
-		diabdat_mpq = init_test_access(diabdat_mpq_path, "diabdat.mpq", "DiabloCD", 1000, FS_PC);
+	diabdat_mpq = init_test_access(diabdat_mpq_path, "diabdat.mpq", "DiabloCD", 1000, FS_CD);
 #endif
 	if (!SFileOpenFile("ui_art\\title.pcx", &fh))
 #ifdef SPAWN
@@ -97,7 +94,11 @@ HANDLE init_test_access(char *mpq_path, char *mpq_name, char *reg_loc, int dwPri
 
 	for (int i = 0; i < 2; i++) {
 		snprintf(mpq_path, MAX_PATH, "%s%s", Buffer[i], mpq_name);
+#ifndef __SWITCH__
 		if (SFileOpenArchive(mpq_path, dwPriority, MPQ_FLAG_READ_ONLY, &archive)) {
+#else
+		if (SFileOpenArchive(mpq_path, dwPriority, 0, &archive)) {
+#endif
 			SFileSetBasePath(Buffer[i]);
 			return archive;
 
@@ -119,7 +120,7 @@ LRESULT __stdcall MainWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	case WM_ERASEBKGND:
 		return 0;
 	case WM_PAINT:
-		drawpanflag = 255;
+		force_redraw = 255;
 		break;
 	case WM_CLOSE:
 		return 0;

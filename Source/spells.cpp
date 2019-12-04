@@ -16,30 +16,25 @@ int GetManaAmount(int id, int sn)
 		sl = 0;
 	}
 
-	if (sl > 0) {
-		adj = sl * spelldata[sn].sManaAdj;
-	}
 	if (sn == SPL_FIREBOLT) {
 		adj >>= 1;
-	}
-	if (sn == SPL_RESURRECT && sl > 0) {
+	} else if (sn == SPL_RESURRECT && sl > 0) {
 		adj = sl * (spelldata[SPL_RESURRECT].sManaCost / 8);
+	} else if (sl > 0) {
+		adj = sl * spelldata[sn].sManaAdj;
 	}
 
-	if (spelldata[sn].sManaCost == 255) {
+	if (sn == SPL_HEAL || sn == SPL_HEALOTHER) {
+		ma = (spelldata[SPL_HEAL].sManaCost + 2 * plr[id]._pLevel - adj);
+	} else if (spelldata[sn].sManaCost == 255) {
 		ma = ((BYTE)plr[id]._pMaxManaBase - adj);
 	} else {
 		ma = (spelldata[sn].sManaCost - adj);
 	}
 
+	if (ma < 0)
+		ma = 0;
 	ma <<= 6;
-
-	if (sn == SPL_HEAL) {
-		ma = (spelldata[SPL_HEAL].sManaCost + 2 * plr[id]._pLevel - adj) << 6;
-	}
-	if (sn == SPL_HEALOTHER) {
-		ma = (spelldata[SPL_HEAL].sManaCost + 2 * plr[id]._pLevel - adj) << 6;
-	}
 
 	if (plr[id]._pClass == PC_ROGUE) {
 		ma -= ma >> 2;
@@ -145,6 +140,52 @@ void CastSpell(int id, int spl, int sx, int sy, int dx, int dy, int caster, int 
 	}
 }
 
+static void PlacePlayer(int pnum)
+{
+	int nx, ny, max, min, x, y;
+	DWORD i;
+	BOOL done;
+
+	if (plr[pnum].plrlevel == currlevel) {
+		for (i = 0; i < 8; i++) {
+			nx = plr[pnum].WorldX + plrxoff2[i];
+			ny = plr[pnum].WorldY + plryoff2[i];
+
+			if (PosOkPlayer(pnum, nx, ny)) {
+				break;
+			}
+		}
+
+		if (!PosOkPlayer(pnum, nx, ny)) {
+			done = FALSE;
+
+			for (max = 1, min = -1; min > -50 && !done; max++, min--) {
+				for (y = min; y <= max && !done; y++) {
+					ny = plr[pnum].WorldY + y;
+
+					for (x = min; x <= max && !done; x++) {
+						nx = plr[pnum].WorldX + x;
+
+						if (PosOkPlayer(pnum, nx, ny)) {
+							done = TRUE;
+						}
+					}
+				}
+			}
+		}
+
+		plr[pnum].WorldX = nx;
+		plr[pnum].WorldY = ny;
+
+		dPlayer[nx][ny] = pnum + 1;
+
+		if (pnum == myplr) {
+			ViewX = nx;
+			ViewY = ny;
+		}
+	}
+}
+
 /**
  * @param pnum player index
  * @param rid target player index
@@ -194,52 +235,6 @@ void DoResurrect(int pnum, int rid)
 	}
 }
 
-void PlacePlayer(int pnum)
-{
-	int nx, ny, max, min, x, y;
-	DWORD i;
-	BOOL done;
-
-	if (plr[pnum].plrlevel == currlevel) {
-		for (i = 0; i < 8; i++) {
-			nx = plr[pnum].WorldX + plrxoff2[i];
-			ny = plr[pnum].WorldY + plryoff2[i];
-
-			if (PosOkPlayer(pnum, nx, ny)) {
-				break;
-			}
-		}
-
-		if (!PosOkPlayer(pnum, nx, ny)) {
-			done = FALSE;
-
-			for (max = 1, min = -1; min > -50 && !done; max++, min--) {
-				for (y = min; y <= max && !done; y++) {
-					ny = plr[pnum].WorldY + y;
-
-					for (x = min; x <= max && !done; x++) {
-						nx = plr[pnum].WorldX + x;
-
-						if (PosOkPlayer(pnum, nx, ny)) {
-							done = TRUE;
-						}
-					}
-				}
-			}
-		}
-
-		plr[pnum].WorldX = nx;
-		plr[pnum].WorldY = ny;
-
-		dPlayer[nx][ny] = pnum + 1;
-
-		if (pnum == myplr) {
-			ViewX = nx;
-			ViewY = ny;
-		}
-	}
-}
-
 void DoHealOther(int pnum, int rid)
 {
 	int i, j, hp;
@@ -249,14 +244,14 @@ void DoHealOther(int pnum, int rid)
 	}
 
 	if ((char)rid != -1 && (plr[rid]._pHitPoints >> 6) > 0) {
-		hp = (random(57, 10) + 1) << 6;
+		hp = (random_(57, 10) + 1) << 6;
 
 		for (i = 0; i < plr[pnum]._pLevel; i++) {
-			hp += (random(57, 4) + 1) << 6;
+			hp += (random_(57, 4) + 1) << 6;
 		}
 
 		for (j = 0; j < GetSpellLevel(pnum, SPL_HEALOTHER); ++j) {
-			hp += (random(57, 6) + 1) << 6;
+			hp += (random_(57, 6) + 1) << 6;
 		}
 
 		if (plr[pnum]._pClass == PC_WARRIOR) {

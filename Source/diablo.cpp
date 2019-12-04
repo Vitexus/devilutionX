@@ -21,7 +21,7 @@ int glEndSeed[NUMLEVELS];
 BOOL gbLoadGame;
 int DebugMonsters[10];
 BOOLEAN cineflag;
-int drawpanflag;
+int force_redraw;
 BOOL visiondebug;
 BOOL scrollflag; /* unused */
 BOOL light4flag;
@@ -51,11 +51,11 @@ int dbgplr;
 int dbgqst;
 int dbgmon;
 int arrowdebug;
+#endif
 int frameflag;
 int frameend;
 int framerate;
 int framestart;
-#endif
 BOOL FriendlyMode = TRUE;
 char *spszMsgTbl[4] = {
 	"I need help! Come Here!",
@@ -119,6 +119,31 @@ BOOL StartGame(BOOL bNewGame, BOOL bSinglePlayer)
 	return gbRunGameResult;
 }
 
+// Controller support: Actions to run after updating the cursor state.
+// Defined in SourceX/controls/plctrls.cpp.
+extern void finish_simulated_mouse_clicks(int current_mouse_x, int current_mouse_y);
+extern void plrctrls_after_check_curs_move();
+
+static void ProcessInput()
+{
+	if (PauseMode == 2) {
+		return;
+	}
+	if (gbMaxPlayers == 1 && gmenu_exception()) {
+		force_redraw |= 1;
+		return;
+	}
+
+	if (!gmenu_exception() && sgnTimeoutCurs == 0) {
+#ifndef USE_SDL1
+		finish_simulated_mouse_clicks(MouseX, MouseY);
+#endif
+		CheckCursMove();
+		plrctrls_after_check_curs_move();
+		track_process();
+	}
+}
+
 void run_game_loop(unsigned int uMsg)
 {
 	BOOL bLoop;
@@ -134,35 +159,31 @@ void run_game_loop(unsigned int uMsg)
 	gbRunGame = TRUE;
 	gbProcessPlayers = TRUE;
 	gbRunGameResult = TRUE;
-	drawpanflag = 255;
+	force_redraw = 255;
 	DrawAndBlit();
 	PaletteFadeIn(8);
-	drawpanflag = 255;
+	force_redraw = 255;
 	gbGameLoopStartup = TRUE;
 	nthread_ignore_mutex(FALSE);
 
 	while (gbRunGame) {
-		diablo_color_cyc_logic();
-		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
-			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-			while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-				if (msg.message == WM_QUIT) {
-					gbRunGameResult = FALSE;
-					gbRunGame = FALSE;
-					break;
-				}
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
+		while (PeekMessage(&msg)) {
+			if (msg.message == WM_QUIT) {
+				gbRunGameResult = FALSE;
+				gbRunGame = FALSE;
+				break;
 			}
-			bLoop = gbRunGame && nthread_has_500ms_passed(FALSE);
-			SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-			if (!bLoop) {
-				continue;
-			}
-		} else if (!nthread_has_500ms_passed(FALSE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		if (!gbRunGame)
+			break;
+		if (!nthread_has_500ms_passed(FALSE)) {
+			ProcessInput();
 			DrawAndBlit();
 			continue;
 		}
+		diablo_color_cyc_logic();
 		multi_process_network_packets();
 		game_loop(gbGameLoopStartup);
 		gbGameLoopStartup = FALSE;
@@ -175,9 +196,9 @@ void run_game_loop(unsigned int uMsg)
 
 	pfile_flush_W();
 	PaletteFadeOut(8);
-	SetCursor_(0);
+	SetCursor_(CURSOR_NONE);
 	ClearScreenBuffer();
-	drawpanflag = 255;
+	force_redraw = 255;
 	scrollrt_draw_game_screen(TRUE);
 	saveProc = SetWindowProc(saveProc);
 	/// ASSERT: assert(saveProc == GM_Game);
@@ -232,11 +253,13 @@ void diablo_init(LPSTR lpCmdLine)
 
 	SFileEnableDirectAccess(TRUE);
 	init_archives();
+	atexit(init_cleanup);
 
 	UiInitialize();
 #ifdef SPAWN
 	UiSetSpawned(TRUE);
 #endif
+	atexit(UiDestroy);
 
 	ReadOnlyTest();
 
@@ -247,7 +270,9 @@ void diablo_init(LPSTR lpCmdLine)
 	diablo_parse_flags(lpCmdLine);
 
 	snd_init(NULL);
+	atexit(sound_cleanup);
 	sound_init();
+	atexit(effects_cleanup_sfx);
 }
 
 void diablo_splash()
@@ -272,8 +297,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	diablo_init(lpCmdLine);
 	diablo_splash();
 	mainmenu_loop();
-	UiDestroy();
-	SaveGamma();
 
 	return 0;
 }
@@ -292,8 +315,8 @@ void diablo_parse_flags(char *args)
 		{
 			c = tolower(*args);
 			args++;
-#ifdef _DEBUG
 			switch (c) {
+#ifdef _DEBUG
 			case '^':
 				debug_mode_key_inverted_v = 1;
 				break;
@@ -309,9 +332,11 @@ void diablo_parse_flags(char *args)
 				showintrodebug = 0;
 				debug_mode_key_d = 1;
 				break;
+#endif
 			case 'f':
 				EnableFrameCount();
 				break;
+#ifdef _DEBUG
 			case 'i':
 				debug_mode_key_i = 1;
 				break;
@@ -413,8 +438,8 @@ void diablo_parse_flags(char *args)
 			case 'x':
 				fullscreen = FALSE;
 				break;
-			}
 #endif
+			}
 		}
 	}
 }
@@ -598,7 +623,7 @@ LRESULT CALLBACK GM_Game(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		track_repeat_walk(FALSE);
 		sgbMouseDown = 0;
 		ShowProgress(uMsg);
-		drawpanflag = 255;
+		force_redraw = 255;
 		DrawAndBlit();
 		if (gbRunGame)
 			PaletteFadeIn(8);
@@ -622,19 +647,19 @@ BOOL LeftMouseDown(int wParam)
 				SetSpell();
 			} else if (stextflag) {
 				CheckStoreBtn();
-			} else if (MouseY < PANEL_TOP) {
+			} else if (MouseY < PANEL_TOP || MouseX < PANEL_LEFT || MouseX > PANEL_LEFT + PANEL_WIDTH) {
 				if (!gmenu_exception() && !TryIconCurs()) {
 					if (questlog && MouseX > 32 && MouseX < 288 && MouseY > 32 && MouseY < 308) {
 						QuestlogESC();
 					} else if (qtextflag) {
 						qtextflag = FALSE;
 						sfx_stop();
-					} else if (chrflag && MouseX < 320) {
+					} else if (chrflag && MouseX < SPANEL_WIDTH && MouseY < SPANEL_HEIGHT) {
 						CheckChrBtns();
-					} else if (invflag && MouseX > 320) {
+					} else if (invflag && MouseX > RIGHT_PANEL && MouseY < SPANEL_HEIGHT) {
 						if (!dropGoldFlag)
 							CheckInvItem();
-					} else if (sbookflag && MouseX > 320) {
+					} else if (sbookflag && MouseX > RIGHT_PANEL && MouseY < SPANEL_HEIGHT) {
 						CheckSBook();
 					} else if (pcurs >= CURSOR_FIRSTITEM) {
 						if (TryInvPut()) {
@@ -677,7 +702,7 @@ BOOL LeftMouseCmd(BOOL bShift)
 	} else {
 		bNear = abs(plr[myplr].WorldX - cursmx) < 2 && abs(plr[myplr].WorldY - cursmy) < 2;
 		if (pcursitem != -1 && pcurs == CURSOR_HAND && !bShift) {
-			NetSendCmdLocParam1(pcurs, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
+			NetSendCmdLocParam1(TRUE, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursmx, cursmy, pcursitem);
 		} else if (pcursobj != -1 && (!bShift || bNear && object[pcursobj]._oBreak == 1)) {
 			NetSendCmdLocParam1(TRUE, pcurs == CURSOR_DISARM ? CMD_DISARMXY : CMD_OPOBJXY, cursmx, cursmy, pcursobj);
 		} else if (plr[myplr]._pwtype == WT_RANGED) {
@@ -788,8 +813,8 @@ void RightMouseDown()
 		} else if (!stextflag) {
 			if (spselflag) {
 				SetSpell();
-			} else if (MouseY >= PANEL_TOP
-			    || (!sbookflag || MouseX <= 320)
+			} else if (MouseY >= SPANEL_HEIGHT
+			    || (!sbookflag || MouseX <= RIGHT_PANEL)
 			        && !TryIconCurs()
 			        && (pcursinvitem == -1 || !UseInvItem(myplr, pcursinvitem))) {
 				if (pcurs == 1) {
@@ -1010,10 +1035,10 @@ void PressKey(int vkey)
 	} else if (vkey == VK_TAB) {
 		DoAutoMap();
 	} else if (vkey == VK_SPACE) {
-		if (!chrflag && invflag && MouseX < 480 && MouseY < PANEL_TOP) {
+		if (!chrflag && invflag && MouseX < 480 && MouseY < PANEL_TOP && PANELS_COVER) {
 			SetCursorPos(MouseX + 160, MouseY);
 		}
-		if (!invflag && chrflag && MouseX > 160 && MouseY < PANEL_TOP) {
+		if (!invflag && chrflag && MouseX > 160 && MouseY < PANEL_TOP && PANELS_COVER) {
 			SetCursorPos(MouseX - 160, MouseY);
 		}
 		helpflag = 0;
@@ -1043,7 +1068,7 @@ void diablo_pause_game()
 			FreeMonsterSnd();
 			track_repeat_walk(0);
 		}
-		drawpanflag = 255;
+		force_redraw = 255;
 	}
 }
 
@@ -1084,11 +1109,11 @@ void PressChar(int vkey)
 			sbookflag = FALSE;
 			invflag = invflag == 0;
 			if (!invflag || chrflag) {
-				if (MouseX < 480 && MouseY < PANEL_TOP) {
+				if (MouseX < 480 && MouseY < PANEL_TOP && PANELS_COVER) {
 					SetCursorPos(MouseX + 160, MouseY);
 				}
 			} else {
-				if (MouseX > 160 && MouseY < PANEL_TOP) {
+				if (MouseX > 160 && MouseY < PANEL_TOP && PANELS_COVER) {
 					SetCursorPos(MouseX - 160, MouseY);
 				}
 			}
@@ -1100,11 +1125,11 @@ void PressChar(int vkey)
 			questlog = FALSE;
 			chrflag = !chrflag;
 			if (!chrflag || invflag) {
-				if (MouseX > 160 && MouseY < PANEL_TOP) {
+				if (MouseX > 160 && MouseY < PANEL_TOP && PANELS_COVER) {
 					SetCursorPos(MouseX - 160, MouseY);
 				}
 			} else {
-				if (MouseX < 480 && MouseY < PANEL_TOP) {
+				if (MouseX < 480 && MouseY < PANEL_TOP && PANELS_COVER) {
 					SetCursorPos(MouseX + 160, MouseY);
 				}
 			}
@@ -1165,43 +1190,43 @@ void PressChar(int vkey)
 	case '!':
 	case '1':
 		if (plr[myplr].SpdList[0]._itype != -1 && plr[myplr].SpdList[0]._itype != 11) {
-			UseInvItem(myplr, 47);
+			UseInvItem(myplr, INVITEM_BELT_FIRST);
 		}
 		return;
 	case '@':
 	case '2':
 		if (plr[myplr].SpdList[1]._itype != -1 && plr[myplr].SpdList[1]._itype != 11) {
-			UseInvItem(myplr, 48);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 1);
 		}
 		return;
 	case '#':
 	case '3':
 		if (plr[myplr].SpdList[2]._itype != -1 && plr[myplr].SpdList[2]._itype != 11) {
-			UseInvItem(myplr, 49);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 2);
 		}
 		return;
 	case '$':
 	case '4':
 		if (plr[myplr].SpdList[3]._itype != -1 && plr[myplr].SpdList[3]._itype != 11) {
-			UseInvItem(myplr, 50);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 3);
 		}
 		return;
 	case '%':
 	case '5':
 		if (plr[myplr].SpdList[4]._itype != -1 && plr[myplr].SpdList[4]._itype != 11) {
-			UseInvItem(myplr, 51);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 4);
 		}
 		return;
 	case '^':
 	case '6':
 		if (plr[myplr].SpdList[5]._itype != -1 && plr[myplr].SpdList[5]._itype != 11) {
-			UseInvItem(myplr, 52);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 5);
 		}
 		return;
 	case '&':
 	case '7':
 		if (plr[myplr].SpdList[6]._itype != -1 && plr[myplr].SpdList[6]._itype != 11) {
-			UseInvItem(myplr, 53);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 6);
 		}
 		return;
 	case '*':
@@ -1213,7 +1238,7 @@ void PressChar(int vkey)
 		}
 #endif
 		if (plr[myplr].SpdList[7]._itype != -1 && plr[myplr].SpdList[7]._itype != 11) {
-			UseInvItem(myplr, 54);
+			UseInvItem(myplr, INVITEM_BELT_FIRST + 7);
 		}
 		return;
 #ifdef _DEBUG
@@ -1366,6 +1391,9 @@ void LoadAllGFX()
 	IncProgress();
 }
 
+/**
+ * @param lvldir method of entry
+ */
 void CreateLevel(int lvldir)
 {
 	switch (leveltype) {
@@ -1653,23 +1681,13 @@ void game_loop(BOOL bStartup)
 	}
 }
 
+
+// Controller support:
+extern void plrctrls_after_game_logic();
+
 void game_logic()
 {
-	if (PauseMode == 2) {
-		return;
-	}
-	if (PauseMode == 1) {
-		PauseMode = 2;
-	}
-	if (gbMaxPlayers == 1 && gmenu_exception()) {
-		drawpanflag |= 1;
-		return;
-	}
-
-	if (!gmenu_exception() && sgnTimeoutCurs == 0) {
-		CheckCursMove();
-		track_process();
-	}
+	ProcessInput();
 	if (gbProcessPlayers) {
 		ProcessPlayers();
 	}
@@ -1696,8 +1714,10 @@ void game_logic()
 	ClearPlrMsg();
 	CheckTriggers();
 	CheckQuests();
-	drawpanflag |= 1;
+	force_redraw |= 1;
 	pfile_update(FALSE);
+
+	plrctrls_after_game_logic();
 }
 
 void timeout_cursor(BOOL bTimeout)
@@ -1710,32 +1730,26 @@ void timeout_cursor(BOOL bTimeout)
 			AddPanelString("-- Network timeout --", TRUE);
 			AddPanelString("-- Waiting for players --", TRUE);
 			SetCursor_(CURSOR_HOURGLASS);
-			drawpanflag = 255;
+			force_redraw = 255;
 		}
 		scrollrt_draw_game_screen(1);
 	} else if (sgnTimeoutCurs) {
 		SetCursor_(sgnTimeoutCurs);
 		sgnTimeoutCurs = 0;
 		ClearPanel();
-		drawpanflag = 255;
+		force_redraw = 255;
 	}
 }
 
 void diablo_color_cyc_logic()
 {
-	DWORD tc;
+	if (!palette_get_colour_cycling())
+		return;
 
-	tc = GetTickCount();
-	if (tc - color_cycle_timer >= 50) {
-		color_cycle_timer = tc;
-		if (palette_get_colour_cycling()) {
-			if (leveltype == DTYPE_HELL) {
-				lighting_color_cycling();
-			} else if (leveltype == DTYPE_CAVES) {
-				//if (fullscreen)
-					palette_update_caves();
-			}
-		}
+	if (leveltype == DTYPE_HELL) {
+		lighting_color_cycling();
+	} else if (leveltype == DTYPE_CAVES) {
+		palette_update_caves();
 	}
 }
 

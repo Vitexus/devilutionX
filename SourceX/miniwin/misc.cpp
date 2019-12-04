@@ -4,12 +4,26 @@
 #include <SDL.h>
 #include <string>
 
+#include "controls/controller.h"
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/dialogs.h"
 
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#endif
+
+#if defined(USE_SDL1) && defined(RETROFW)
+#include <unistd.h>
+#endif
+
+#ifdef USE_SDL1
+#ifndef SDL1_VIDEO_MODE_BPP
+#define SDL1_VIDEO_MODE_BPP 0
+#endif
+#ifndef SDL1_VIDEO_MODE_FLAGS
+#define SDL1_VIDEO_MODE_FLAGS SDL_SWSURFACE
+#endif
 #endif
 
 namespace dvl {
@@ -78,18 +92,6 @@ void Sleep(DWORD dwMilliseconds)
 	SDL_Delay(dwMilliseconds);
 }
 
-HANDLE FindFirstFileA(LPCSTR lpFileName, LPWIN32_FIND_DATAA lpFindFileData)
-{
-	DUMMY();
-	return (HANDLE)-1;
-}
-
-WINBOOL FindClose(HANDLE hFindFile)
-{
-	UNIMPLEMENTED();
-	return true;
-}
-
 WINBOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD nSize)
 {
 	DUMMY();
@@ -126,6 +128,7 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 
 #ifdef USE_SDL1
 	SDL_EnableUNICODE(1);
+	InitController();
 #endif
 
 	int upscale = 1;
@@ -136,12 +139,23 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 	DvlIntSetting("grab input", &grabInput);
 
 #ifdef USE_SDL1
-	int flags = SDL_SWSURFACE | SDL_HWPALETTE;
+	int flags = SDL1_VIDEO_MODE_FLAGS | SDL_HWPALETTE;
 	if (fullscreen)
 		flags |= SDL_FULLSCREEN;
 	SDL_WM_SetCaption(lpWindowName, WINDOW_ICON_NAME);
-	SDL_SetVideoMode(nWidth, nHeight, /*bpp=*/0, flags);
+#ifndef RETROFW
+	SDL_SetVideoMode(nWidth, nHeight, SDL1_VIDEO_MODE_BPP, flags);
+#else // RETROFW
+	// JZ4760 IPU scaler (e.g. on RG-300 v2/3) - automatic high-quality scaling.
+	if (access("/proc/jz/ipu_ratio", F_OK) == 0) {
+		SDL_SetVideoMode(nWidth, nHeight, SDL1_VIDEO_MODE_BPP, flags);
+	} else {
+		// Other RetroFW devices have 320x480 screens with non-square pixels.
+		SDL_SetVideoMode(320, 480, SDL1_VIDEO_MODE_BPP, flags);
+	}
+#endif
 	window = SDL_GetVideoSurface();
+	SDL_Log("Output surface: %dx%d sw-scaling=%d bpp=%d", window->w, window->h, OutputRequiresScaling(), window->format->BitsPerPixel);
 	if (grabInput)
 		SDL_WM_GrabInput(SDL_GRAB_ON);
 	atexit(SDL_VideoQuit); // Without this video mode is not restored after fullscreen.
@@ -167,6 +181,10 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 		ErrSdl();
 	}
 
+#ifdef USE_SDL1
+	refreshDelay = 1000000 / 60; // 60hz
+#endif
+
 	if (upscale) {
 #ifdef USE_SDL1
 		SDL_Log("upscaling not supported with USE_SDL1");
@@ -184,6 +202,12 @@ bool SpawnWindow(LPCSTR lpWindowName, int nWidth, int nHeight)
 		if (SDL_RenderSetLogicalSize(renderer, nWidth, nHeight) <= -1) {
 			ErrSdl();
 		}
+#endif
+	} else {
+#ifndef USE_SDL1
+		SDL_DisplayMode mode;
+		SDL_GetDisplayMode(0, 0, &mode);
+		refreshDelay = 1000000 / mode.refresh_rate;
 #endif
 	}
 

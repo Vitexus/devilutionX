@@ -78,7 +78,7 @@ void CelClippedDrawLight(int sx, int sy, BYTE *pCelBuff, int nCel, int nWidth)
 	pDecodeTo = &gpBuffer[sx + BUFFER_WIDTH * sy];
 
 	if (light_table_index)
-		CelBlitLightSafe(pDecodeTo, pRLEBytes, nDataSize, nWidth);
+		CelBlitLightSafe(pDecodeTo, pRLEBytes, nDataSize, nWidth, NULL);
 	else
 		CelBlitSafe(pDecodeTo, pRLEBytes, nDataSize, nWidth);
 }
@@ -336,7 +336,7 @@ void CelClippedBlitLightTrans(BYTE *pBuff, BYTE *pCelBuff, int nCel, int nWidth)
 	if (cel_transparency_active)
 		CelBlitLightTransSafe(pBuff, pRLEBytes, nDataSize, nWidth);
 	else if (light_table_index)
-		CelBlitLightSafe(pBuff, pRLEBytes, nDataSize, nWidth);
+		CelBlitLightSafe(pBuff, pRLEBytes, nDataSize, nWidth, NULL);
 	else
 		CelBlitSafe(pBuff, pRLEBytes, nDataSize, nWidth);
 }
@@ -777,7 +777,7 @@ int GetRndSeed()
 	return abs(sglGameSeed);
 }
 
-int random(BYTE idx, int v)
+int random_(BYTE idx, int v)
 {
 	if (v <= 0)
 		return 0;
@@ -1205,10 +1205,10 @@ void PlayInGameMovie(char *pszMovie)
 	PaletteFadeOut(8);
 	play_movie(pszMovie, 0);
 	ClearScreenBuffer();
-	drawpanflag = 255;
+	force_redraw = 255;
 	scrollrt_draw_game_screen(1);
 	PaletteFadeIn(8);
-	drawpanflag = 255;
+	force_redraw = 255;
 }
 
 DEVILUTION_END_NAMESPACE

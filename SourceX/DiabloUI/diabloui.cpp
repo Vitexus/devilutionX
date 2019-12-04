@@ -5,6 +5,8 @@
 #include <string>
 #include <algorithm>
 
+#include "controls/menu_controls.h"
+
 #include "DiabloUI/scrollbar.h"
 #include "DiabloUI/diabloui.h"
 
@@ -13,6 +15,12 @@
 #include "DiabloUI/fonts.h"
 #include "DiabloUI/button.h"
 #include "DiabloUI/dialogs.h"
+#include "controls/controller.h"
+
+#ifdef __SWITCH__
+// for virtual keyboard on Switch
+#include "platform/switch/keyboard.h"
+#endif
 
 namespace dvl {
 
@@ -78,6 +86,9 @@ void UiInitList(int min, int max, void (*fnFocus)(int value), void (*fnSelect)(i
 	SDL_StopTextInput(); // input is enabled by default
 	for (int i = 0; i < itemCnt; i++) {
 		if (items[i].type == UI_EDIT) {
+#ifdef __SWITCH__
+			switch_start_text_input(items[i - 1].art_text.text, items[i].edit.value, /*multiline=*/0);
+#endif
 			SDL_StartTextInput();
 			UiTextInput = items[i].edit.value;
 			UiTextInputLen = items[i].edit.max_length;
@@ -172,14 +183,38 @@ void UiFocusPageDown()
 void selhero_CatToName(char *in_buf, char *out_buf, int cnt)
 {
 	std::string output = utf8_to_latin1(in_buf);
-	output.resize(SDL_TEXTINPUTEVENT_TEXT_SIZE - 1);
 	strncat(out_buf, output.c_str(), cnt - strlen(out_buf));
 }
 
-bool UiFocusNavigation(SDL_Event *event)
+void UiFocusNavigation(SDL_Event *event)
 {
-	if (event->type == SDL_QUIT)
-		exit(0);
+	switch (GetMenuAction(*event)) {
+	case MenuAction::SELECT:
+		UiFocusNavigationSelect();
+		return;
+	case MenuAction::UP:
+		UiFocus(SelectedItem - 1, UiItemsWraps);
+		return;
+	case MenuAction::DOWN:
+		UiFocus(SelectedItem + 1, UiItemsWraps);
+		return;
+	case MenuAction::PAGE_UP:
+		UiFocusPageUp();
+		return;
+	case MenuAction::PAGE_DOWN:
+		UiFocusPageDown();
+		return;
+	case MenuAction::DELETE:
+		UiFocusNavigationYesNo();
+		return;
+	case MenuAction::BACK:
+		if (!gfnListEsc)
+			break;
+		UiFocusNavigationEsc();
+		return;
+	default:
+		break;
+	}
 
 	switch (event->type) {
 	case SDL_KEYUP:
@@ -203,39 +238,6 @@ bool UiFocusNavigation(SDL_Event *event)
 		mainmenu_restart_repintro();
 	}
 
-	if (event->type == SDL_KEYDOWN) {
-		switch (event->key.keysym.sym) {
-		case SDLK_UP:
-			UiFocus(SelectedItem - 1, UiItemsWraps);
-			return true;
-		case SDLK_DOWN:
-			UiFocus(SelectedItem + 1, UiItemsWraps);
-			return true;
-		case SDLK_TAB:
-			if (SDL_GetModState() & KMOD_SHIFT)
-				UiFocus(SelectedItem - 1, UiItemsWraps);
-			else
-				UiFocus(SelectedItem + 1, UiItemsWraps);
-			return true;
-		case SDLK_PAGEUP:
-			UiFocusPageUp();
-			return true;
-		case SDLK_PAGEDOWN:
-			UiFocusPageDown();
-			return true;
-		case SDLK_RETURN:
-		case SDLK_KP_ENTER:
-		case SDLK_SPACE:
-			UiFocusNavigationSelect();
-			return true;
-		case SDLK_DELETE:
-			UiFocusNavigationYesNo();
-			return true;
-		default:
-			break;
-		}
-	}
-
 	if (SDL_IsTextInputActive()) {
 		switch (event->type) {
 		case SDL_KEYDOWN: {
@@ -250,7 +252,7 @@ bool UiFocusNavigation(SDL_Event *event)
 						selhero_CatToName(clipboard, UiTextInput, UiTextInputLen);
 					}
 				}
-				return true;
+				return;
 #endif
 			case SDLK_BACKSPACE:
 			case SDLK_LEFT: {
@@ -258,7 +260,7 @@ bool UiFocusNavigation(SDL_Event *event)
 				if (nameLen > 0) {
 					UiTextInput[nameLen - 1] = '\0';
 				}
-				return true;
+				return;
 			}
 			default:
 				break;
@@ -279,22 +281,34 @@ bool UiFocusNavigation(SDL_Event *event)
 #ifndef USE_SDL1
 		case SDL_TEXTINPUT:
 			selhero_CatToName(event->text.text, UiTextInput, UiTextInputLen);
-			return true;
+			return;
 #endif
 		default:
 			break;
 		}
 	}
 
-	if (UiItemMouseEvents(event, gUiItems, gUiItemCnt))
-		return true;
-
-	if (gfnListEsc && event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_ESCAPE) {
-		UiFocusNavigationEsc();
-		return true;
+	if (event->type == SDL_MOUSEBUTTONDOWN || event->type == SDL_MOUSEBUTTONUP) {
+		// In SDL2 mouse events already use logical coordinates.
+#ifdef USE_SDL1
+		OutputToLogical(&event->button.x, &event->button.y);
+#endif
+		if (UiItemMouseEvents(event, gUiItems, gUiItemCnt))
+			return;
 	}
+}
 
-	return false;
+void UiHandleEvents(SDL_Event *event)
+{
+	if (event->type == SDL_QUIT)
+		exit(0);
+
+#ifndef USE_SDL1
+	if (event->type == SDL_JOYDEVICEADDED || event->type == SDL_JOYDEVICEREMOVED) {
+		InitController();
+		return;
+	}
+#endif
 }
 
 void UiFocusNavigationSelect()
@@ -483,13 +497,13 @@ BOOL UiCreatePlayerDescription(_uiheroinfo *info, DWORD mode, char *desc)
 int GetCenterOffset(int w, int bw)
 {
 	if (bw == 0) {
-		bw = SCREEN_WIDTH;
+		bw = PANEL_WIDTH;
 	}
 
 	return (bw - w) / 2;
 }
 
-void LoadBackgroundArt(char *pszFile)
+void LoadBackgroundArt(const char *pszFile)
 {
 	PALETTEENTRY pPal[256];
 
@@ -502,12 +516,16 @@ void LoadBackgroundArt(char *pszFile)
 	ApplyGamma(logical_palette, orig_palette, 256);
 }
 
-void UiFadeIn(int steps)
+void UiFadeIn()
 {
+	static DWORD tc;
+	if (fadeValue == 0 && tc == 0)
+		tc = SDL_GetTicks();
 	if (fadeValue < 256) {
-		fadeValue += steps;
+		fadeValue = (SDL_GetTicks() - tc) / 2.083; // 32 frames @ 60hz
 		if (fadeValue > 256) {
 			fadeValue = 256;
+			tc = 0;
 		}
 	}
 
@@ -535,6 +553,7 @@ void UiPollAndRender()
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		UiFocusNavigation(&event);
+		UiHandleEvents(&event);
 	}
 	UiRenderItems(gUiItems, gUiItemCnt);
 	DrawMouse();
@@ -786,22 +805,11 @@ bool UiItemMouseEvents(SDL_Event *event, UiItem *items, std::size_t size)
 
 void DrawMouse()
 {
+	if (sgbControllerActive)
+		return;
+
 	SDL_GetMouseState(&MouseX, &MouseY);
-
-#ifndef USE_SDL1
-	if (renderer) {
-		float scaleX;
-		SDL_RenderGetScale(renderer, &scaleX, NULL);
-		MouseX /= scaleX;
-		MouseY /= scaleX;
-
-		SDL_Rect view;
-		SDL_RenderGetViewport(renderer, &view);
-		MouseX -= view.x;
-		MouseY -= view.y;
-	}
-#endif
-
+	OutputToLogical(&MouseX, &MouseY);
 	DrawArt(MouseX, MouseY, &ArtCursor);
 }
 
@@ -820,8 +828,8 @@ void DvlIntSetting(const char *valuename, int *value)
  */
 void DvlStringSetting(const char *valuename, char *string, int len)
 {
-	if (!SRegLoadString("devilutionx", valuename, 0, string, len)) {
-		SRegSaveString("devilutionx", valuename, 0, string);
+	if (!getIniValue("devilutionx", valuename, string, len)) {
+		setIniValue("devilutionx", valuename, string);
 	}
 }
 } // namespace dvl

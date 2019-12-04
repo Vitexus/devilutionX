@@ -1,4 +1,5 @@
 #include "devilution.h"
+#include "controls/menu_controls.h"
 #include "DiabloUI/diabloui.h"
 
 namespace dvl {
@@ -34,6 +35,10 @@ void UiTitleDialog()
 		UiFadeIn();
 
 		while (SDL_PollEvent(&event)) {
+			if (GetMenuAction(event) != MenuAction::NONE) {
+				endMenu = true;
+				break;
+			}
 			switch (event.type) {
 			case SDL_KEYDOWN: /* To match the original uncomment this
 				if (event.key.keysym.sym == SDLK_UP
@@ -45,9 +50,8 @@ void UiTitleDialog()
 			case SDL_MOUSEBUTTONDOWN:
 				endMenu = true;
 				break;
-			case SDL_QUIT:
-				exit(0);
 			}
+			UiHandleEvents(&event);
 		}
 	}
 	BlackPalette();
@@ -60,4 +64,4 @@ void UiSetSpawned(BOOL bSpawned)
 	gbSpawned = bSpawned;
 }
 
-}
+} // namespace dvl

@@ -748,6 +748,9 @@ void NextPlrLevel(int pnum)
 	if (pnum == myplr) {
 		drawmanaflag = TRUE;
 	}
+
+	if (sgbControllerActive)
+		FocusOnCharInfo();
 }
 
 void AddPlrExperience(int pnum, int lvl, int exp)
@@ -869,8 +872,8 @@ void InitPlayer(int pnum, BOOL FirstTime)
 		if (plr[pnum]._pHitPoints >> 6 > 0) {
 			plr[pnum]._pmode = PM_STAND;
 			NewPlrAnim(pnum, plr[pnum]._pNAnim[DIR_S], plr[pnum]._pNFrames, 3, plr[pnum]._pNWidth);
-			plr[pnum]._pAnimFrame = random(2, plr[pnum]._pNFrames - 1) + 1;
-			plr[pnum]._pAnimCnt = random(2, 3);
+			plr[pnum]._pAnimFrame = random_(2, plr[pnum]._pNFrames - 1) + 1;
+			plr[pnum]._pAnimCnt = random_(2, 3);
 		} else {
 			plr[pnum]._pmode = PM_DEATH;
 			NewPlrAnim(pnum, plr[pnum]._pDAnim[DIR_S], plr[pnum]._pDFrames, 1, plr[pnum]._pDWidth);
@@ -1207,13 +1210,13 @@ void PM_ChangeOffset(int pnum)
 	}
 
 	plr[pnum]._pVar8++;
-	px = plr[pnum]._pVar6 >> 8;
-	py = plr[pnum]._pVar7 >> 8;
+	px = plr[pnum]._pVar6 / 256;
+	py = plr[pnum]._pVar7 / 256;
 
 	plr[pnum]._pVar6 += plr[pnum]._pxvel;
 	plr[pnum]._pVar7 += plr[pnum]._pyvel;
-	plr[pnum]._pxoff = plr[pnum]._pVar6 >> 8;
-	plr[pnum]._pyoff = plr[pnum]._pVar7 >> 8;
+	plr[pnum]._pxoff = plr[pnum]._pVar6 / 256;
+	plr[pnum]._pyoff = plr[pnum]._pVar7 / 256;
 
 	if (pnum == myplr && ScrollInfo._sdir) {
 		ScrollInfo._sxoff += px - plr[pnum]._pxoff;
@@ -1340,8 +1343,8 @@ void StartWalk2(int pnum, int xvel, int yvel, int xoff, int yoff, int xadd, int 
 	plr[pnum]._pmode = PM_WALK2;
 	plr[pnum]._pxvel = xvel;
 	plr[pnum]._pyvel = yvel;
-	plr[pnum]._pVar6 = xoff << 8;
-	plr[pnum]._pVar7 = yoff << 8;
+	plr[pnum]._pVar6 = xoff * 256;
+	plr[pnum]._pVar7 = yoff * 256;
 	plr[pnum]._pVar3 = EndDir;
 
 	if (!(plr[pnum]._pGFXLoad & PFILE_WALK)) {
@@ -1427,8 +1430,8 @@ void StartWalk3(int pnum, int xvel, int yvel, int xoff, int yoff, int xadd, int 
 	plr[pnum]._pyvel = yvel;
 	plr[pnum]._pVar1 = px;
 	plr[pnum]._pVar2 = py;
-	plr[pnum]._pVar6 = xoff << 8;
-	plr[pnum]._pVar7 = yoff << 8;
+	plr[pnum]._pVar6 = xoff * 256;
+	plr[pnum]._pVar7 = yoff * 256;
 	plr[pnum]._pVar3 = EndDir;
 
 	if (!(plr[pnum]._pGFXLoad & PFILE_WALK)) {
@@ -1894,7 +1897,7 @@ void DropHalfPlayersGold(int pnum)
 			}
 		}
 	}
-	drawpanflag = 255;
+	force_redraw = 255;
 	if (hGold > 0) {
 		for (i = 0; i < plr[pnum]._pNumInv && hGold > 0; i++) {
 			if (plr[pnum].InvList[i]._itype == ITYPE_GOLD && plr[pnum].InvList[i]._ivalue != GOLD_MAX_LIMIT) {
@@ -2065,7 +2068,7 @@ void StartNewLvl(int pnum, int fom, int lvl)
 	if (pnum == myplr) {
 		plr[pnum]._pmode = PM_NEWLVL;
 		plr[pnum]._pInvincible = TRUE;
-		PostMessage(ghMainWnd, fom, 0, 0);
+		PostMessage(fom, 0, 0);
 		if (gbMaxPlayers > 1) {
 			NetSendCmdParam2(TRUE, CMD_NEWLVL, fom, lvl);
 		}
@@ -2091,7 +2094,7 @@ void RestartTownLvl(int pnum)
 	if (pnum == myplr) {
 		plr[pnum]._pmode = PM_NEWLVL;
 		plr[pnum]._pInvincible = TRUE;
-		PostMessage(ghMainWnd, WM_DIABRETOWN, 0, 0);
+		PostMessage(WM_DIABRETOWN, 0, 0);
 	}
 }
 
@@ -2111,7 +2114,7 @@ void StartWarpLvl(int pnum, int pidx)
 		SetCurrentPortal(pidx);
 		plr[pnum]._pmode = PM_NEWLVL;
 		plr[pnum]._pInvincible = TRUE;
-		PostMessage(ghMainWnd, WM_DIABWARPLVL, 0, 0);
+		PostMessage(WM_DIABWARPLVL, 0, 0);
 	}
 }
 
@@ -2284,7 +2287,7 @@ BOOL WeaponDur(int pnum, int durrnd)
 		return FALSE;
 	}
 
-	if (random(3, durrnd) != 0) {
+	if (random_(3, durrnd) != 0) {
 		return FALSE;
 	}
 
@@ -2378,7 +2381,7 @@ BOOL PlrHitMonst(int pnum, int m)
 
 	rv = FALSE;
 
-	hit = random(4, 100);
+	hit = random_(4, 100);
 	if (monster[m]._mmode == MM_STONE) {
 		hit = 0;
 	}
@@ -2406,12 +2409,12 @@ BOOL PlrHitMonst(int pnum, int m)
 #endif
 		mind = plr[pnum]._pIMinDam;
 		maxd = plr[pnum]._pIMaxDam;
-		dam = random(5, maxd - mind + 1) + mind;
+		dam = random_(5, maxd - mind + 1) + mind;
 		dam += dam * plr[pnum]._pIBonusDam / 100;
 		dam += plr[pnum]._pDamageMod + plr[pnum]._pIBonusDamMod;
 		if (plr[pnum]._pClass == PC_WARRIOR) {
 			ddp = plr[pnum]._pLevel;
-			if (random(6, 100) < ddp) {
+			if (random_(6, 100) < ddp) {
 				dam *= 2;
 			}
 		}
@@ -2453,7 +2456,7 @@ BOOL PlrHitMonst(int pnum, int m)
 		}
 
 		if (plr[pnum]._pIFlags & ISPL_RNDSTEALLIFE) {
-			skdam = random(7, dam >> 3);
+			skdam = random_(7, dam >> 3);
 			plr[pnum]._pHitPoints += skdam;
 			if (plr[pnum]._pHitPoints > plr[pnum]._pMaxHP) {
 				plr[pnum]._pHitPoints = plr[pnum]._pMaxHP;
@@ -2553,7 +2556,7 @@ BOOL PlrHitPlr(int pnum, char p)
 		app_fatal("PlrHitPlr: illegal attacking player %d", pnum);
 	}
 
-	hit = random(4, 100);
+	hit = random_(4, 100);
 
 	hper = (plr[pnum]._pDexterity >> 1) + plr[pnum]._pLevel + 50 - (plr[p]._pIBonusAC + plr[p]._pIAC + plr[p]._pDexterity / 5);
 
@@ -2569,7 +2572,7 @@ BOOL PlrHitPlr(int pnum, char p)
 	}
 
 	if ((plr[p]._pmode == PM_STAND || plr[p]._pmode == PM_ATTACK) && plr[p]._pBlockFlag) {
-		blk = random(5, 100);
+		blk = random_(5, 100);
 	} else {
 		blk = 100;
 	}
@@ -2588,19 +2591,19 @@ BOOL PlrHitPlr(int pnum, char p)
 			StartPlrBlock(p, dir);
 		} else {
 			mind = plr[pnum]._pIMinDam;
-			maxd = random(5, plr[pnum]._pIMaxDam - mind + 1);
+			maxd = random_(5, plr[pnum]._pIMaxDam - mind + 1);
 			dam = maxd + mind;
 			dam += plr[pnum]._pDamageMod + plr[pnum]._pIBonusDamMod + dam * plr[pnum]._pIBonusDam / 100;
 
 			if (plr[pnum]._pClass == PC_WARRIOR) {
 				lvl = plr[pnum]._pLevel;
-				if (random(6, 100) < lvl) {
+				if (random_(6, 100) < lvl) {
 					dam *= 2;
 				}
 			}
 			skdam = dam << 6;
 			if (plr[pnum]._pIFlags & ISPL_RNDSTEALLIFE) {
-				tac = random(7, skdam >> 3);
+				tac = random_(7, skdam >> 3);
 				plr[pnum]._pHitPoints += tac;
 				if (plr[pnum]._pHitPoints > plr[pnum]._pMaxHP) {
 					plr[pnum]._pHitPoints = plr[pnum]._pMaxHP;
@@ -2831,7 +2834,7 @@ BOOL PM_DoBlock(int pnum)
 		StartStand(pnum, plr[pnum]._pdir);
 		ClearPlrPVars(pnum);
 
-		if (!random(3, 10)) {
+		if (!random_(3, 10)) {
 			ShieldDur(pnum);
 		}
 		return TRUE;
@@ -2863,7 +2866,7 @@ BOOL PM_DoSpell(int pnum)
 				        & (unsigned __int64)1 << (plr[pnum]._pRSpell - 1))) {
 					plr[pnum]._pRSpell = SPL_INVALID;
 					plr[pnum]._pRSplType = RSPLTYPE_INVALID;
-					drawpanflag = 255;
+					force_redraw = 255;
 				}
 			}
 
@@ -2872,7 +2875,7 @@ BOOL PM_DoSpell(int pnum)
 				        & (unsigned __int64)1 << (plr[pnum]._pRSpell - 1))) {
 					plr[pnum]._pRSpell = SPL_INVALID;
 					plr[pnum]._pRSplType = RSPLTYPE_INVALID;
-					drawpanflag = 255;
+					force_redraw = 255;
 				}
 			}
 		}
@@ -2917,7 +2920,7 @@ BOOL PM_DoGotHit(int pnum)
 	if (plr[pnum]._pAnimFrame >= plr[pnum]._pHFrames) {
 		StartStand(pnum, plr[pnum]._pdir);
 		ClearPlrPVars(pnum);
-		if (random(3, 4)) {
+		if (random_(3, 4)) {
 			ArmorDur(pnum);
 		}
 
@@ -2946,7 +2949,7 @@ void ArmorDur(int pnum)
 		return;
 	}
 
-	a = random(8, 3);
+	a = random_(8, 3);
 	if (p->InvBody[INVLOC_CHEST]._itype != ITYPE_NONE && p->InvBody[INVLOC_HEAD]._itype == ITYPE_NONE) {
 		a = 1;
 	}
@@ -3684,15 +3687,18 @@ void CheckPlrSpell()
 		return;
 	}
 
+	if (!sgbControllerActive) {
 	if (pcurs != CURSOR_HAND
-	    || MouseY >= PANEL_TOP
-	    || (chrflag && MouseX < 320 || invflag && MouseX > 320)
+	    || (MouseY >= PANEL_TOP && MouseX >= PANEL_LEFT && MouseX <= RIGHT_PANEL) // inside main panel
+	    || ((chrflag || questlog) && MouseX < SPANEL_WIDTH && MouseY < SPANEL_HEIGHT) // inside left panel
+		|| ((invflag || sbookflag) && MouseX > RIGHT_PANEL && MouseY < SPANEL_HEIGHT) // inside right panel
 	        && rspell != SPL_HEAL
 	        && rspell != SPL_IDENTIFY
 	        && rspell != SPL_REPAIR
 	        && rspell != SPL_INFRA
 	        && rspell != SPL_RECHARGE) {
 		return;
+	}
 	}
 
 	addflag = FALSE;

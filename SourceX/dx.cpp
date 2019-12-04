@@ -14,6 +14,7 @@ int locktbl[256];
 static CCritSect sgMemCrit;
 HMODULE ghDiabMod;
 
+int refreshDelay;
 SDL_Window *window;
 SDL_Renderer *renderer;
 SDL_Texture *texture;
@@ -30,17 +31,7 @@ SDL_Surface *pal_surface;
 
 bool bufferUpdated = false;
 
-void dx_init(HWND hWnd)
-{
-	SDL_RaiseWindow(window);
-	SDL_ShowWindow(window);
-
-	dx_create_primary_surface();
-	palette_init();
-	dx_create_back_buffer();
-}
-
-void dx_create_back_buffer()
+static void dx_create_back_buffer()
 {
 	pal_surface = SDL_CreateRGBSurfaceWithFormat(0, BUFFER_WIDTH, BUFFER_HEIGHT, 8, SDL_PIXELFORMAT_INDEX8);
 	if (pal_surface == NULL) {
@@ -56,7 +47,7 @@ void dx_create_back_buffer()
 	pal_surface_palette_version = 1;
 }
 
-void dx_create_primary_surface()
+static void dx_create_primary_surface()
 {
 #ifndef USE_SDL1
 	if (renderer) {
@@ -73,15 +64,16 @@ void dx_create_primary_surface()
 	}
 }
 
-void lock_buf(BYTE idx)
+void dx_init(HWND hWnd)
 {
-#ifdef _DEBUG
-	locktbl[idx]++;
-#endif
-	lock_buf_priv();
-}
+	SDL_RaiseWindow(window);
+	SDL_ShowWindow(window);
 
-void lock_buf_priv()
+	dx_create_primary_surface();
+	palette_init();
+	dx_create_back_buffer();
+}
+static void lock_buf_priv()
 {
 	sgMemCrit.Enter();
 	if (sgdwLockCount != 0) {
@@ -94,17 +86,15 @@ void lock_buf_priv()
 	sgdwLockCount++;
 }
 
-void unlock_buf(BYTE idx)
+void lock_buf(BYTE idx)
 {
 #ifdef _DEBUG
-	if (!locktbl[idx])
-		app_fatal("Draw lock underflow: 0x%x", idx);
-	locktbl[idx]--;
+	locktbl[idx]++;
 #endif
-	unlock_buf_priv();
+	lock_buf_priv();
 }
 
-void unlock_buf_priv()
+static void unlock_buf_priv()
 {
 	if (sgdwLockCount == 0)
 		app_fatal("draw main unlock error");
@@ -118,6 +108,16 @@ void unlock_buf_priv()
 		RenderPresent();
 	}
 	sgMemCrit.Leave();
+}
+
+void unlock_buf(BYTE idx)
+{
+#ifdef _DEBUG
+	if (!locktbl[idx])
+		app_fatal("Draw lock underflow: 0x%x", idx);
+	locktbl[idx]--;
+#endif
+	unlock_buf_priv();
 }
 
 void dx_cleanup()
@@ -153,7 +153,7 @@ void dx_reinit()
 
 	dx_cleanup();
 
-	drawpanflag = 255;
+	force_redraw = 255;
 
 	dx_init(ghMainWnd);
 
@@ -187,13 +187,37 @@ void BltFast(DWORD dwX, DWORD dwY, LPRECT lpSrcRect)
 		static_cast<decltype(SDL_Rect().y)>(dwY),
 		w, h
 	};
-
-	// Convert from 8-bit to 32-bit
-	if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
-		ErrSdl();
+	if (OutputRequiresScaling()) {
+		ScaleOutputRect(&dst_rect);
+		// Convert from 8-bit to 32-bit
+		SDL_Surface *tmp = SDL_ConvertSurface(pal_surface, GetOutputSurface()->format, 0);
+		if (SDL_BlitScaled(tmp, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+			SDL_FreeSurface(tmp);
+			ErrSdl();
+		}
+		SDL_FreeSurface(tmp);
+	} else {
+		// Convert from 8-bit to 32-bit
+		if (SDL_BlitSurface(pal_surface, &src_rect, GetOutputSurface(), &dst_rect) <= -1) {
+			ErrSdl();
+		}
 	}
-
 	bufferUpdated = true;
+}
+
+/**
+ * @brief Limit FPS to avoid high CPU load, use when v-sync isn't available
+ */
+void LimitFrameRate()
+{
+	static uint32_t frameDeadline;
+	uint32_t tc = SDL_GetTicks() * 1000;
+	uint32_t v = 0;
+	if (frameDeadline > tc) {
+		v = tc % refreshDelay;
+		SDL_Delay(v / 1000 + 1); // ceil
+	}
+	frameDeadline = tc + v + refreshDelay;
 }
 
 void RenderPresent()
@@ -205,11 +229,7 @@ void RenderPresent()
 		return;
 	}
 
-#ifdef USE_SDL1
-	if (SDL_Flip(surface) <= -1) {
-		ErrSdl();
-	}
-#else
+#ifndef USE_SDL1
 	if (renderer) {
 		if (SDL_UpdateTexture(texture, NULL, surface->pixels, surface->pitch) <= -1) { //pitch is 2560
 			ErrSdl();
@@ -232,7 +252,13 @@ void RenderPresent()
 		if (SDL_UpdateWindowSurface(window) <= -1) {
 			ErrSdl();
 		}
+		LimitFrameRate();
 	}
+#else
+	if (SDL_Flip(surface) <= -1) {
+		ErrSdl();
+	}
+	LimitFrameRate();
 #endif
 
 	bufferUpdated = false;

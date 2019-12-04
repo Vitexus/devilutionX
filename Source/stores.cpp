@@ -116,8 +116,8 @@ void FreeStoreMem()
 
 void DrawSTextBack()
 {
-	CelDraw(408, 487, pSTextBoxCels, 1, 271);
-	trans_rect(347, 28, 265, 297);
+	CelDraw(PANEL_X + 344, 487, pSTextBoxCels, 1, 271);
+	trans_rect(PANEL_LEFT + 347, 28, 265, 297);
 }
 
 void PrintSString(int x, int y, BOOL cjustflag, char *str, char col, int val)
@@ -129,9 +129,9 @@ void PrintSString(int x, int y, BOOL cjustflag, char *str, char col, int val)
 
 	s = y * 12 + stext[y]._syoff;
 	if (stextsize)
-		xx = 96;
+		xx = PANEL_X + 32;
 	else
-		xx = 416;
+		xx = PANEL_X + 352;
 	sx = xx + x;
 	sy = s + 204;
 	len = strlen(str);
@@ -161,7 +161,7 @@ void PrintSString(int x, int y, BOOL cjustflag, char *str, char col, int val)
 	}
 	if (!cjustflag && val >= 0) {
 		sprintf(valstr, "%i", val);
-		sx = 656 - x;
+		sx = PANEL_X + 592 - x;
 		for (i = strlen(valstr) - 1; i >= 0; i--) {
 			c = fontframe[gbFontTransTbl[(BYTE)valstr[i]]];
 			sx -= fontkern[c] + 1;
@@ -171,7 +171,7 @@ void PrintSString(int x, int y, BOOL cjustflag, char *str, char col, int val)
 		}
 	}
 	if (stextsel == y) {
-		CelDraw(cjustflag ? xx + x + k + 4 : 660 - x, s + 205, pSPentSpn2Cels, PentSpn2Frame, 12);
+		CelDraw(cjustflag ? (xx + x + k + 4) : (PANEL_X + 596 - x), s + 205, pSPentSpn2Cels, PentSpn2Frame, 12);
 	}
 }
 
@@ -181,13 +181,13 @@ void DrawSLine(int y)
 
 	sy = y * 12;
 	if (stextsize == 1) {
-		xy = SCREENXY(26, 25);
-		yy = BUFFER_WIDTH * (sy + 198) + 26 + 64;
+		xy = SCREENXY(PANEL_LEFT + 26, 25);
+		yy = BUFFER_WIDTH * (sy + 198) + 26 + PANEL_X;
 		width = 586 / 4;
 		line = BUFFER_WIDTH - 586;
 	} else {
-		xy = SCREENXY(346, 25);
-		yy = BUFFER_WIDTH * (sy + 198) + 346 + 64;
+		xy = SCREENXY(PANEL_LEFT + 346, 25);
+		yy = BUFFER_WIDTH * (sy + 198) + 346 + PANEL_X;
 		width = 266 / 4;
 		line = BUFFER_WIDTH - 266;
 	}
@@ -211,16 +211,16 @@ void DrawSArrows(int y1, int y2)
 	yd1 = y1 * 12 + 204;
 	yd2 = y2 * 12 + 204;
 	if (stextscrlubtn != -1)
-		CelDraw(665, yd1, pSTextSlidCels, 12, 12);
+		CelDraw(PANEL_X + 601, yd1, pSTextSlidCels, 12, 12);
 	else
-		CelDraw(665, yd1, pSTextSlidCels, 10, 12);
+		CelDraw(PANEL_X + 601, yd1, pSTextSlidCels, 10, 12);
 	if (stextscrldbtn != -1)
-		CelDraw(665, yd2, pSTextSlidCels, 11, 12);
+		CelDraw(PANEL_X + 601, yd2, pSTextSlidCels, 11, 12);
 	else
-		CelDraw(665, yd2, pSTextSlidCels, 9, 12);
+		CelDraw(PANEL_X + 601, yd2, pSTextSlidCels, 9, 12);
 	yd1 += 12;
 	for (yd3 = yd1; yd3 < yd2; yd3 += 12) {
-		CelDraw(665, yd3, pSTextSlidCels, 14, 12);
+		CelDraw(PANEL_X + 601, yd3, pSTextSlidCels, 14, 12);
 	}
 	if (stextsel == 22)
 		yd3 = stextlhold;
@@ -230,7 +230,7 @@ void DrawSArrows(int y1, int y2)
 		yd3 = 1000 * (stextsval + ((yd3 - stextup) >> 2)) / (storenumh - 1) * (y2 * 12 - y1 * 12 - 24) / 1000;
 	else
 		yd3 = 0;
-	CelDraw(665, (y1 + 1) * 12 + 204 + yd3, pSTextSlidCels, 13, 12);
+	CelDraw(PANEL_X + 601, (y1 + 1) * 12 + 204 + yd3, pSTextSlidCels, 13, 12);
 }
 
 void DrawSTextHelp()
@@ -1810,7 +1810,7 @@ void TakePlrsMoney(int cost)
 			}
 		}
 	}
-	drawpanflag = 255;
+	force_redraw = 255;
 	if (cost > 0) {
 		for (i = 0; i < plr[myplr]._pNumInv && cost > 0; i++) {
 			if (plr[myplr].InvList[i]._itype == ITYPE_GOLD && plr[myplr].InvList[i]._ivalue != GOLD_MAX_LIMIT) {
@@ -2557,7 +2557,7 @@ void S_TalkEnter()
 
 	sn = 0;
 	for (i = 0; i < 16; i++) {
-		if (quests[i]._qlevel == 2 && ((DWORD *)&Qtalklist[talker])[i] != -1 && quests[i]._qlog)
+		if (quests[i]._qactive == 2 && ((DWORD *)&Qtalklist[talker])[i] != -1 && quests[i]._qlog)
 			sn++;
 	}
 	if (sn > 6) {
@@ -2570,13 +2570,13 @@ void S_TalkEnter()
 
 	if (stextsel == sn - 2) {
 		SetRndSeed(towner[talker]._tSeed);
-		tq = gossipstart + random(0, gossipend - gossipstart + 1);
+		tq = gossipstart + random_(0, gossipend - gossipstart + 1);
 		InitQTextMsg(tq);
 		return;
 	}
 
 	for (i = 0; i < 16; i++) {
-		if (quests[i]._qlevel == 2 && ((DWORD *)&Qtalklist[talker])[i] != -1 && quests[i]._qlog) {
+		if (quests[i]._qactive == 2 && ((DWORD *)&Qtalklist[talker])[i] != -1 && quests[i]._qlog) {
 			if (sn == stextsel) {
 				InitQTextMsg(((DWORD *)&Qtalklist[talker])[i]);
 			}
@@ -2726,16 +2726,16 @@ void CheckStoreBtn()
 		qtextflag = FALSE;
 		if (leveltype == DTYPE_TOWN)
 			sfx_stop();
-	} else if (stextsel != -1 && MouseY >= 32 && MouseY <= 320) {
+	} else if (stextsel != -1 && MouseY >= 32 && MouseY <= SPANEL_WIDTH) {
 		if (!stextsize) {
-			if (MouseX < 344 || MouseX > 616)
+			if (MouseX < 344 + PANEL_LEFT || MouseX > 616 + PANEL_LEFT)
 				return;
 		} else {
-			if (MouseX < 24 || MouseX > 616)
+			if (MouseX < 24 + PANEL_LEFT || MouseX > 616 + PANEL_LEFT)
 				return;
 		}
 		y = (MouseY - 32) / 12;
-		if (stextscrl && MouseX > 600) {
+		if (stextscrl && MouseX > 600 + PANEL_LEFT) {
 			if (y == 4) {
 				if (stextscrlubtn <= 0) {
 					STextUp();

@@ -1,5 +1,6 @@
 #include "DiabloUI/dialogs.h"
 
+#include "controls/menu_controls.h"
 #include "devilution.h"
 #include "dx.h"
 #include "DiabloUI/diabloui.h"
@@ -53,7 +54,7 @@ UiItem OK_DIALOG[] = {
 
 UiItem OK_DIALOG_WITH_CAPTION[] = {
 	DIALOG_ART_L,
-	UiText(dialogText, SDL_Color { 255, 255, 0, 0 }, { 147, 110, 345, 20 }, UIS_CENTER),
+	UiText(dialogText, SDL_Color{ 255, 255, 0, 0 }, { 147, 110, 345, 20 }, UIS_CENTER),
 	UiText(dialogCaption, { 147, 141, 345, 190 }, UIS_CENTER),
 	MakeSmlButton("OK", &DialogActionOK, 264, 335),
 };
@@ -257,25 +258,22 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 	do {
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
-			case SDL_KEYDOWN:
-				switch (event.key.keysym.sym) {
-				case SDLK_ESCAPE:
-				case SDLK_RETURN:
-				case SDLK_KP_ENTER:
-				case SDLK_SPACE:
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP:
+				UiItemMouseEvents(&event, items, num_items);
+				break;
+			default:
+				switch (GetMenuAction(event)) {
+				case MenuAction::BACK:
+				case MenuAction::SELECT:
 					state = State::OK;
 					break;
 				default:
 					break;
 				}
 				break;
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP:
-				UiItemMouseEvents(&event, items, num_items);
-				break;
-			case SDL_QUIT:
-				exit(0);
 			}
+			UiHandleEvents(&event);
 		}
 
 		if (render_behind_size == 0) {
@@ -293,7 +291,9 @@ void DialogLoop(UiItem *items, std::size_t num_items, UiItem *render_behind, std
 
 void UiOkDialog(const char *text, const char *caption, bool error, UiItem *render_behind, std::size_t render_behind_size)
 {
-	if (!gbActive) {
+	static bool inDialog = false;
+
+	if (!gbActive || inDialog) {
 		if (SDL_ShowCursor(SDL_ENABLE) <= -1) {
 			SDL_Log(SDL_GetError());
 		}
@@ -305,11 +305,11 @@ void UiOkDialog(const char *text, const char *caption, bool error, UiItem *rende
 		return;
 	}
 
-	gbActive = false;
+	inDialog = true;
 	Init(text, caption, error);
 	DialogLoop(dialogItems, dialogItemsSize, render_behind, render_behind_size);
 	Deinit();
-	gbActive = true;
+	inDialog = false;
 }
 
 void UiErrorOkDialog(const char *text, const char *caption, UiItem *render_behind, std::size_t render_behind_size)

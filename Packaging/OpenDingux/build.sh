@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
 	echo "Usage: build.sh [target]"
-	echo "	target: target architecture. Either rs90, rg350 or retrofw"
+	echo "	target: target architecture. Either rg350 or retrofw"
 }
 
 if [[ $# -ne 1 ]]; then
@@ -13,7 +13,7 @@ if [[ $# -ne 1 ]]; then
 	exit 1
 fi
 
-if [[ "$1" != "rs90" ]] && [[ "$1" != "rg350" ]] && [[ "$1" != "retrofw" ]]; then
+if [[ "$1" != "rg350" ]] && [[ "$1" != "retrofw" ]]; then
 	echo "Error: invalid target"
 	usage
 	exit 1
@@ -33,8 +33,6 @@ fi
 
 BUILDROOT="${BUILDROOT:-$HOME/buildroot-${TARGET}-devilutionx}"
 
-set -x
-
 main() {
 	set -x
 	prepare_buildroot
@@ -49,22 +47,22 @@ prepare_buildroot() {
 	fi
 	if [[ "$TARGET" == "rg350" ]]; then
 		git clone --depth=1 https://github.com/tonyjih/RG350_buildroot.git "$BUILDROOT"
-	elif [[ "$TARGET" == "rs90" ]]; then
-		git clone --depth=1 -b od-rs90 https://github.com/OpenDingux/buildroot.git "$BUILDROOT"
-	else
+	else # retrofw
 		if [[ ! -f $BUILDROOT_ARCHIVE ]]; then
 			\curl https://buildroot.org/downloads/${BUILDROOT_VER}.tar.gz -o "$BUILDROOT_ARCHIVE"
 		fi
 		tar xf "$BUILDROOT_ARCHIVE" -C "$(dirname "$BUILDROOT_ARCHIVE")"
 		mv "${BUILDROOT_ARCHIVE%.tar.gz}" "$BUILDROOT"
 	fi
-	cp buildroot_${TARGET}_defconfig "$BUILDROOT/configs/${TARGET}_devilutionx_defconfig"
 }
 
 make_buildroot() {
+	cp buildroot_${TARGET}_defconfig "$BUILDROOT/configs/${TARGET}_devilutionx_defconfig"
 	cd "$BUILDROOT"
 	if [[ "$TARGET" != "rg350" ]]; then
-		echo 'LIBSODIUM_CONF_OPTS += --enable-static' >> package/libsodium/libsodium.mk
+		if ! grep 'enable-static' package/libsodium/libsodium.mk > /dev/null; then
+			echo 'LIBSODIUM_CONF_OPTS += --enable-static' >> package/libsodium/libsodium.mk
+		fi
 	fi
 	make ${TARGET}_devilutionx_defconfig
 	if [[ "$TARGET" == "rg350" ]]; then
@@ -79,16 +77,16 @@ build() {
 	mkdir -p ../../build
 	cd ../../build
 	rm -f CMakeCache.txt
+
+	local -a defs=(-DBINARY_RELEASE=ON)
 	if [[ "$TARGET" == "rg350" ]]; then
-		TARGET_DEFINES="-DNONET=ON"
-	elif [[ "$TARGET" == "rs90" ]]; then
-		TARGET_DEFINES="-DUSE_SDL1=ON"
-	else
-		TARGET_DEFINES="-DRETROFW=ON -DUSE_SDL1=ON"
+		defs+=(-DRG350=ON)
+	else # retrofw
+		defs+=(-DRETROFW=ON)
 	fi
-	cmake .. -DDINGUX=ON -DBINARY_RELEASE=ON ${TARGET_DEFINES} \
+	cmake .. ${defs[@]} \
 		-DCMAKE_TOOLCHAIN_FILE="$BUILDROOT/output/host/usr/share/buildroot/toolchainfile.cmake"
-	make -j $(nproc)
+	make -j $(getconf _NPROCESSORS_ONLN)
 	cd -
 }
 

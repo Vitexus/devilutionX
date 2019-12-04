@@ -65,6 +65,9 @@ void ClearCursor() // CODE_FIX: this was supposed to be in cursor.cpp
 	sgdwCursWdtOld = 0;
 }
 
+/**
+ * @brief Remove the cursor from the backbuffer
+ */
 static void scrollrt_draw_cursor_back_buffer()
 {
 	int i;
@@ -89,6 +92,9 @@ static void scrollrt_draw_cursor_back_buffer()
 	sgdwCursWdt = 0;
 }
 
+/**
+ * @brief Draw the cursor on the backbuffer
+ */
 static void scrollrt_draw_cursor_item()
 {
 	int i, mx, my, col;
@@ -97,6 +103,10 @@ static void scrollrt_draw_cursor_item()
 	assert(! sgdwCursWdt);
 
 	if (pcurs <= 0 || cursW == 0 || cursH == 0) {
+		return;
+	}
+
+	if (sgbControllerActive && pcurs != CURSOR_TELEPORT && !invflag && (!chrflag || plr[myplr]._pStatPts <= 0)) {
 		return;
 	}
 
@@ -192,6 +202,14 @@ void DrawMissilePrivate(MissileStruct *m, int sx, int sy, BOOL pre)
 		Cl2Draw(mx, my, m->_miAnimData, m->_miAnimFrame, m->_miAnimWidth);
 }
 
+/**
+ * @brief Render a missile sprite
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param sx Backbuffer coordinate
+ * @param sy Backbuffer coordinate
+ * @param pre Is the sprite in the background
+ */
 void DrawMissile(int x, int y, int sx, int sy, BOOL pre)
 {
 	int i;
@@ -215,6 +233,13 @@ void DrawMissile(int x, int y, int sx, int sy, BOOL pre)
 	}
 }
 
+/**
+ * @brief Render a monster sprite
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param mx Backbuffer coordinate
+ * @param my Backbuffer coordinate
+ */
 static void DrawMonster(int x, int y, int mx, int my, int m)
 {
 	int nCel, frames;
@@ -267,6 +292,17 @@ static void DrawMonster(int x, int y, int mx, int my, int m)
 	}
 }
 
+/**
+ * @brief Render a monster sprite
+ * @param pnum Player id
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param px Backbuffer coordinate
+ * @param py Backbuffer coordinate
+ * @param pCelBuff sprite buffer
+ * @param nCel frame
+ * @param nWidth width
+ */
 static void DrawPlayer(int pnum, int x, int y, int px, int py, BYTE *pCelBuff, int nCel, int nWidth)
 {
 	int l, frames;
@@ -333,6 +369,13 @@ static void DrawPlayer(int pnum, int x, int y, int px, int py, BYTE *pCelBuff, i
 	}
 }
 
+/**
+ * @brief Render a monster sprite
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param sx Backbuffer coordinate
+ * @param sy Backbuffer coordinate
+ */
 void DrawDeadPlayer(int x, int y, int sx, int sy)
 {
 	int i, px, py, nCel, frames;
@@ -363,6 +406,14 @@ void DrawDeadPlayer(int x, int y, int sx, int sy)
 	}
 }
 
+/**
+ * @brief Render an object sprite
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param ox Backbuffer coordinate
+ * @param oy Backbuffer coordinate
+ * @param pre Is the sprite in the background
+ */
 static void DrawObject(int x, int y, int ox, int oy, BOOL pre)
 {
 	int sx, sy, xx, yy, nCel, frames;
@@ -443,9 +494,13 @@ static void drawRow(int x, int y, int sx, int sy, int eflag)
 }
 
 /**
- * This function causes rendering issues since it will render some walls a second time after all items have been drawn.
- *
- * @brief Avoid actors sticking through the walls when walking east
+ * This variant checks for of screen element on the lower screen
+ * This function it self causes rendering issues since it will render on top of objects on the other side of walls
+ * @brief Re render tile to workaround sorting issues with players walking east/west
+ * @param y dPiece coordinate
+ * @param x dPiece coordinate
+ * @param sx Backbuffer coordinate
+ * @param sy Backbuffer coordinate
  */
 static void scrollrt_draw_e_flag(int x, int y, int sx, int sy)
 {
@@ -544,6 +599,14 @@ static void DrawPlayerHelper(int x, int y, int oy, int sx, int sy, int eflag)
 	}
 }
 
+/**
+ * @brief Render object sprites
+ * @param sx dPiece coordinate
+ * @param sy dPiece coordinate
+ * @param dx Backbuffer coordinate
+ * @param dy Backbuffer coordinate
+ * @param eflag Should the sorting workaround be applied
+ */
 static void scrollrt_draw_dungeon(int sx, int sy, int dx, int dy, int eflag)
 {
 	int mi, px, py, nCel, nMon, negMon, frames;
@@ -616,15 +679,24 @@ static void scrollrt_draw_dungeon(int sx, int sy, int dx, int dy, int eflag)
 	}
 }
 
-static void scrollrt_draw(int x, int y, int sx, int sy, int chunks, int dPieceRow)
+/**
+ * @brief Render a row of tile
+ * @param x dPiece coordinate
+ * @param y dPiece coordinate
+ * @param sx Backbuffer coordinate
+ * @param sy Backbuffer coordinate
+ * @param chunks tile width of row
+ * @param row current row being rendered
+ */
+static void scrollrt_draw(int x, int y, int sx, int sy, int chunks, int row)
 {
 	assert(gpBuffer);
 
-	if (dPieceRow & 1) {
-		x--;
-		y++;
+	if (row & 1) {
+		x -= 1;
+		y += 1;
 		sx -= 32;
-		chunks++;
+		chunks += 1;
 	}
 
 	for (int j = 0; j < chunks; j++) {
@@ -644,48 +716,59 @@ static void scrollrt_draw(int x, int y, int sx, int sy, int chunks, int dPieceRo
 	}
 }
 
+/**
+ * @brief Configure render and process screen rows
+ * @param x Center of view in dPiece coordinate
+ * @param y Center of view in dPiece coordinate
+ */
 static void DrawGame(int x, int y)
 {
 	int i, sx, sy, chunks, blocks;
 	int wdt, nSrcOff, nDstOff;
 
-	sx = ScrollInfo._sxoff + SCREEN_X;
-	if (zoomflag) {
-		sy = ScrollInfo._syoff + SCREEN_Y + 15;
+	sx = (SCREEN_WIDTH % 64) / 2;
+	sy = (VIEWPORT_HEIGHT % 32) / 2;
 
+	if (zoomflag) {
 		chunks = ceil(SCREEN_WIDTH / 64);
-		// Fill screen + keep evaulating untill MicroTiles can't affect screen
-		blocks = ceil(VIEWPORT_HEIGHT / 32) + ceil(MicroTileLen / 2);
+		blocks = ceil(VIEWPORT_HEIGHT / 32);
 
 		gpBufStart = &gpBuffer[BUFFER_WIDTH * SCREEN_Y];
 		gpBufEnd = &gpBuffer[BUFFER_WIDTH * (VIEWPORT_HEIGHT + SCREEN_Y)];
 	} else {
-		sy = ScrollInfo._syoff + -17 + SCREEN_Y ;
+		sy -= 32;
 
 		chunks = ceil(SCREEN_WIDTH / 2 / 64) + 1; // TODO why +1?
-		// Fill screen + keep evaulating untill MicroTiles can't affect screen
-		blocks = ceil(VIEWPORT_HEIGHT / 2 / 32) + ceil(MicroTileLen / 2);
+		blocks = ceil(VIEWPORT_HEIGHT / 2 / 32);
 
 		gpBufStart = &gpBuffer[(-17 + SCREEN_Y) * BUFFER_WIDTH];
 		gpBufEnd = &gpBuffer[(160 + SCREEN_Y) * BUFFER_WIDTH];
 	}
 
+	sx += ScrollInfo._sxoff + SCREEN_X;
+	sy += ScrollInfo._syoff + SCREEN_Y + 15;
+
 	// Center screen
 	x -= chunks;
 	y--;
 
-	if (zoomflag && SCREEN_WIDTH <= PANEL_WIDTH && SCREEN_HEIGHT <= VIEWPORT_HEIGHT + PANEL_HEIGHT) {
-		if (chrflag || questlog) {
-			x += 2;
-			y -= 2;
-			sx += 288;
-			chunks -= 4;
-		}
-		if (invflag || sbookflag) {
-			x += 2;
-			y -= 2;
-			sx -= 32;
-			chunks -= 4;
+	// Keep evaulating untill MicroTiles can't affect screen
+	blocks += ceil(MicroTileLen / 2);
+
+	if (PANELS_COVER) {
+		if (zoomflag) {
+			if (chrflag || questlog) {
+				x += 2;
+				y -= 2;
+				sx += 288;
+				chunks -= 4;
+			}
+			if (invflag || sbookflag) {
+				x += 2;
+				y -= 2;
+				sx -= 32;
+				chunks -= 4;
+			}
 		}
 	}
 
@@ -737,7 +820,6 @@ static void DrawGame(int x, int y)
 		break;
 	}
 
-	assert(gpBuffer);
 	for (i = 0; i < (blocks << 1); i++) {
 		scrollrt_draw(x, y, sx, sy, chunks, i);
 		sy += 16;
@@ -752,22 +834,20 @@ static void DrawGame(int x, int y)
 	if (zoomflag)
 		return;
 
-	nSrcOff = SCREENXY(32, 159);
-	nDstOff = SCREENXY(0, 350);
+	nSrcOff = SCREENXY(32, VIEWPORT_HEIGHT / 2 - 17);
+	nDstOff = SCREENXY(0, VIEWPORT_HEIGHT - 2);
 	wdt = SCREEN_WIDTH / 2;
-	if (SCREEN_WIDTH == PANEL_WIDTH && SCREEN_HEIGHT == VIEWPORT_HEIGHT + PANEL_HEIGHT) {
+	if (PANELS_COVER) {
 		if (chrflag || questlog) {
-			nSrcOff = SCREENXY(112, 159);
-			nDstOff = SCREENXY(320, 350);
-			wdt = (SCREEN_WIDTH - 320) / 2;
+			nSrcOff = SCREENXY(112, VIEWPORT_HEIGHT / 2 - 17);
+			nDstOff = SCREENXY(SPANEL_WIDTH, VIEWPORT_HEIGHT - 2);
+			wdt = (SCREEN_WIDTH - SPANEL_WIDTH) / 2;
 		} else if (invflag || sbookflag) {
-			nSrcOff = SCREENXY(112, 159);
-			nDstOff = SCREENXY(0, 350);
-			wdt = (SCREEN_WIDTH - 320) / 2;
+			nSrcOff = SCREENXY(112, VIEWPORT_HEIGHT / 2 - 17);
+			nDstOff = SCREENXY(0, VIEWPORT_HEIGHT - 2);
+			wdt = (SCREEN_WIDTH - SPANEL_WIDTH) / 2;
 		}
 	}
-
-	assert(gpBuffer);
 
 	int hgt;
 	BYTE *src, *dst1, *dst2;
@@ -776,7 +856,7 @@ static void DrawGame(int x, int y)
 	dst1 = &gpBuffer[nDstOff];
 	dst2 = &gpBuffer[nDstOff + BUFFER_WIDTH];
 
-	for (hgt = 176; hgt != 0; hgt--, src -= BUFFER_WIDTH + wdt, dst1 -= 2 * (BUFFER_WIDTH + wdt), dst2 -= 2 * (BUFFER_WIDTH + wdt)) {
+	for (hgt = VIEWPORT_HEIGHT / 2; hgt != 0; hgt--, src -= BUFFER_WIDTH + wdt, dst1 -= 2 * (BUFFER_WIDTH + wdt), dst2 -= 2 * (BUFFER_WIDTH + wdt)) {
 		for (i = wdt; i != 0; i--) {
 			*dst1++ = *src;
 			*dst1++ = *src;
@@ -787,6 +867,11 @@ static void DrawGame(int x, int y)
 	}
 }
 
+/**
+ * @brief Start rendering of screen, town variation
+ * @param StartX Center of view in dPiece coordinate
+ * @param StartY Center of view in dPiece coordinate
+ */
 void DrawView(int StartX, int StartY)
 {
 	DrawGame(StartX, StartY);
@@ -807,7 +892,9 @@ void DrawView(int StartX, int StartY)
 		DrawChr();
 	} else if (questlog) {
 		DrawQuestLog();
-	} else if (plr[myplr]._pStatPts != 0 && !spselflag) {
+	}
+	if (!chrflag && plr[myplr]._pStatPts != 0 && !spselflag
+		&& (!questlog || SCREEN_HEIGHT >= SPANEL_HEIGHT + PANEL_HEIGHT + 74 || SCREEN_WIDTH >= 4 * SPANEL_WIDTH)) {
 		DrawLevelUpIcon();
 	}
 	if (uitemflag) {
@@ -842,6 +929,9 @@ void DrawView(int StartX, int StartY)
 	DrawManaFlask();
 }
 
+/**
+ * @brief Render the whole screen black
+ */
 void ClearScreenBuffer()
 {
 	lock_buf(3);
@@ -861,6 +951,9 @@ void ClearScreenBuffer()
 }
 
 #ifdef _DEBUG
+/**
+ * @brief Scroll the screen when mouse is close to the edge
+ */
 void ScrollView()
 {
 	BOOL scroll;
@@ -938,13 +1031,20 @@ void ScrollView()
 	if (scroll)
 		ScrollInfo._sdir = SDIR_NONE;
 }
+#endif
 
+/**
+ * @brief Initialize the FPS meter
+ */
 void EnableFrameCount()
 {
 	frameflag = frameflag == 0;
 	framestart = GetTickCount();
 }
 
+/**
+ * @brief Display the current average FPS over 1 sec
+ */
 static void DrawFPS()
 {
 	DWORD tc, frames;
@@ -960,20 +1060,21 @@ static void DrawFPS()
 			framerate = 1000 * frameend / frames;
 			frameend = 0;
 		}
-		if (framerate > 99)
-			framerate = 99;
-		wsprintf(String, "%2d FPS", framerate);
+		wsprintf(String, "%d FPS", framerate);
 		PrintGameStr(8, 65, String, COL_RED);
 	}
 }
-#endif
 
+/**
+ * @brief Update part of the screen from the backbuffer
+ * @param dwX Backbuffer coordinate
+ * @param dwY Backbuffer coordinate
+ * @param dwWdt Backbuffer coordinate
+ * @param dwHgt Backbuffer coordinate
+ */
 static void DoBlitScreen(DWORD dwX, DWORD dwY, DWORD dwWdt, DWORD dwHgt)
 {
 	RECT SrcRect;
-
-	assert(! (dwX & 3));
-	assert(! (dwWdt & 3));
 
 	SrcRect.left = dwX + SCREEN_X;
 	SrcRect.top = dwY + SCREEN_Y;
@@ -983,6 +1084,15 @@ static void DoBlitScreen(DWORD dwX, DWORD dwY, DWORD dwWdt, DWORD dwHgt)
 	BltFast(dwX, dwY, &SrcRect);
 }
 
+/**
+ * @brief Check render pipline and blit indivudal screen parts
+ * @param dwHgt Section of screen to update from top to bottom
+ * @param draw_desc Render info box
+ * @param draw_hp Render halth bar
+ * @param draw_mana Render mana bar
+ * @param draw_sbar Render belt
+ * @param draw_btn Render panel buttons
+ */
 static void DrawMain(int dwHgt, BOOL draw_desc, BOOL draw_hp, BOOL draw_mana, BOOL draw_sbar, BOOL draw_btn)
 {
 	int ysize;
@@ -1002,24 +1112,24 @@ static void DrawMain(int dwHgt, BOOL draw_desc, BOOL draw_hp, BOOL draw_mana, BO
 	}
 	if (ysize < SCREEN_HEIGHT) {
 		if (draw_sbar) {
-			DoBlitScreen(204, 357, 232, 28);
+			DoBlitScreen(PANEL_LEFT + 204, PANEL_TOP + 5, 232, 28);
 		}
 		if (draw_desc) {
-			DoBlitScreen(176, 398, 288, 60);
+			DoBlitScreen(PANEL_LEFT + 176, PANEL_TOP + 46, 288, 60);
 		}
 		if (draw_mana) {
-			DoBlitScreen(460, 352, 88, 72);
-			DoBlitScreen(564, 416, 56, 56);
+			DoBlitScreen(PANEL_LEFT + 460, PANEL_TOP, 88, 72);
+			DoBlitScreen(PANEL_LEFT + 564, PANEL_TOP + 64, 56, 56);
 		}
 		if (draw_hp) {
-			DoBlitScreen(96, 352, 88, 72);
+			DoBlitScreen(PANEL_LEFT + 96, PANEL_TOP, 88, 72);
 		}
 		if (draw_btn) {
-			DoBlitScreen(8, 357, 72, 119);
-			DoBlitScreen(556, 357, 72, 48);
+			DoBlitScreen(PANEL_LEFT + 8, PANEL_TOP + 5, 72, 119);
+			DoBlitScreen(PANEL_LEFT + 556, PANEL_TOP + 5, 72, 48);
 			if (gbMaxPlayers > 1) {
-				DoBlitScreen(84, 443, 36, 32);
-				DoBlitScreen(524, 443, 36, 32);
+				DoBlitScreen(PANEL_LEFT + 84, PANEL_TOP + 91, 36, 32);
+				DoBlitScreen(PANEL_LEFT + 524, PANEL_TOP + 91, 36, 32);
 			}
 		}
 		if (sgdwCursWdtOld != 0) {
@@ -1035,8 +1145,8 @@ void scrollrt_draw_game_screen(BOOL draw_cursor)
 {
 	int hgt;
 
-	if (drawpanflag == 255) {
-		drawpanflag = 0;
+	if (force_redraw == 255) {
+		force_redraw = 0;
 		hgt = SCREEN_HEIGHT;
 	} else {
 		hgt = 0;
@@ -1057,6 +1167,9 @@ void scrollrt_draw_game_screen(BOOL draw_cursor)
 	}
 }
 
+/**
+ * @brief Render the game
+ */
 void DrawAndBlit()
 {
 	int hgt;
@@ -1066,7 +1179,7 @@ void DrawAndBlit()
 		return;
 	}
 
-	if (SCREEN_WIDTH > PANEL_WIDTH || SCREEN_HEIGHT > VIEWPORT_HEIGHT + PANEL_HEIGHT || drawpanflag == 255) {
+	if (SCREEN_WIDTH > PANEL_WIDTH || SCREEN_HEIGHT > VIEWPORT_HEIGHT + PANEL_HEIGHT || force_redraw == 255) {
 		drawhpflag = TRUE;
 		drawmanaflag = TRUE;
 		drawbtnflag = TRUE;
@@ -1080,7 +1193,7 @@ void DrawAndBlit()
 		hgt = VIEWPORT_HEIGHT;
 	}
 
-	drawpanflag = 0;
+	force_redraw = 0;
 
 	lock_buf(0);
 	DrawView(ViewX, ViewY);
@@ -1105,9 +1218,7 @@ void DrawAndBlit()
 	}
 	scrollrt_draw_cursor_item();
 
-#ifdef _DEBUG
 	DrawFPS();
-#endif
 
 	unlock_buf(0);
 

@@ -14,20 +14,46 @@ int gamma_correction = 100;
 BOOL color_cycling_enabled = TRUE;
 BOOLEAN sgbFadedIn = TRUE;
 
+static void palette_update()
+{
+	int nentries;
+	int max_entries;
+
+	if (1) {
+		nentries = 0;
+		max_entries = 256;
+		if (!fullscreen) {
+			nentries = gdwPalEntries;
+			max_entries = 2 * (128 - gdwPalEntries);
+		}
+		SDrawUpdatePalette(nentries, max_entries, &system_palette[nentries], 0);
+	}
+}
+
+void ApplyGamma(PALETTEENTRY *dst, const PALETTEENTRY *src, int n)
+{
+	int i;
+	double g;
+
+	g = gamma_correction / 100.0;
+
+	for (i = 0; i < n; i++) {
+		dst->peRed = pow(src->peRed / 256.0, g) * 256.0;
+		dst->peGreen = pow(src->peGreen / 256.0, g) * 256.0;
+		dst->peBlue = pow(src->peBlue / 256.0, g) * 256.0;
+		dst++;
+		src++;
+	}
+	force_redraw = 255;
+}
+
 void SaveGamma()
 {
 	SRegSaveValue("Diablo", "Gamma Correction", 0, gamma_correction);
 	SRegSaveValue("Diablo", "Color Cycling", FALSE, color_cycling_enabled);
 }
 
-void palette_init()
-{
-	LoadGamma();
-	memcpy(system_palette, orig_palette, sizeof(orig_palette));
-	CreatePalette();
-}
-
-void LoadGamma()
+static void LoadGamma()
 {
 	int gamma_value;
 	int value;
@@ -45,6 +71,13 @@ void LoadGamma()
 	if (!SRegLoadValue("Diablo", "Color Cycling", 0, &value))
 		value = 1;
 	color_cycling_enabled = value;
+}
+
+void palette_init()
+{
+	LoadGamma();
+	memcpy(system_palette, orig_palette, sizeof(orig_palette));
+	CreatePalette();
 }
 
 void LoadPalette(char *pszFileName)
@@ -75,7 +108,7 @@ void LoadRndLvlPal(int l)
 	if (l == DTYPE_TOWN) {
 		LoadPalette("Levels\\TownData\\Town.pal");
 	} else {
-		rv = random(0, 4) + 1;
+		rv = random_(0, 4) + 1;
 		sprintf(szFileName, "Levels\\L%iData\\L%i_%i.PAL", l, l, rv);
 		LoadPalette(szFileName);
 	}
@@ -93,38 +126,6 @@ void IncreaseGamma()
 			gamma_correction = 100;
 		ApplyGamma(system_palette, logical_palette, 256);
 		palette_update();
-	}
-}
-
-void palette_update()
-{
-	int nentries;
-	int max_entries;
-
-	if (1) {
-		nentries = 0;
-		max_entries = 256;
-		if (!fullscreen) {
-			nentries = gdwPalEntries;
-			max_entries = 2 * (128 - gdwPalEntries);
-		}
-		SDrawUpdatePalette(nentries, max_entries, &system_palette[nentries], 0);
-	}
-}
-
-void ApplyGamma(PALETTEENTRY *dst, const PALETTEENTRY *src, int n)
-{
-	int i;
-	double g;
-
-	g = gamma_correction / 100.0;
-
-	for (i = 0; i < n; i++) {
-		dst->peRed = pow(src->peRed / 256.0, g) * 256.0;
-		dst->peGreen = pow(src->peGreen / 256.0, g) * 256.0;
-		dst->peBlue = pow(src->peBlue / 256.0, g) * 256.0;
-		dst++;
-		src++;
 	}
 }
 
@@ -146,12 +147,8 @@ int UpdateGamma(int gamma)
 		ApplyGamma(system_palette, logical_palette, 256);
 		palette_update();
 	}
+	SaveGamma();
 	return 130 - gamma_correction;
-}
-
-void BlackPalette()
-{
-	SetFadeLevel(0);
 }
 
 void SetFadeLevel(DWORD fadeval)
@@ -165,7 +162,6 @@ void SetFadeLevel(DWORD fadeval)
 			system_palette[i].peGreen = (fadeval * logical_palette[i].peGreen) >> 8;
 			system_palette[i].peBlue = (fadeval * logical_palette[i].peBlue) >> 8;
 		}
-		Sleep(3);
 		palette_update();
 
 		// Workaround for flickering mouse in caves https://github.com/diasurgical/devilutionX/issues/7
@@ -178,12 +174,18 @@ void SetFadeLevel(DWORD fadeval)
 	}
 }
 
+void BlackPalette()
+{
+	SetFadeLevel(0);
+}
+
 void PaletteFadeIn(int fr)
 {
 	int i;
 
 	ApplyGamma(logical_palette, orig_palette, 256);
-	for (i = 0; i < 256; i += fr) {
+	DWORD tc = SDL_GetTicks();
+	for (i = 0; i < 256; i = (SDL_GetTicks() - tc) / 2.083) { // 32 frames @ 60hz
 		SetFadeLevel(i);
 	}
 	SetFadeLevel(256);
@@ -196,7 +198,8 @@ void PaletteFadeOut(int fr)
 	int i;
 
 	if (sgbFadedIn) {
-		for (i = 256; i > 0; i -= fr) {
+		DWORD tc = SDL_GetTicks();
+		for (i = 256; i > 0; i = 256 - (SDL_GetTicks() - tc) / 2.083) { // 32 frames @ 60hz
 			SetFadeLevel(i);
 		}
 		SetFadeLevel(0);

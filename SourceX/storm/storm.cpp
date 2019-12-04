@@ -360,16 +360,6 @@ void setIniValue(const char *sectionName, const char *keyName, char *value, int 
 	ini.saveToFile();
 }
 
-BOOL SRegLoadData(const char *keyname, const char *valuename, int size, LPBYTE lpData, BYTE flags, LPDWORD lpcbData)
-{
-	return getIniValue(keyname, valuename, (char *)lpData, size, (int *)lpcbData);
-}
-
-BOOL SRegLoadString(const char *keyname, const char *valuename, BYTE flags, char *buffer, unsigned int buffersize)
-{
-	return getIniValue(keyname, valuename, buffer, buffersize);
-}
-
 BOOL SRegLoadValue(const char *keyname, const char *valuename, BYTE flags, int *value)
 {
 	char string[10];
@@ -379,20 +369,6 @@ BOOL SRegLoadValue(const char *keyname, const char *valuename, BYTE flags, int *
 	}
 
 	return false;
-}
-
-BOOL SRegSaveData(const char *keyname, const char *valuename, int size, BYTE *lpData, DWORD cbData)
-{
-	setIniValue(keyname, valuename, (char *)lpData, cbData);
-
-	return true;
-}
-
-BOOL SRegSaveString(const char *keyname, const char *valuename, BYTE flags, char *string)
-{
-	setIniValue(keyname, valuename, string);
-
-	return true;
 }
 
 BOOL SRegSaveValue(const char *keyname, const char *valuename, BYTE flags, DWORD result)
@@ -624,6 +600,7 @@ void SVidPlayBegin(char *filename, int a2, int a3, int a4, int a5, int flags, HA
 	}
 
 	SVidFrameEnd = SDL_GetTicks() * 1000 + SVidFrameLength;
+	SDL_FillRect(GetOutputSurface(), NULL, 0x000000);
 }
 
 BOOL SVidLoadNextFrame()
@@ -721,6 +698,7 @@ BOOL SVidPlayContinue(void)
 		Uint32 format = SDL_GetWindowPixelFormat(window);
 		SDL_Surface *tmp = SDL_ConvertSurfaceFormat(SVidSurface, format, 0);
 #endif
+		ScaleOutputRect(&pal_surface_offset);
 		if (SDL_BlitScaled(tmp, NULL, GetOutputSurface(), &pal_surface_offset) <= -1) {
 			SDL_Log(SDL_GetError());
 			return false;

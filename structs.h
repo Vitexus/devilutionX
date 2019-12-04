@@ -102,7 +102,7 @@ typedef struct ItemStruct {
 	int _iAnimFrame;
 	int _iAnimWidth;
 	int _iAnimWidth2; // width 2?
-	int _isin;        // set when item is flagged for deletion, deprecated in 1.02
+	BOOL _iDelFlag; // set when item is flagged for deletion, deprecated in 1.02
 	char _iSelFlag;
 	BOOL _iPostDraw;
 	BOOL _iIdentified;
@@ -217,9 +217,9 @@ typedef struct PlayerStruct {
 	int _pSBkSpell;
 	char _pSBkSplType;
 	char _pSplLvl[64];
-	unsigned __int64 _pMemSpells;
-	unsigned __int64 _pAblSpells;
-	unsigned __int64 _pScrlSpells;
+	uint64_t _pMemSpells;
+	uint64_t _pAblSpells;
+	uint64_t _pScrlSpells;
 	UCHAR _pSpellFlags;
 	int _pSplHotKey[4];
 	char _pSplTHotKey[4];
@@ -317,7 +317,7 @@ typedef struct PlayerStruct {
 	int _pIBonusToHit;
 	int _pIBonusAC;
 	int _pIBonusDamMod;
-	unsigned __int64 _pISpells;
+	uint64_t _pISpells;
 	int _pIFlags;
 	int _pIGetHit;
 	char _pISplLvlAdd;
@@ -1305,6 +1305,14 @@ typedef struct _SNETPROGRAMDATA {
 	int lcid;
 } _SNETPROGRAMDATA;
 
+typedef struct _SNETVERSIONDATA {
+	int size;
+	char *versionstring;
+	char *executablefile;
+	char *originalarchivefile;
+	char *patcharchivefile;
+} _SNETVERSIONDATA;
+
 typedef struct _SNETUIDATA {
 	int size;
 	int uiflags;
@@ -1336,14 +1344,6 @@ typedef struct _SNETUIDATA {
 	    );
 	void(* changenamecallback)();
 } _SNETUIDATA;
-
-typedef struct _SNETVERSIONDATA {
-	int size;
-	char *versionstring;
-	char *executablefile;
-	char *originalarchivefile;
-	char *patcharchivefile;
-} _SNETVERSIONDATA;
 
 // TPDEF PTR FCN UCHAR SNETSPIBIND
 // TPDEF PTR FCN UCHAR SNETSPIQUERY
@@ -1391,7 +1391,7 @@ typedef struct PkPlayerStruct {
 	int pManaBase;
 	int pMaxManaBase;
 	char pSplLvl[MAX_SPELLS];
-	unsigned __int64 pMemSpells;
+	uint64_t pMemSpells;
 	PkItemStruct InvBody[NUM_INVLOC];
 	PkItemStruct InvList[NUM_INV_GRID_ELEM];
 	char InvGrid[NUM_INV_GRID_ELEM];
