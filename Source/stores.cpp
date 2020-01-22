@@ -7,7 +7,7 @@ int storenumh;
 int stextlhold;
 ItemStruct boyitem;
 int stextshold;
-ItemStruct premiumitem[6];
+ItemStruct premiumitem[SMITH_PREMIUM_ITEMS];
 BYTE *pSTextBoxCels;
 int premiumlevel;
 int talker;
@@ -32,7 +32,7 @@ BYTE PentSpn2Frame;
 DWORD PentSpn2Tick;
 int stextsval;
 int boylevel;
-ItemStruct smithitem[20];
+ItemStruct smithitem[SMITH_ITEMS];
 int stextdown;
 char stextscrlubtn;
 char stextflag;
@@ -1410,7 +1410,7 @@ void StartStore(char s)
 
 	for (t = s;; t = STORE_SMITH) {
 		sbookflag = FALSE;
-		invflag = 0;
+		invflag = FALSE;
 		chrflag = FALSE;
 		questlog = FALSE;
 		dropGoldFlag = FALSE;
@@ -1852,8 +1852,8 @@ void SmithBuyItem()
 		plr[myplr].HoldItem._iIdentified = FALSE;
 	StoreAutoPlace();
 	idx = stextvhold + ((stextlhold - stextup) >> 2);
-	if (idx == 19) {
-		smithitem[19]._itype = ITYPE_NONE;
+	if (idx == SMITH_ITEMS - 1) {
+		smithitem[SMITH_ITEMS - 1]._itype = ITYPE_NONE;
 	} else {
 		for (; smithitem[idx + 1]._itype != ITYPE_NONE; idx++) {
 			smithitem[idx] = smithitem[idx + 1];
@@ -1884,7 +1884,7 @@ void S_SBuyEnter()
 			done = FALSE;
 
 			for (i = 0; i < 40 && !done; i++) {
-				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, 0);
+				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, FALSE);
 			}
 			if (done)
 				StartStore(STORE_CONFIRM);
@@ -1945,7 +1945,7 @@ void S_SPBuyEnter()
 			SetCursor_(plr[myplr].HoldItem._iCurs + CURSOR_FIRSTITEM);
 			done = FALSE;
 			for (i = 0; i < 40 && !done; i++) {
-				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, 0);
+				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, FALSE);
 			}
 			if (done)
 				StartStore(STORE_CONFIRM);
@@ -2196,7 +2196,7 @@ void S_WBuyEnter()
 			done = FALSE;
 
 			for (i = 0; i < 40 && !done; i++) {
-				done = SpecialAutoPlace(myplr, i, cursW / 28, cursH / 28, 0);
+				done = SpecialAutoPlace(myplr, i, cursW / 28, cursH / 28, FALSE);
 			}
 
 			if (done)
@@ -2363,7 +2363,7 @@ void S_BBuyEnter()
 			SetCursor_(plr[myplr].HoldItem._iCurs + CURSOR_FIRSTITEM);
 			done = FALSE;
 			for (i = 0; i < 40 && !done; i++) {
-				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, 0);
+				done = AutoPlace(myplr, i, cursW / 28, cursH / 28, FALSE);
 			}
 			if (done)
 				StartStore(STORE_CONFIRM);
@@ -2494,7 +2494,7 @@ void S_HBuyEnter()
 			done = FALSE;
 			i = 0;
 			for (i = 0; i < 40 && !done; i++) {
-				done = SpecialAutoPlace(myplr, i, cursW / 28, cursH / 28, 0);
+				done = SpecialAutoPlace(myplr, i, cursW / 28, cursH / 28, FALSE);
 			}
 			if (done)
 				StartStore(STORE_CONFIRM);

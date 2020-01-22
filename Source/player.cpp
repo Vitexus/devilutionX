@@ -1145,7 +1145,7 @@ void StartWalkStand(int pnum)
 	plr[pnum]._pxoff = 0;
 	plr[pnum]._pyoff = 0;
 
-	CheckEFlag(pnum, 0);
+	CheckEFlag(pnum, FALSE);
 
 	if (pnum == myplr) {
 		ScrollInfo._sxoff = 0;
@@ -2399,7 +2399,7 @@ BOOL PlrHitMonst(int pnum, int m)
 		hper = 95;
 	}
 
-	if (CheckMonsterHit(m, &ret)) {
+	if (CheckMonsterHit(m, ret)) {
 		return ret;
 	}
 #ifdef _DEBUG

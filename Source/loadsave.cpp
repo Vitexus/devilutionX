@@ -154,7 +154,7 @@ void LoadGame(BOOL firstflag)
 	numpremium = WLoad();
 	premiumlevel = WLoad();
 
-	for (i = 0; i < 6; i++)
+	for (i = 0; i < SMITH_PREMIUM_ITEMS; i++)
 		LoadPremium(i);
 
 	automapflag = OLoad();
@@ -925,7 +925,7 @@ void SaveGame()
 	WSave(numpremium);
 	WSave(premiumlevel);
 
-	for (i = 0; i < 6; i++)
+	for (i = 0; i < SMITH_PREMIUM_ITEMS; i++)
 		SavePremium(i);
 
 	OSave(automapflag);
@@ -1690,7 +1690,7 @@ void LoadLevel()
 	AutomapZoomReset();
 	ResyncQuests();
 	SyncPortals();
-	dolighting = 1;
+	dolighting = TRUE;
 
 	for (i = 0; i < MAX_PLRS; i++) {
 		if (plr[i].plractive && currlevel == plr[i].plrlevel)

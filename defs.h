@@ -50,6 +50,10 @@
 
 // todo: enums
 #define NUMLEVELS				17
+#define SMITH_ITEMS				20
+#define SMITH_PREMIUM_ITEMS		6
+#define SMITH_MAX_VALUE			140000
+#define SMITH_MAX_PREMIUM_VALUE 140000
 
 // from diablo 2 beta
 #define MAXEXP					2000000000
@@ -176,3 +180,8 @@
 #define SwapLE16 SDL_SwapLE16
 
 #define ErrSdl() ErrDlg("SDL Error", SDL_GetError(), __FILE__, __LINE__)
+
+#ifdef _MSC_VER
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#endif
