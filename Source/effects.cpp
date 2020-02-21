@@ -1,4 +1,4 @@
-#include "diablo.h"
+#include "all.h"
 #include "../3rdParty/Storm/Source/storm.h"
 #include <SDL_mixer.h>
 
@@ -1242,7 +1242,7 @@ void effects_play_sound(char *snd_file)
 	}
 
 	for (i = 0; i < sizeof(sgSFX) / sizeof(TSFX); i++) {
-		if (!_strcmpi(sgSFX[i].pszName, snd_file) && sgSFX[i].pSnd) {
+		if (!strcasecmp(sgSFX[i].pszName, snd_file) && sgSFX[i].pSnd) {
 			if (!snd_playing(sgSFX[i].pSnd))
 				snd_play_snd(sgSFX[i].pSnd, 0, 0);
 

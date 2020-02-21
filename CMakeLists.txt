@@ -18,6 +18,7 @@ option(BINARY_RELEASE "Enable options for binary release" OFF)
 option(NIGHTLY_BUILD "Enable options for nightly build" OFF)
 option(USE_SDL1 "Use SDL1.2 instead of SDL2" OFF)
 option(NONET "Disable network" OFF)
+option(RUN_TESTS "Build and run tests" OFF)
 
 if(BINARY_RELEASE)
   set(CMAKE_BUILD_TYPE "Release")
@@ -77,8 +78,16 @@ if(RG350)
   include(rg350_defs)
 endif()
 
+if (GKD350H)
+  include(gkd350h_defs)
+endif()
+
 if(RETROFW)
   include(retrofw_defs)
+endif()
+
+if(CPIGAMESH)
+  include(cpigamesh_defs)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD OR ${CMAKE_SYSTEM_NAME} STREQUAL OpenBSD)
@@ -96,6 +105,11 @@ endif()
 
 if(HAIKU)
   set(ASAN OFF)
+  set(UBSAN OFF)
+endif()
+
+if(AMIGA)
+  include(amiga_defs)
 endif()
 
 if(DIST)
@@ -210,13 +224,13 @@ add_library(devilution STATIC
   Source/player.cpp
   Source/plrmsg.cpp
   Source/portal.cpp
-  Source/spelldat.cpp
   Source/quests.cpp
   Source/render.cpp
   Source/restrict.cpp
   Source/scrollrt.cpp
   Source/setmaps.cpp
   Source/sha.cpp
+  Source/spelldat.cpp
   Source/spells.cpp
   Source/stores.cpp
   Source/sync.cpp
@@ -238,19 +252,16 @@ set(devilutionx_SRCS
   SourceX/controls/controller_motion.cpp
   SourceX/controls/game_controls.cpp
   SourceX/controls/menu_controls.cpp
+  SourceX/controls/modifier_hints.cpp
   SourceX/controls/plrctrls.cpp
   SourceX/controls/touch.cpp
-  SourceX/miniwin/ddraw.cpp
-  SourceX/miniwin/misc.cpp
-  SourceX/miniwin/misc_io.cpp
+  SourceX/display.cpp
   SourceX/miniwin/misc_msg.cpp
-  SourceX/miniwin/rand.cpp
-  SourceX/miniwin/thread.cpp
-  SourceX/miniwin/dsound.cpp
+  SourceX/thread.cpp
   SourceX/sound.cpp
+  SourceX/soundsample.cpp
   SourceX/storm/storm.cpp
   SourceX/storm/storm_net.cpp
-  SourceX/storm/storm_dx.cpp
   SourceX/dvlnet/abstract_net.cpp
   SourceX/dvlnet/loopback.cpp
   SourceX/dvlnet/packet.cpp
@@ -300,7 +311,34 @@ if(SWITCH)
   set(BIN_TARGET devilutionx.elf)
 endif()
 
+if(RUN_TESTS)
+  list(APPEND devilutionx_SRCS
+    SourceT/appfat_test.cpp
+    SourceT/automap_test.cpp
+    SourceT/control_test.cpp
+    SourceT/cursor_test.cpp
+    SourceT/codec_test.cpp
+    SourceT/dead_test.cpp
+    SourceT/diablo_test.cpp
+    SourceT/doom_test.cpp
+    SourceT/drlg_l1_test.cpp
+    SourceT/drlg_l2_test.cpp
+    SourceT/drlg_l3_test.cpp
+    SourceT/drlg_l4_test.cpp
+    SourceT/effects_test.cpp)
+endif()
+
 add_executable(${BIN_TARGET} WIN32 MACOSX_BUNDLE ${devilutionx_SRCS})
+
+if(RUN_TESTS)
+  include(CTest)
+  include(GoogleTest)
+  find_package(GTest REQUIRED)
+  include_directories(${GTEST_INCLUDE_DIRS})
+  add_definitions(-fprofile-arcs -ftest-coverage -DRUN_TESTS)
+  target_link_libraries(${BIN_TARGET} PRIVATE -fprofile-arcs ${GTEST_LIBRARIES})
+  gtest_add_tests(${BIN_TARGET} "" AUTO)
+endif()
 
 configure_file(SourceS/config.h.in config.h @ONLY)
 target_include_directories(devilution PUBLIC Source SourceS ${CMAKE_CURRENT_BINARY_DIR})
@@ -334,7 +372,6 @@ foreach(
   def_name
   SPAWN
   NONET
-  RETROFW
   PREFILL_PLAYER_NAME
 )
 if(${def_name})
@@ -345,6 +382,9 @@ endforeach(def_name)
 # Defines with value
 foreach(
   def_name
+  SDL1_VIDEO_MODE_WIDTH
+  SDL1_VIDEO_MODE_HEIGHT
+  TTF_FONT_PATH
   SDL1_VIDEO_MODE_BPP
   SDL1_VIDEO_MODE_FLAGS
   HAS_KBCTRL
@@ -400,13 +440,15 @@ endforeach(def_name)
 foreach(target devilution ${BIN_TARGET})
   if(USE_SDL1)
     target_link_libraries(${target} PRIVATE
-      ${SDL_LIBRARY} ${SDL_TTF_LIBRARY} ${SDL_MIXER_LIBRARY})
+      ${SDL_TTF_LIBRARY}
+      ${SDL_MIXER_LIBRARY}
+      ${SDL_LIBRARY})
     target_compile_definitions(${target} PRIVATE USE_SDL1)
   else()
     target_link_libraries(${target} PRIVATE
-      SDL2::SDL2main
       SDL2::SDL2_ttf
-      SDL2::SDL2_mixer)
+      SDL2::SDL2_mixer
+      SDL2::SDL2main)
   endif()
 
   if(ASAN)
@@ -424,10 +466,19 @@ foreach(target devilution ${BIN_TARGET})
       -lfreetype -lvorbisfile -lvorbis -logg -lmodplug -lmpg123 -lSDL2 -lopusfile -lopus -lEGL -lglapi -ldrm_nouveau -lpng -lbz2 -lz -lnx)
   endif()
 
+  if(AMIGA)
+    target_link_libraries(${target} PRIVATE
+      ${FREETYPE_LIBRARY}
+      ${ZLIB_LIBRARY})
+    if(NOT WARPOS)
+      target_link_libraries(${target} PRIVATE -ldebug)
+    endif()
+  endif()
+
   target_compile_definitions(${target} PRIVATE ${def_list})
 endforeach(target)
 
-if(DIST AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if(DIST AND CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT HAIKU)
   target_link_libraries(${BIN_TARGET} PUBLIC -static-libgcc -static-libstdc++)
 endif()
 
@@ -520,8 +571,4 @@ if(SWITCH)
   set(APP_VERSION ${PROJECT_VERSION})
   include(nx-utils)
   build_switch_binaries(${BIN_TARGET})
-endif()
-
-if(RETROFW OR RG350)
-  set_target_properties(${BIN_TARGET} PROPERTIES OUTPUT_NAME "devilutionx.dge")
 endif()

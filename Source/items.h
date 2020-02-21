@@ -9,7 +9,7 @@ extern ItemStruct curruitem;
 extern ItemGetRecordStruct itemrecord[MAXITEMS];
 extern ItemStruct item[MAXITEMS + 1];
 extern BOOL itemhold[3][3];
-extern BYTE *itemanims[35];
+extern BYTE *itemanims[ITEMTYPES];
 extern BOOL UniqueItemFlag[128];
 extern int numitems;
 extern int gnNumGetRecords;
@@ -35,7 +35,7 @@ void CreatePlrItems(int p);
 BOOL ItemSpaceOk(int i, int j);
 BOOL GetItemSpace(int x, int y, char inum);
 void GetSuperItemSpace(int x, int y, char inum);
-void GetSuperItemLoc(int x, int y, int &xx, int &yy);
+void GetSuperItemLoc(int x, int y, int *xx, int *yy);
 void CalcItemValue(int i);
 void GetBookSpell(int i, int lvl);
 void GetStaffPower(int i, int lvl, int bs, BOOL onlygood);
@@ -129,10 +129,10 @@ void PutItemRecord(int nSeed, WORD wCI, int nIndex);
 /* data */
 
 extern BYTE ItemCAnimTbl[169];
-extern char *ItemDropNames[35];
-extern BYTE ItemAnimLs[35];
-extern int ItemDropSnds[35];
-extern int ItemInvSnds[35];
+extern char *ItemDropNames[ITEMTYPES];
+extern BYTE ItemAnimLs[ITEMTYPES];
+extern int ItemDropSnds[ITEMTYPES];
+extern int ItemInvSnds[ITEMTYPES];
 extern int idoppely;
 extern int premiumlvladd[6];
 

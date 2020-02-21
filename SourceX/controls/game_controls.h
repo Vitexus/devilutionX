@@ -1,6 +1,6 @@
 #pragma once
 
-#include "devilution.h"
+#include "all.h"
 
 namespace dvl {
 
@@ -82,5 +82,8 @@ struct MoveDirection {
 	MoveDirectionY y;
 };
 MoveDirection GetMoveDirection();
+
+extern bool start_modifier_active;
+extern bool select_modifier_active;
 
 } // namespace dvl

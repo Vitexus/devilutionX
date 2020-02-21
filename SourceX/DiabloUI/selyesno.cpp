@@ -1,6 +1,6 @@
 #include "selyesno.h"
 
-#include "devilution.h"
+#include "all.h"
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/text.h"
 
@@ -58,8 +58,6 @@ bool UiSelHeroYesNoDialog(const char *title, const char *body)
 		UiRenderItems(SELYESNO_DIALOG, size(SELYESNO_DIALOG));
 		UiPollAndRender();
 	}
-
-	BlackPalette();
 
 	selyesno_Free();
 

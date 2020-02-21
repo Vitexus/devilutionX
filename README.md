@@ -1,5 +1,6 @@
 [![Downloads](https://img.shields.io/github/downloads/diasurgical/devilutionX/total.svg)](https://github.com/diasurgical/devilutionX/releases)
 [![github stars](https://img.shields.io/github/stars/diasurgical/devilutionX.svg)](https://github.com/diasurgical/devilutionX/stargazers)
+[![codecov](https://codecov.io/gh/diasurgical/devilutionX/branch/master/graph/badge.svg)](https://codecov.io/gh/diasurgical/devilutionX)
 
 Nightly builds | Platform
 ---:| ---
@@ -187,28 +188,71 @@ The build script does the following:
 
 1. Downloads and configures the buildroot if necessary.
 2. Builds the executable (using CMake).
-3. Packages the executable and all related resources into an `.ipk` package.
+3. Packages the executable and all related resources into an `.ipk` or `.opk` package.
 
-The buildroot uses ~4 GiB of disk space and can take almost an hour to build.
+The buildroot uses ~2.5 GiB of disk space and can take 20 minutes to build.
 
 For OpenDingux builds `mksquashfs` needs to be installed.
 
-### RetroFW (RS97, RG300, LDK)
-
-The RetroFW build uses the buildroot at `$HOME/buildroot-2018.02.9-retrofw`.
+To build, run the following command
 
 ~~~ bash
-Packaging/OpenDingux/build-retrofw.sh
+Packaging/OpenDingux/build.sh <platform>
 ~~~
 
-### OpenDingux (RG350, GCW0)
+Replace `<platform>` with one of: `retrofw`, `rg350`, or `gkd350h`.
 
-This OpenDingux build uses the buildroot at `$HOME/buildroot-rg350-devilutionx`.
+This prepares and uses the buildroot at `$HOME/buildroot-$PLATFORM-devilutionx`.
+
+</details>
+
+<details><summary>Clockwork PI GameShell</summary>
+
+You can either call
+~~~ bash
+Packaging/cpi-gamesh/build.sh
+~~~
+to install dependencies and build the code.
+
+Or you create a new directory under `/home/cpi/apps/Menu` and copy [the file](Packaging/cpi-gamesh/__init__.py) there. After restarting the UI, you can download and compile the game directly from the device itself. See [the readme](Packaging/cpi-gamesh/readme.md) for more details.
+</details>
+
+<details><summary>Amiga via Docker</summary>
+
+### Build the container from the repo root
 
 ~~~ bash
-Packaging/OpenDingux/build-rg350.sh
+docker build -f Packaging/amiga/Dockerfile -t devilutionx-amiga .
 ~~~
 
+### Build DevilutionX Amiga binary
+
+~~~ bash
+docker run --rm -v "${PWD}:/work" devilutionx-amiga
+sudo chown "${USER}:" build-amiga/*
+~~~
+
+The command above builds DevilutionX in release mode.
+For other build options, you can run the container interactively:
+
+~~~ bash
+docker run -ti --rm -v "${PWD}:/work" devilutionx-amiga bash
+~~~
+
+See the `CMD` in `Packaging/amiga/Dockerfile` for reference.
+
+### Copy the necessary files
+
+Outside of the Docker container, from the DevilutionX directory, run:
+
+~~~ bash
+cp Packaging/amiga/devilutionx.info Packaging/amiga/LiberationSerif-Bold.ttf build-amiga/
+sudo chown "${USER}:" build-amiga/*
+~~~
+
+To actually start DevilutionX, increase the stack size to 50KiB in Amiga.
+You can do this by selecting the DevilutionX icon, then hold right mouse button and
+select Icons -> Information in the top menu.
 </details>
 
 <details><summary><b>CMake build options</b></summary>
@@ -240,23 +284,25 @@ DevilutionX supports gamepad controls.
 
 Default controller mappings (A/B/X/Y as in Nintendo layout, so the rightmost button is attack):
 
-- Left analog / DPad: move hero
-- Right analog: simulate mouse
+- Left analog or D-Pad: move hero
 - A: attack nearby enemies, talk to townspeople and merchants, pickup/place items in the inventory, OK while in main menu
 - B: select spell, back while in menus
 - X: pickup items, open nearby chests and doors, use item in the inventory
 - Y: cast spell, delete character while in main menu
-- R1: use mana potion from belt
 - L1: use health item from belt
-- R2: inventory
-- L2: character sheet
-- Left analog click: toggle automap
-- Right analog click: left mouse click
-- Start: game menu, skip movie
-- Select + L2: quest log
-- Select + R2: spell book
-- Select + Right analog click: right mouse click
-- Select + A/B/X/Y: hot spell
+- R1: use mana potion from belt
+- L2 or Start + Left: character sheet
+- R2 or Start + Right: inventory
+- Left analog click or Start + Down: toggle automap
+- Start + Up or Start + Select: game menu
+- Start + Left: character info
+- Start + Right: inventory
+- Select + A/B/X/Y: Spell hotkeys
+- Right analog: move automap or simulate mouse
+- Right analog click or Select + L1: left mouse click
+- Select + Right analog click or Select + R1: right mouse click
+- Select + L2 or Start + Y: quest log
+- Select + R2 or Start + B: spell book
 
 For now, they can be re-mapped by changing `SourceX/controls` or by setting the `SDL_GAMECONTROLLERCONFIG` environment
 variable (see
@@ -264,6 +310,10 @@ variable (see
 
 # Contributing
 [Guidelines](docs/CONTRIBUTING.md)
+
+# Mods
+
+[List of known mods based on DevilutionX](docs/mods.md)
 
 # F.A.Q.
 > Wow, does this mean I can download and play Diablo for free now?

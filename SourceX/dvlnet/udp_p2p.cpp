@@ -2,6 +2,10 @@
 
 #include <SDL.h>
 
+#ifdef USE_SDL1
+#include "sdl2_to_1_2_backports.h"
+#endif
+
 namespace dvl {
 namespace net {
 
@@ -23,7 +27,7 @@ int udp_p2p::create(std::string addrstr, std::string passwd)
 		try {
 			sock.bind(asio::ip::udp::endpoint(asio::ip::address_v6(), port));
 		} catch (std::exception &e) {
-			eprintf("bind: %s,  %s\n", asio::ip::address_v6().to_string(),
+			SDL_Log("bind: %s,  %s", asio::ip::address_v6().to_string(),
 			e.what());
 		}
 		++port;
@@ -92,7 +96,7 @@ void udp_p2p::recv()
 				auto pkt = pktfty->make_packet(pkt_buf);
 				recv_decrypted(*pkt, sender);
 			} catch (packet_exception &e) {
-				SDL_Log("Incorrect package size");
+				SDL_Log(e.what());
 				// drop packet
 			}
 		}

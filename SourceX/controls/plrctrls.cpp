@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <list>
 
+#include "controls/controller.h"
 #include "controls/controller_motion.h"
 #include "controls/game_controls.h"
 
@@ -79,7 +80,7 @@ int GetDistance(int dx, int dy, int maxDistance)
 		return 0;
 	}
 
-	char walkpath[25];
+	char walkpath[MAX_PATH_LENGTH];
 	int steps = FindPath(PosOkPlayer, myplr, plr[myplr]._px, plr[myplr]._py, dx, dy, walkpath);
 	if (steps > maxDistance)
 		return 0;
@@ -447,7 +448,7 @@ void AttrIncBtnSnap(MoveDirectionY dir)
 	if (chrbtnactive && plr[myplr]._pStatPts <= 0)
 		return;
 
-	DWORD ticks = GetTickCount();
+	DWORD ticks = SDL_GetTicks();
 	if (ticks - invmove < repeatRate) {
 		return;
 	}
@@ -484,7 +485,7 @@ void AttrIncBtnSnap(MoveDirectionY dir)
 // small inventory squares are 29x29 (roughly)
 void InvMove(MoveDirection dir)
 {
-	DWORD ticks = GetTickCount();
+	DWORD ticks = SDL_GetTicks();
 	if (ticks - invmove < repeatRate) {
 		return;
 	}
@@ -653,7 +654,7 @@ void HotSpellMove(MoveDirection dir)
 	int x = 0;
 	int y = 0;
 
-	DWORD ticks = GetTickCount();
+	DWORD ticks = SDL_GetTicks();
 	if (ticks - invmove < repeatRate) {
 		return;
 	}
@@ -720,7 +721,7 @@ void HotSpellMove(MoveDirection dir)
 
 void SpellBookMove(MoveDirection dir)
 {
-	DWORD ticks = GetTickCount();
+	DWORD ticks = SDL_GetTicks();
 	if (ticks - invmove < repeatRate) {
 		return;
 	}
@@ -822,7 +823,9 @@ void WalkInDir(MoveDirection dir)
 
 void Movement()
 {
-	if (InGameMenu() || questlog)
+	if (InGameMenu() || questlog
+	    || IsControllerButtonPressed(ControllerButton::BUTTON_START)
+	    || IsControllerButtonPressed(ControllerButton::BUTTON_BACK))
 		return;
 
 	MoveDirection move_dir = GetMoveDirection();
@@ -869,6 +872,10 @@ struct RightStickAccumulator {
 
 } // namespace
 
+bool IsAutomapActive() {
+	return automapflag && currlevel != DTYPE_TOWN;
+}
+
 void HandleRightStickMotion()
 {
 	static RightStickAccumulator acc;
@@ -878,7 +885,7 @@ void HandleRightStickMotion()
 		return;
 	}
 
-	if (automapflag && currlevel != DTYPE_TOWN) { // move map
+	if (IsAutomapActive()) { // move map
 		int dx = 0, dy = 0;
 		acc.pool(&dx, &dy, 32);
 		AutoMapXOfs += dy + dx;

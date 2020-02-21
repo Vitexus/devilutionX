@@ -1,4 +1,4 @@
-#include "devilution.h"
+#include "all.h"
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/text.h"
 #include "DiabloUI/selok.h"
@@ -78,8 +78,6 @@ void UiSelOkDialog(const char *title, const char *body, bool background)
 		UiRenderItems(items, itemCnt);
 		UiPollAndRender();
 	}
-
-	BlackPalette();
 
 	selok_Free();
 }

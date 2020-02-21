@@ -66,6 +66,8 @@
 
 #define MAXPATHNODES			300
 
+#define MAX_PATH_LENGTH			25
+
 // 256 kilobytes + 3 bytes (demo leftover) for file magic (262147)
 // final game uses 4-byte magic instead of 3
 #define FILEBUFF				((256*1024)+3)
@@ -164,10 +166,6 @@
 #endif
 
 #define ERR_DLG(title, text) ErrDlg(title, text, __FILE__, __LINE__)
-
-#ifndef INVALID_FILE_ATTRIBUTES
-#define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
-#endif
 
 // To apply to certain functions which have local variables aligned by 1 for unknown yet reason
 #if (_MSC_VER == 1200)

@@ -1,6 +1,7 @@
-#include "diablo.h"
+#include "all.h"
 #include "../3rdParty/Storm/Source/storm.h"
 #include "../DiabloUI/diabloui.h"
+#include "file_util.h"
 
 DEVILUTION_BEGIN_NAMESPACE
 
@@ -33,7 +34,7 @@ DWORD pfile_get_save_num_from_name(const char *name)
 	DWORD i;
 
 	for (i = 0; i < MAX_CHARACTERS; i++) {
-		if (!_strcmpi(hero_names[i], name))
+		if (!strcasecmp(hero_names[i], name))
 			break;
 	}
 
@@ -62,7 +63,7 @@ BOOL pfile_open_archive(BOOL update, DWORD save_num)
 	char FileName[MAX_PATH];
 
 	pfile_get_save_path(FileName, sizeof(FileName), save_num);
-	if (OpenMPQ(FileName, FALSE, save_num))
+	if (OpenMPQ(FileName, save_num))
 		return TRUE;
 
 	return FALSE;
@@ -123,7 +124,7 @@ BOOL pfile_rename_hero(const char *name_1, const char *name_2)
 
 	if (pfile_get_save_num_from_name(name_2) == MAX_CHARACTERS) {
 		for (i = 0; i != MAX_PLRS; i++) {
-			if (!_strcmpi(name_1, plr[i]._pName)) {
+			if (!strcasecmp(name_1, plr[i]._pName)) {
 				found = TRUE;
 				break;
 			}
@@ -138,7 +139,7 @@ BOOL pfile_rename_hero(const char *name_1, const char *name_2)
 
 	SStrCopy(hero_names[save_num], name_2, PLR_NAME_LEN);
 	SStrCopy(plr[i]._pName, name_2, PLR_NAME_LEN);
-	if (!_strcmpi(gszHero, name_1))
+	if (!strcasecmp(gszHero, name_1))
 		SStrCopy(gszHero, name_2, sizeof(gszHero));
 	game_2_ui_player(plr, &uihero, gbValidSaveFile);
 	UiSetupPlayerInfo(gszHero, &uihero, GAME_ID);
@@ -371,7 +372,7 @@ BOOL pfile_delete_save(_uiheroinfo *hero_info)
 	if (save_num < MAX_CHARACTERS) {
 		hero_names[save_num][0] = '\0';
 		pfile_get_save_path(FileName, sizeof(FileName), save_num);
-		DeleteFile(FileName);
+		RemoveFile(FileName);
 	}
 	return TRUE;
 }
@@ -574,7 +575,7 @@ void pfile_update(BOOL force_save)
 	static int save_prev_tc;
 
 	if (gbMaxPlayers != 1) {
-		int tick = GetTickCount();
+		int tick = SDL_GetTicks();
 		if (force_save || tick - save_prev_tc > 60000) {
 			save_prev_tc = tick;
 			pfile_write_hero();

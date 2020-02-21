@@ -1,4 +1,4 @@
-#include "diablo.h"
+#include "all.h"
 
 DEVILUTION_BEGIN_NAMESPACE
 
@@ -54,7 +54,7 @@ int initialDropGoldValue;
 BYTE *pSpellCels;
 BOOL panbtndown;
 BYTE *pTalkPanel;
-int spselflag;
+BOOL spselflag;
 
 const BYTE fontframe[128] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -186,8 +186,8 @@ int SpellPages[6][7] = {
 
 /**
  * Draw spell cell onto the back buffer.
- * @param xp Backbuffer coordinate
- * @param yp Backbuffer coordinate
+ * @param xp Back buffer coordinate
+ * @param yp Back buffer coordinate
  * @param Trans Pointer to the cel buffer.
  * @param nCel Index of the cel frame to draw. 0 based.
  * @param w Width of the frame.
@@ -411,8 +411,8 @@ void DrawSpellList()
 
 void SetSpell()
 {
-	spselflag = 0;
-	if (pSpell != -1) {
+	spselflag = FALSE;
+	if (pSpell != SPL_INVALID) {
 		ClearPanel();
 		plr[myplr]._pRSpell = pSpell;
 		plr[myplr]._pRSplType = pSplType;
@@ -465,7 +465,7 @@ void ToggleSpell(int slot)
 }
 
 /**
- * @brief Print letter to the backbuffer
+ * @brief Print letter to the back buffer
  * @param sx Backbuffer offset
  * @param sy Backbuffer offset
  * @param nCel Number of letter in Windows-1252
@@ -559,8 +559,8 @@ void DrawPanelBox(int x, int y, int w, int h, int sx, int sy)
  * @param pCelBuff Buffer of the empty flask cel.
  * @param min Top of the flask cel section to draw.
  * @param max Bottom of the flask cel section to draw.
- * @param sx X Backbuffer coordinate
- * @param sy Y Backbuffer coordinate
+ * @param sx Back buffer coordinate
+ * @param sy Back buffer coordinate
  */
 void SetFlaskHeight(BYTE *pCelBuff, int min, int max, int sx, int sy)
 {
@@ -774,7 +774,7 @@ void InitControlPan()
 	drawhpflag = TRUE;
 	drawmanaflag = TRUE;
 	chrflag = FALSE;
-	spselflag = 0;
+	spselflag = FALSE;
 	pSpellBkCel = LoadFileInMem("Data\\SpellBk.CEL", NULL);
 	pSBkBtnCel = LoadFileInMem("Data\\SpellBkB.CEL", NULL);
 	pSBkIconCels = LoadFileInMem("Data\\SpellI2.CEL", NULL);
@@ -836,7 +836,7 @@ void DoSpeedBook()
 	unsigned __int64 spells, spell;
 	int xo, yo, X, Y, i, j;
 
-	spselflag = 1;
+	spselflag = TRUE;
 	xo = PANEL_X + 12 + 56 * 10;
 	yo = PANEL_Y - 17;
 	X = PANEL_LEFT + 12 + 56 * 10 + 56 / 2;
@@ -1004,14 +1004,14 @@ void CheckPanelInfo()
 				AddPanelString(tempstr, TRUE);
 				s = 0;
 				for (i = 0; i < plr[myplr]._pNumInv; i++) {
-					if (plr[myplr].InvList[i]._itype != -1
+					if (plr[myplr].InvList[i]._itype != ITYPE_NONE
 					    && (plr[myplr].InvList[i]._iMiscId == IMISC_SCROLL || plr[myplr].InvList[i]._iMiscId == IMISC_SCROLLT)
 					    && plr[myplr].InvList[i]._iSpell == v) {
 						s++;
 					}
 				}
 				for (i = 0; i < MAXBELTITEMS; i++) {
-					if (plr[myplr].SpdList[i]._itype != -1
+					if (plr[myplr].SpdList[i]._itype != ITYPE_NONE
 					    && (plr[myplr].SpdList[i]._iMiscId == IMISC_SCROLL || plr[myplr].SpdList[i]._iMiscId == IMISC_SCROLLT)
 					    && plr[myplr].SpdList[i]._iSpell == v) {
 						s++;
@@ -1274,7 +1274,7 @@ void control_print_info_str(int y, char *str, BOOL center, int lines)
 	}
 }
 
-void PrintGameStr(int x, int y, char *str, int color)
+void PrintGameStr(int x, int y, const char *str, int color)
 {
 	BYTE c;
 	int sx, sy;
@@ -1906,7 +1906,7 @@ void control_drop_gold(char vkey)
 	}
 
 	memset(input, 0, sizeof(input));
-	SDL_itoa(dropGoldValue, input, 10);
+	snprintf(input, sizeof(input), "%d", dropGoldValue);
 	if (vkey == VK_RETURN) {
 		if (dropGoldValue > 0)
 			control_remove_gold(myplr, initialDropGoldIndex);
@@ -1935,15 +1935,15 @@ void control_remove_gold(int pnum, int gold_index)
 {
 	int gi;
 
-	if (gold_index <= 46) {
-		gi = gold_index - 7;
+	if (gold_index <= INVITEM_INV_LAST) {
+		gi = gold_index - INVITEM_INV_FIRST;
 		plr[pnum].InvList[gi]._ivalue -= dropGoldValue;
 		if (plr[pnum].InvList[gi]._ivalue > 0)
 			SetGoldCurs(pnum, gi);
 		else
 			RemoveInvItem(pnum, gi);
 	} else {
-		gi = gold_index - 47;
+		gi = gold_index - INVITEM_BELT_FIRST;
 		plr[pnum].SpdList[gi]._ivalue -= dropGoldValue;
 		if (plr[pnum].SpdList[gi]._ivalue > 0)
 			SetSpdbarGoldCurs(pnum, gi);
@@ -1953,7 +1953,7 @@ void control_remove_gold(int pnum, int gold_index)
 	SetPlrHandItem(&plr[pnum].HoldItem, IDI_GOLD);
 	GetGoldSeed(pnum, &plr[pnum].HoldItem);
 	plr[pnum].HoldItem._ivalue = dropGoldValue;
-	plr[pnum].HoldItem._iStatFlag = 1;
+	plr[pnum].HoldItem._iStatFlag = TRUE;
 	control_set_gold_curs(pnum);
 	plr[pnum]._pGold = CalculateGold(pnum);
 	dropGoldValue = 0;

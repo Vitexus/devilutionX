@@ -1,6 +1,6 @@
-#include "diablo.h"
+#include "all.h"
 #include "../3rdParty/Storm/Source/storm.h"
-#include "../SourceX/miniwin/ddraw.h"
+#include "../SourceX/display.h"
 
 DEVILUTION_BEGIN_NAMESPACE
 

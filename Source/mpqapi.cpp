@@ -1,4 +1,10 @@
-#include "diablo.h"
+#include <cstdint>
+#include <cstring>
+#include <cerrno>
+#include <fstream>
+
+#include "all.h"
+#include "../SourceS/file_util.h"
 #include "../3rdParty/Storm/Source/storm.h"
 
 DEVILUTION_BEGIN_NAMESPACE
@@ -13,22 +19,28 @@ _BLOCKENTRY *sgpBlockTbl;
 
 /* data */
 
-HANDLE sghArchive = INVALID_HANDLE_VALUE;
+#define LOG_ERRNO_FAIL(prefix, ...) \
+	SDL_Log(prefix " failed with \"%s\" in %s at %s:%d", __VA_ARGS__, std::strerror(errno), __func__, __FILE__, __LINE__)
 
-BOOL mpqapi_set_hidden(const char *pszArchive, BOOL hidden)
-{
-	DWORD dwFileAttributes;
-	DWORD dwFileAttributesToSet;
+#define RETURN_IF_FAIL(obj, op, ...)                     \
+	obj->op(__VA_ARGS__);                                \
+	if (obj->fail()) {                                   \
+		LOG_ERRNO_FAIL("%s->%s(%s)", #obj, #op, #__VA_ARGS__); \
+		return FALSE;                                    \
+	}
 
-	dwFileAttributes = GetFileAttributes(pszArchive);
-	if (dwFileAttributes == INVALID_FILE_ATTRIBUTES)
-		return GetLastError() == ERROR_FILE_NOT_FOUND;
-	dwFileAttributesToSet = hidden ? FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN : 0;
-	if (dwFileAttributes == dwFileAttributesToSet)
-		return TRUE;
-	else
-		return SetFileAttributes(pszArchive, dwFileAttributesToSet);
-}
+#define GOTO_IF_FAIL(label, obj, op, ...)                \
+	obj->op(__VA_ARGS__);                                \
+	if (obj->fail()) {                                   \
+		LOG_ERRNO_FAIL("%s->%s(%s)", #obj, #op, #__VA_ARGS__); \
+		goto label;                                      \
+	}
+
+namespace {
+
+static std::fstream *archive = nullptr;
+
+} // namespace
 
 void mpqapi_remove_hash_entry(const char *pszName)
 {
@@ -101,7 +113,7 @@ _BLOCKENTRY *mpqapi_new_block(int *block_index)
 		blockEntry++;
 		if (i >= 2048) {
 			app_fatal("Out of free block entries");
-			return 0;
+			return NULL;
 		}
 	}
 	if (block_index)
@@ -207,10 +219,10 @@ BOOL mpqapi_write_file_contents(const char *pszName, const BYTE *pbData, DWORD d
 	pBlk->offset = mpqapi_find_free_block(dwLen + nNumberOfBytesToWrite, &pBlk->sizealloc);
 	pBlk->sizefile = dwLen;
 	pBlk->flags = 0x80000100;
-	if (SetFilePointer(sghArchive, pBlk->offset, NULL, FILE_BEGIN) == (DWORD)-1)
-		return FALSE;
+	RETURN_IF_FAIL(archive, seekp, pBlk->offset);
 	j = 0;
-	destsize = 0;
+	const auto start_pos = archive->tellp();
+	std::fstream::streampos end_pos;
 	sectoroffsettable = NULL;
 	while (dwLen != 0) {
 		DWORD len;
@@ -226,35 +238,23 @@ BOOL mpqapi_write_file_contents(const char *pszName, const BYTE *pbData, DWORD d
 			nNumberOfBytesToWrite = 4 * num_bytes + 4;
 			sectoroffsettable = (DWORD *)DiabloAllocPtr(nNumberOfBytesToWrite);
 			memset(sectoroffsettable, 0, nNumberOfBytesToWrite);
-			if (!WriteFile(sghArchive, sectoroffsettable, nNumberOfBytesToWrite, &nNumberOfBytesToWrite, 0)) {
-				goto on_error;
-			}
-			destsize += nNumberOfBytesToWrite;
+			GOTO_IF_FAIL(on_error, archive, write, reinterpret_cast<const char *>(sectoroffsettable), nNumberOfBytesToWrite);
 		}
-		sectoroffsettable[j] = destsize;
-		if (!WriteFile(sghArchive, mpq_buf, len, &len, NULL)) {
-			goto on_error;
-		}
+		sectoroffsettable[j] = SwapLE32(archive->tellp() - start_pos);
+		GOTO_IF_FAIL(on_error, archive, write, mpq_buf, len);
 		j++;
 		if (dwLen > 4096)
 			dwLen -= 4096;
 		else
 			dwLen = 0;
-		destsize += len;
 	}
+	end_pos = archive->tellp();
+	destsize = end_pos - start_pos;
 
-	sectoroffsettable[j] = destsize;
-	if (SetFilePointer(sghArchive, -destsize, NULL, FILE_CURRENT) == (DWORD)-1) {
-		goto on_error;
-	}
-
-	if (!WriteFile(sghArchive, sectoroffsettable, nNumberOfBytesToWrite, &nNumberOfBytesToWrite, 0)) {
-		goto on_error;
-	}
-
-	if (SetFilePointer(sghArchive, destsize - nNumberOfBytesToWrite, NULL, FILE_CURRENT) == (DWORD)-1) {
-		goto on_error;
-	}
+	sectoroffsettable[j] = SwapLE32(destsize);
+	GOTO_IF_FAIL(on_error, archive, seekp, start_pos);
+	GOTO_IF_FAIL(on_error, archive, write, reinterpret_cast<const char *>(sectoroffsettable), nNumberOfBytesToWrite);
+	GOTO_IF_FAIL(on_error, archive, seekp, end_pos);
 
 	mem_free_dbg(sectoroffsettable);
 	if (destsize < pBlk->sizealloc) {
@@ -324,25 +324,31 @@ BOOL mpqapi_has_file(const char *pszName)
 	return FetchHandle(pszName) != -1;
 }
 
-BOOL OpenMPQ(const char *pszArchive, BOOL hidden, DWORD dwChar)
+BOOL OpenMPQ(const char *pszArchive, DWORD dwChar)
 {
 	DWORD dwFlagsAndAttributes;
 	DWORD key;
-	DWORD dwTemp;
 	_FILEHEADER fhdr;
 
 	InitHash();
-	if (!mpqapi_set_hidden(pszArchive, hidden)) {
+
+	if (archive != nullptr) {
+		delete archive;
+		archive = nullptr;
+	}
+	const bool exists = FileExists(pszArchive);
+	if (exists) {
+		archive = new std::fstream(pszArchive, std::ios::in | std::ios::out | std::ios::binary);
+	} else {
+		archive = new std::fstream(pszArchive, std::ios::in | std::ios::out | std::ios::binary | std::ios::trunc);
+	}
+	if (archive->fail()) {
+		LOG_ERRNO_FAIL("Failed to OpenMPQ at %s", pszArchive);
+		delete archive;
+		archive = nullptr;
 		return FALSE;
 	}
-	dwFlagsAndAttributes = gbMaxPlayers > 1 ? FILE_FLAG_WRITE_THROUGH : 0;
-	sghArchive = CreateFile(pszArchive, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, dwFlagsAndAttributes, NULL);
-	if (sghArchive == INVALID_HANDLE_VALUE) {
-		sghArchive = CreateFile(pszArchive, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, dwFlagsAndAttributes | (hidden ? FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN : 0), NULL);
-		if (sghArchive == INVALID_HANDLE_VALUE)
-			return FALSE;
-		save_archive_modified = TRUE;
-	}
+	save_archive_modified = !exists;
 	if (sgpBlockTbl == NULL || sgpHashTbl == NULL) {
 		memset(&fhdr, 0, sizeof(fhdr));
 		if (ParseMPQHeader(&fhdr, &sgdwMpqOffset) == FALSE) {
@@ -351,58 +357,66 @@ BOOL OpenMPQ(const char *pszArchive, BOOL hidden, DWORD dwChar)
 		sgpBlockTbl = (_BLOCKENTRY *)DiabloAllocPtr(0x8000);
 		memset(sgpBlockTbl, 0, 0x8000);
 		if (fhdr.blockcount) {
-			if (SetFilePointer(sghArchive, 104, NULL, FILE_BEGIN) == -1)
-				goto on_error;
-			if (!ReadFile(sghArchive, sgpBlockTbl, 0x8000, &dwTemp, NULL))
-				goto on_error;
+			GOTO_IF_FAIL(on_error, archive, seekg, 104);
+			GOTO_IF_FAIL(on_error, archive, read, reinterpret_cast<char *>(sgpBlockTbl), 0x8000);
 			key = Hash("(block table)", 3);
 			Decrypt(sgpBlockTbl, 0x8000, key);
 		}
 		sgpHashTbl = (_HASHENTRY *)DiabloAllocPtr(0x8000);
 		memset(sgpHashTbl, 255, 0x8000);
 		if (fhdr.hashcount) {
-			if (SetFilePointer(sghArchive, 32872, NULL, FILE_BEGIN) == -1)
-				goto on_error;
-			if (!ReadFile(sghArchive, sgpHashTbl, 0x8000, &dwTemp, NULL))
-				goto on_error;
+			GOTO_IF_FAIL(on_error, archive, seekg, 32872);
+			GOTO_IF_FAIL(on_error, archive, read, reinterpret_cast<char *>(sgpHashTbl), 0x8000);
 			key = Hash("(hash table)", 3);
 			Decrypt(sgpHashTbl, 0x8000, key);
 		}
-		return TRUE;
 	}
+	// Set output position to the end to ensure the file is not cleared if the MPQ
+	// is closed without having anything written to it.
+	if (exists)
+		GOTO_IF_FAIL(on_error, archive, seekp, 0, std::ios::end);
 	return TRUE;
 on_error:
 	CloseMPQ(pszArchive, TRUE, dwChar);
 	return FALSE;
 }
 
+static void byteSwapHdr(_FILEHEADER *pHdr)
+{
+	pHdr->signature = SDL_SwapLE32(pHdr->signature);
+	pHdr->headersize = SDL_SwapLE32(pHdr->headersize);
+	pHdr->filesize = SDL_SwapLE32(pHdr->filesize);
+	pHdr->version = SDL_SwapLE16(pHdr->version);
+	pHdr->sectorsizeid = SDL_SwapLE16(pHdr->sectorsizeid);
+	pHdr->hashoffset = SDL_SwapLE32(pHdr->hashoffset);
+	pHdr->blockoffset = SDL_SwapLE32(pHdr->blockoffset);
+	pHdr->hashcount = SDL_SwapLE32(pHdr->hashcount);
+	pHdr->blockcount = SDL_SwapLE32(pHdr->blockcount);
+}
+
 BOOL ParseMPQHeader(_FILEHEADER *pHdr, DWORD *pdwNextFileStart)
 {
-	DWORD size;
-	DWORD NumberOfBytesRead;
-
-	size = GetFileSize(sghArchive, 0);
+	RETURN_IF_FAIL(archive, seekg, 0, std::ios::end);
+	const std::uint32_t size = archive->tellg();
 	*pdwNextFileStart = size;
 
-	if (size == -1
-	    || size < sizeof(*pHdr)
-	    || !ReadFile(sghArchive, pHdr, sizeof(*pHdr), &NumberOfBytesRead, NULL)
-	    || NumberOfBytesRead != 104
-	    || pHdr->signature != '\x1AQPM'
-	    || pHdr->headersize != 32
-	    || pHdr->version > 0
-	    || pHdr->sectorsizeid != 3
-	    || pHdr->filesize != size
-	    || pHdr->hashoffset != 32872
-	    || pHdr->blockoffset != 104
-	    || pHdr->hashcount != 2048
-	    || pHdr->blockcount != 2048) {
-
-		if (SetFilePointer(sghArchive, 0, NULL, FILE_BEGIN) == -1)
-			return FALSE;
-		if (!SetEndOfFile(sghArchive))
-			return FALSE;
-
+	bool ok = size >= sizeof(*pHdr);
+	if (ok) {
+		RETURN_IF_FAIL(archive, seekg, 0);
+		RETURN_IF_FAIL(archive, read, reinterpret_cast<char *>(pHdr), sizeof(*pHdr));
+		byteSwapHdr(pHdr);
+	}
+	ok = ok && pHdr->signature == '\x1AQPM'
+	    && pHdr->headersize == 32
+	    && pHdr->version <= 0
+	    && pHdr->sectorsizeid == 3
+	    && pHdr->filesize == size
+	    && pHdr->hashoffset == 32872
+	    && pHdr->blockoffset == 104
+	    && pHdr->hashcount == 2048
+	    && pHdr->blockcount == 2048;
+	if (!ok) {
+		RETURN_IF_FAIL(archive, seekg, 0, std::ios::end);
 		memset(pHdr, 0, sizeof(*pHdr));
 		pHdr->signature = '\x1AQPM';
 		pHdr->headersize = 32;
@@ -421,9 +435,9 @@ void CloseMPQ(const char *pszArchive, BOOL bFree, DWORD dwChar)
 		MemFreeDbg(sgpBlockTbl);
 		MemFreeDbg(sgpHashTbl);
 	}
-	if (sghArchive != INVALID_HANDLE_VALUE) {
-		CloseHandle(sghArchive);
-		sghArchive = INVALID_HANDLE_VALUE;
+	if (archive != nullptr) {
+		delete archive;
+		archive = nullptr;
 	}
 	save_archive_modified = FALSE;
 }
@@ -431,7 +445,7 @@ void CloseMPQ(const char *pszArchive, BOOL bFree, DWORD dwChar)
 BOOL mpqapi_flush_and_close(const char *pszArchive, BOOL bFree, DWORD dwChar)
 {
 	BOOL ret = FALSE;
-	if (sghArchive == INVALID_HANDLE_VALUE)
+	if (archive == nullptr)
 		ret = TRUE;
 	else {
 		ret = FALSE;
@@ -445,18 +459,19 @@ BOOL mpqapi_flush_and_close(const char *pszArchive, BOOL bFree, DWORD dwChar)
 		}
 	}
 	CloseMPQ(pszArchive, bFree, dwChar);
+	if (ret && sgdwMpqOffset)
+		ret = ResizeFile(pszArchive, sgdwMpqOffset);
 	return ret;
 }
 
 BOOL WriteMPQHeader()
 {
 	_FILEHEADER fhdr;
-	DWORD NumberOfBytesWritten;
 
 	memset(&fhdr, 0, sizeof(fhdr));
 	fhdr.signature = SDL_SwapLE32('\x1AQPM');
 	fhdr.headersize = SDL_SwapLE32(32);
-	fhdr.filesize = SDL_SwapLE32(GetFileSize(sghArchive, 0));
+	fhdr.filesize = SDL_SwapLE32(sgdwMpqOffset);
 	fhdr.version = SDL_SwapLE16(0);
 	fhdr.sectorsizeid = SDL_SwapLE16(3);
 	fhdr.hashoffset = SDL_SwapLE32(32872);
@@ -464,47 +479,39 @@ BOOL WriteMPQHeader()
 	fhdr.hashcount = SDL_SwapLE32(2048);
 	fhdr.blockcount = SDL_SwapLE32(2048);
 
-	if (SetFilePointer(sghArchive, 0, NULL, FILE_BEGIN) == -1)
-		return 0;
-	if (!WriteFile(sghArchive, &fhdr, sizeof(fhdr), &NumberOfBytesWritten, 0))
-		return 0;
-
-	return NumberOfBytesWritten == 104;
+	RETURN_IF_FAIL(archive, seekp, 0);
+	RETURN_IF_FAIL(archive, write, reinterpret_cast<const char *>(&fhdr), sizeof(fhdr));
+	return TRUE;
 }
 
 BOOL mpqapi_write_block_table()
 {
-	BOOL success;
-	DWORD NumberOfBytesWritten;
-
-	if (SetFilePointer(sghArchive, 104, NULL, FILE_BEGIN) == -1)
-		return FALSE;
-
+	RETURN_IF_FAIL(archive, seekp, 104);
 	Encrypt(sgpBlockTbl, 0x8000, Hash("(block table)", 3));
-	success = WriteFile(sghArchive, sgpBlockTbl, 0x8000, &NumberOfBytesWritten, 0);
+	const BOOL success = [=]() {
+		RETURN_IF_FAIL(archive, write, reinterpret_cast<const char *>(sgpBlockTbl), 0x8000);
+		return TRUE;
+	}();
 	Decrypt(sgpBlockTbl, 0x8000, Hash("(block table)", 3));
-	return success && NumberOfBytesWritten == 0x8000;
+	return success;
 }
 
 BOOL mpqapi_write_hash_table()
 {
-	BOOL success;
-	DWORD NumberOfBytesWritten;
-
-	if (SetFilePointer(sghArchive, 32872, NULL, FILE_BEGIN) == -1)
-		return FALSE;
-
+	RETURN_IF_FAIL(archive, seekp, 32872);
 	Encrypt(sgpHashTbl, 0x8000, Hash("(hash table)", 3));
-	success = WriteFile(sghArchive, sgpHashTbl, 0x8000, &NumberOfBytesWritten, 0);
+	const BOOL success = [=]() {
+		RETURN_IF_FAIL(archive, write, reinterpret_cast<const char *>(sgpHashTbl), 0x8000);
+		return TRUE;
+	}();
 	Decrypt(sgpHashTbl, 0x8000, Hash("(hash table)", 3));
-	return success && NumberOfBytesWritten == 0x8000;
+	return success;
 }
 
 BOOL mpqapi_can_seek()
 {
-	if (SetFilePointer(sghArchive, sgdwMpqOffset, NULL, FILE_BEGIN) == -1)
-		return FALSE;
-	return SetEndOfFile(sghArchive);
+	RETURN_IF_FAIL(archive, seekp, sgdwMpqOffset);
+	return TRUE;
 }
 
 DEVILUTION_END_NAMESPACE
