@@ -1,6 +1,16 @@
-//HEADER_GOES_HERE
+/**
+ * @file monster.h
+ *
+ * Interface of monster functionality, AI, actions, spawning, loading, etc.
+ */
 #ifndef __MONSTER_H__
 #define __MONSTER_H__
+
+DEVILUTION_BEGIN_NAMESPACE
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern int MissileFileFlag;
 extern int monstkills[MAXMONSTERS];
@@ -10,6 +20,7 @@ extern BOOLEAN sgbSaveSoundOn;
 extern MonsterStruct monster[MAXMONSTERS];
 extern int totalmonsters;
 extern CMonster Monsters[MAX_LVLMTYPES];
+extern BYTE GraphicTable[NUMLEVELS][MAX_LVLMTYPES];
 extern int monstimgtot;
 extern int uniquetrans;
 extern int nummtypes;
@@ -175,7 +186,7 @@ extern int opposite[8];
 extern int offset_x[8];
 extern int offset_y[8];
 
-/* unused */
+/** unused */
 extern int rnd5[4];
 extern int rnd10[4];
 extern int rnd20[4];
@@ -183,5 +194,11 @@ extern int rnd60[4];
 //
 
 extern void (*AiProc[])(int i);
+
+#ifdef __cplusplus
+}
+#endif
+
+DEVILUTION_END_NAMESPACE
 
 #endif /* __MONSTER_H__ */

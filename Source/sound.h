@@ -2,6 +2,12 @@
 #ifndef __SOUND_H__
 #define __SOUND_H__
 
+DEVILUTION_BEGIN_NAMESPACE
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern SoundSample *DSBs[8];
 extern BOOLEAN gbSndInited;
 extern HMODULE hDsound_dll;
@@ -16,10 +22,10 @@ TSnd *sound_file_load(char *path);
 void sound_CreateSoundBuffer(TSnd *sound_file);
 void sound_file_cleanup(TSnd *sound_file);
 void snd_init(HWND hWnd);
-void sound_load_volume(char *value_name, int *value);
+void snd_get_volume(char *value_name, int *value);
 void sound_create_primary_buffer(HANDLE music_track);
 void sound_cleanup();
-void sound_store_volume(char *key, int value);
+void snd_set_volume(char *key, int value);
 void music_stop();
 void music_start(int nTrack);
 void sound_disable_music(BOOL disable);
@@ -34,5 +40,11 @@ extern BOOLEAN gbMusicOn;
 extern BOOLEAN gbSoundOn;
 extern BOOLEAN gbDupSounds;
 extern char unk_volume[4][2];
+
+#ifdef __cplusplus
+}
+#endif
+
+DEVILUTION_END_NAMESPACE
 
 #endif /* __SOUND_H__ */

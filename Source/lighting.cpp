@@ -1,3 +1,8 @@
+/**
+ * @file lighting.cpp
+ *
+ * Implementation of light and vision.
+ */
 #include "all.h"
 
 DEVILUTION_BEGIN_NAMESPACE
@@ -403,9 +408,7 @@ char CrawlTable[2749] = {
 	-18, -1, 18, -1, -18, 0, 18, 0
 };
 
-/**
- * pCrawlTable maps from circle radius to the X- and Y-coordinate deltas from the center of a circle.
- */
+/** pCrawlTable maps from circle radius to the X- and Y-coordinate deltas from the center of a circle. */
 char *pCrawlTable[19] = {
 	CrawlTable,
 	CrawlTable + 3,
@@ -427,9 +430,7 @@ char *pCrawlTable[19] = {
 	CrawlTable + 2187,
 	CrawlTable + 2460
 };
-/**
- * vCrawlTable specifies the X- Y-coordinate offsets of lighting visions.
- */
+/** vCrawlTable specifies the X- Y-coordinate offsets of lighting visions. */
 BYTE vCrawlTable[23][30] = {
 	{ 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0 },
 	{ 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 1, 9, 1, 10, 1, 11, 1, 12, 1, 13, 1, 14, 1, 15, 1 },
@@ -455,31 +456,29 @@ BYTE vCrawlTable[23][30] = {
 	{ 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 1, 8, 1, 9, 1, 10, 1, 11, 1, 12, 1, 13, 1, 14, 1, 15 },
 	{ 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15 }
 };
-BYTE byte_49463C[18][18] = /* unused */
-    {
-	    { 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3 },
-	    { 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3 },
-	    { 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3 },
-	    { 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3 },
-	    { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3 },
-	    { 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2 }
-    };
+/** unused */
+BYTE byte_49463C[18][18] = {
+	{ 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3 },
+	{ 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3 },
+	{ 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3 },
+	{ 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3 },
+	{ 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3 },
+	{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2 }
+};
 
-/**
- * RadiusAdj maps from vCrawlTable index to lighting vision radius adjustment.
- */
+/** RadiusAdj maps from vCrawlTable index to lighting vision radius adjustment. */
 BYTE RadiusAdj[23] = { 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 4, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0 };
 
 void RotateRadius(int *x, int *y, int *dx, int *dy, int *lx, int *ly, int *bx, int *by)
@@ -657,9 +656,8 @@ void DoUnLight(int nXPos, int nYPos, int nRadius)
 
 	for (y = min_y; y < max_y; y++) {
 		for (x = min_x; x < max_x; x++) {
-			if (x >= 0 && x < MAXDUNX && y >= 0 && y < MAXDUNY) {
+			if (x >= 0 && x < MAXDUNX && y >= 0 && y < MAXDUNY)
 				dLight[x][y] = dPreLight[x][y];
-			}
 		}
 	}
 }
@@ -759,9 +757,9 @@ void DoVision(int nXPos, int nYPos, int nRadius, BOOL doautomap, BOOL visible)
 				if (nCrawlX >= 0 && nCrawlX < MAXDUNX && nCrawlY >= 0 && nCrawlY < MAXDUNY) {
 					nBlockerFlag = nBlockTable[dPiece[nCrawlX][nCrawlY]];
 					if ((x1adj + nCrawlX >= 0 && x1adj + nCrawlX < MAXDUNX && y1adj + nCrawlY >= 0 && y1adj + nCrawlY < MAXDUNY
-						&& !nBlockTable[dPiece[x1adj + nCrawlX][y1adj + nCrawlY]])
+					        && !nBlockTable[dPiece[x1adj + nCrawlX][y1adj + nCrawlY]])
 					    || (x2adj + nCrawlX >= 0 && x2adj + nCrawlX < MAXDUNX && y2adj + nCrawlY >= 0 && y2adj + nCrawlY < MAXDUNY
-						&& !nBlockTable[dPiece[x2adj + nCrawlX][y2adj + nCrawlY]])) {
+					           && !nBlockTable[dPiece[x2adj + nCrawlX][y2adj + nCrawlY]])) {
 						if (doautomap) {
 							if (dFlags[nCrawlX][nCrawlY] >= 0) {
 								SetAutomapView(nCrawlX, nCrawlY);
@@ -792,7 +790,7 @@ void FreeLightTable()
 
 void InitLightTable()
 {
-	/// ASSERT: assert(! pLightTbl);
+	assert(!pLightTbl);
 	pLightTbl = DiabloAllocPtr(LIGHTSIZE);
 }
 
@@ -984,13 +982,13 @@ void ToggleLighting()
 
 	lightflag ^= TRUE;
 
-	if (lightflag) {
+	if (lightflag != 0) {
 		memset(dLight, 0, sizeof(dLight));
 	} else {
 		memcpy(dLight, dPreLight, sizeof(dLight));
 		for (i = 0; i < MAX_PLRS; i++) {
 			if (plr[i].plractive && plr[i].plrlevel == currlevel) {
-				DoLighting(plr[i].WorldX, plr[i].WorldY, plr[i]._pLightRad, -1);
+				DoLighting(plr[i]._px, plr[i]._py, plr[i]._pLightRad, -1);
 			}
 		}
 	}
@@ -1023,7 +1021,7 @@ int AddLight(int x, int y, int r)
 {
 	int lid;
 
-	if (lightflag) {
+	if (lightflag != 0) {
 		return -1;
 	}
 
@@ -1036,8 +1034,8 @@ int AddLight(int x, int y, int r)
 		LightList[lid]._lradius = r;
 		LightList[lid]._xoff = 0;
 		LightList[lid]._yoff = 0;
-		LightList[lid]._ldel = 0;
-		LightList[lid]._lunflag = 0;
+		LightList[lid]._ldel = FALSE;
+		LightList[lid]._lunflag = FALSE;
 		dolighting = TRUE;
 	}
 
@@ -1050,7 +1048,7 @@ void AddUnLight(int i)
 		return;
 	}
 
-	LightList[i]._ldel = 1;
+	LightList[i]._ldel = TRUE;
 	dolighting = TRUE;
 }
 
@@ -1060,7 +1058,7 @@ void ChangeLightRadius(int i, int r)
 		return;
 	}
 
-	LightList[i]._lunflag = 1;
+	LightList[i]._lunflag = TRUE;
 	LightList[i]._lunx = LightList[i]._lx;
 	LightList[i]._luny = LightList[i]._ly;
 	LightList[i]._lunr = LightList[i]._lradius;
@@ -1074,7 +1072,7 @@ void ChangeLightXY(int i, int x, int y)
 		return;
 	}
 
-	LightList[i]._lunflag = 1;
+	LightList[i]._lunflag = TRUE;
 	LightList[i]._lunx = LightList[i]._lx;
 	LightList[i]._luny = LightList[i]._ly;
 	LightList[i]._lunr = LightList[i]._lradius;
@@ -1089,7 +1087,7 @@ void ChangeLightOff(int i, int x, int y)
 		return;
 	}
 
-	LightList[i]._lunflag = 1;
+	LightList[i]._lunflag = TRUE;
 	LightList[i]._lunx = LightList[i]._lx;
 	LightList[i]._luny = LightList[i]._ly;
 	LightList[i]._lunr = LightList[i]._lradius;
@@ -1104,7 +1102,7 @@ void ChangeLight(int i, int x, int y, int r)
 		return;
 	}
 
-	LightList[i]._lunflag = 1;
+	LightList[i]._lunflag = TRUE;
 	LightList[i]._lunx = LightList[i]._lx;
 	LightList[i]._luny = LightList[i]._ly;
 	LightList[i]._lunr = LightList[i]._lradius;
@@ -1119,7 +1117,7 @@ void ProcessLightList()
 	int i, j;
 	BYTE temp;
 
-	if (lightflag) {
+	if (lightflag != 0) {
 		return;
 	}
 
@@ -1131,7 +1129,7 @@ void ProcessLightList()
 			}
 			if (LightList[j]._lunflag) {
 				DoUnLight(LightList[j]._lunx, LightList[j]._luny, LightList[j]._lunr);
-				LightList[j]._lunflag = 0;
+				LightList[j]._lunflag = FALSE;
 			}
 		}
 		for (i = 0; i < numlights; i++) {
@@ -1200,7 +1198,7 @@ void ChangeVisionRadius(int id, int r)
 
 	for (i = 0; i < numvision; i++) {
 		if (VisionList[i]._lid == id) {
-			VisionList[i]._lunflag = 1;
+			VisionList[i]._lunflag = TRUE;
 			VisionList[i]._lunx = VisionList[i]._lx;
 			VisionList[i]._luny = VisionList[i]._ly;
 			VisionList[i]._lunr = VisionList[i]._lradius;
@@ -1216,7 +1214,7 @@ void ChangeVisionXY(int id, int x, int y)
 
 	for (i = 0; i < numvision; i++) {
 		if (VisionList[i]._lid == id) {
-			VisionList[i]._lunflag = 1;
+			VisionList[i]._lunflag = TRUE;
 			VisionList[i]._lunx = VisionList[i]._lx;
 			VisionList[i]._luny = VisionList[i]._ly;
 			VisionList[i]._lunr = VisionList[i]._lradius;
@@ -1239,7 +1237,7 @@ void ProcessVisionList()
 			}
 			if (VisionList[i]._lunflag) {
 				DoUnVision(VisionList[i]._lunx, VisionList[i]._luny, VisionList[i]._lunr);
-				VisionList[i]._lunflag = 0;
+				VisionList[i]._lunflag = FALSE;
 			}
 		}
 		for (i = 0; i < TransVal; i++) {

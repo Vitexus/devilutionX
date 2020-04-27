@@ -1,6 +1,16 @@
-//HEADER_GOES_HERE
+/**
+ * @file path.h
+ *
+ * Interface of the path finding algorithms.
+ */
 #ifndef __PATH_H__
 #define __PATH_H__
+
+DEVILUTION_BEGIN_NAMESPACE
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern PATHNODE path_nodes[MAXPATHNODES];
 extern int gdwCurPathStep;
@@ -33,5 +43,11 @@ extern const char pathydir[8];
 
 /* data */
 extern char path_directions[9];
+
+#ifdef __cplusplus
+}
+#endif
+
+DEVILUTION_END_NAMESPACE
 
 #endif /* __PATH_H__ */

@@ -1,3 +1,8 @@
+/**
+ * @file help.cpp
+ *
+ * Implementation of the in-game help text.
+ */
 #include "all.h"
 
 DEVILUTION_BEGIN_NAMESPACE
@@ -455,7 +460,7 @@ void DrawHelp()
 	PrintSString(0, 2, TRUE, "Diablo Help", COL_GOLD, 0);
 	DrawSLine(5);
 
-	s = gszHelpText;
+	s = &gszHelpText[0];
 
 	for (i = 0; i < help_select_line; i++) {
 		c = 0;
@@ -548,7 +553,7 @@ void DrawHelpLine(int always_0, int help_line_nr, char *text, char color)
 		width += fontkern[c] + 1;
 		if (c) {
 			if (width <= 577)
-				CPrintString(sx, sy, c, color);
+				PrintChar(sx, sy, c, color);
 		}
 		sx += fontkern[c] + 1;
 	}

@@ -36,7 +36,6 @@ Art ArtBackground;
 Art ArtCursor;
 Art ArtHero;
 bool gbSpawned;
-int heroLevel;
 
 void (*gfnSoundFunction)(char *file);
 void (*gfnListFocus)(int value);
@@ -329,7 +328,7 @@ void UiHandleEvents(SDL_Event *event)
 	}
 
 	if (event->type == SDL_QUIT)
-		exit(0);
+		diablo_quit(0);
 
 #ifndef USE_SDL1
 	if (event->type == SDL_JOYDEVICEADDED || event->type == SDL_JOYDEVICEREMOVED) {
