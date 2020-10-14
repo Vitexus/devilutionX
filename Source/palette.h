@@ -1,4 +1,8 @@
-//HEADER_GOES_HERE
+/**
+ * @file palette.h
+ *
+ * Interface of functions for handling the engines color palette.
+ */
 #ifndef __PALETTE_H__
 #define __PALETTE_H__
 
@@ -27,6 +31,10 @@ void SetFadeLevel(DWORD fadeval);
 void PaletteFadeIn(int fr);
 void PaletteFadeOut(int fr);
 void palette_update_caves();
+#ifdef HELLFIRE
+void palette_update_crypt();
+void palette_update_hive();
+#endif
 void palette_update_quest_palette(int n);
 BOOL palette_get_color_cycling();
 BOOL palette_set_color_cycling(BOOL enabled);
@@ -36,7 +44,9 @@ BOOL palette_set_color_cycling(BOOL enabled);
 /* data */
 
 extern int gamma_correction;
+#ifndef HELLFIRE
 extern BOOL color_cycling_enabled;
+#endif
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,8 @@
+/**
+ * @file portal.cpp
+ *
+ * Implementation of functionality for handling town portals.
+ */
 #include "all.h"
 
 DEVILUTION_BEGIN_NAMESPACE
@@ -126,7 +131,7 @@ void SetCurrentPortal(int p)
 
 void GetPortalLevel()
 {
-	if (currlevel) {
+	if (currlevel != 0) {
 		setlevel = FALSE;
 		currlevel = 0;
 		plr[myplr].plrlevel = 0;

@@ -127,8 +127,8 @@ const char gszHelpText[] = {
 	"corresponding number on the keyboard.|"
 	"|"
 	"$Gold:|"
-	"You can select a specific amount of gold to drop by right "
-	"clicking on a pile of gold in your inventory. "
+	"You can select a specific amount of gold to drop by "
+	"right-clicking on a pile of gold in your inventory. "
 	"A dialog will appear that allows you to select a specific amount of "
 	"gold to take. When you have entered that number, your cursor will "
 	"change into that amount of gold.|"
@@ -249,7 +249,7 @@ const char gszHelpText[] = {
 	"|"
 	"Spells cast from a scroll cost no mana to use, but are limited "
 	"to only one charge. Casting a spell from a scroll is accomplished "
-	"by either right clicking on the scroll or, if it is located in "
+	"by either right-clicking on the scroll or, if it is located in "
 	"our belt, pressing the corresponding number on the keyboard. "
 	"Scrolls can also be readied in the Speedbook and are represented "
 	"by a red icon/button in the 'select current spell' area.|"
@@ -413,8 +413,8 @@ const char gszHelpText[] = {
 	"the corresponding number or right-clicking on the item.|"
 	"|"
 	"$Gold|"
-	"You can select a specific amount of gold to drop by right "
-	"clicking on a pile of gold in your inventory.|"
+	"You can select a specific amount of gold to drop by"
+	"right-clicking on a pile of gold in your inventory.|"
 	"|"
 	"$Skills & Spells:|"
 	"You can access your list of skills and spells by left-clicking on "
@@ -538,14 +538,14 @@ void DrawHelp()
 	PrintSString(0, 23, TRUE, "Press ESC to end or the arrow keys to scroll.", COL_GOLD, 0);
 }
 
-void DrawHelpLine(int always_0, int help_line_nr, char *text, char color)
+void DrawHelpLine(int x, int y, char *text, char color)
 {
 	int sx, sy, width;
 	BYTE c;
 
 	width = 0;
-	sx = always_0 + 96 + PANEL_LEFT;
-	sy = help_line_nr * 12 + 204;
+	sx = x + 32 + PANEL_X;
+	sy = y * 12 + 44 + SCREEN_Y + UI_OFFSET_Y;
 	while (*text) {
 		c = gbFontTransTbl[(BYTE)*text];
 		text++;

@@ -56,6 +56,7 @@ BOOL mainmenu_select_hero_dialog(
 		        gszHero,
 		        &gnDifficulty))
 			app_fatal("Unable to display SelHeroSing");
+		client_info->initdata->bDiff = gnDifficulty;
 
 		if (dlgresult == SELHERO_CONTINUE)
 			gbLoadGame = TRUE;
@@ -114,11 +115,16 @@ void mainmenu_loop()
 			break;
 		case MAINMENU_REPLAY_INTRO:
 		case MAINMENU_ATTRACT_MODE:
+#ifdef HELLFIRE
+			if (gbActive)
+				mainmenu_play_intro();
+#else
 #ifdef SPAWN
 			done = FALSE;
 #else
 			if (gbActive)
 				mainmenu_play_intro();
+#endif
 #endif
 			break;
 		case MAINMENU_SHOW_CREDITS:
@@ -136,6 +142,12 @@ void mainmenu_loop()
 BOOL mainmenu_single_player()
 {
 	gbMaxPlayers = 1;
+
+	if (!SRegLoadValue("devilutionx", "game speed", 0, &ticks_per_sec)) {
+		SRegSaveValue("devilutionx", "game speed", 0, ticks_per_sec);
+	}
+	tick_delay = 1000 / ticks_per_sec;
+
 	return mainmenu_init_menu(SELHERO_NEW_DUNGEON);
 }
 
@@ -161,13 +173,15 @@ BOOL mainmenu_multi_player()
 	return mainmenu_init_menu(SELHERO_CONNECT);
 }
 
-#ifndef SPAWN
 void mainmenu_play_intro()
 {
 	music_stop();
+#ifdef HELLFIRE
+	play_movie("gendata\\Hellfire.smk", TRUE);
+#else
 	play_movie("gendata\\diablo1.smk", TRUE);
+#endif
 	mainmenu_refresh_music();
 }
-#endif
 
 DEVILUTION_END_NAMESPACE

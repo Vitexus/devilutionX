@@ -1,3 +1,8 @@
+/**
+ * @file sound.cpp
+ *
+ * Implementation of functions setting up the audio pipeline.
+ */
 #include "all.h"
 #include "../3rdParty/Storm/Source/storm.h"
 #include "stubs.h"
@@ -9,6 +14,7 @@ namespace dvl {
 BOOLEAN gbSndInited;
 int sglMusicVolume;
 int sglSoundVolume;
+/** Specifies whether background music is enabled. */
 HANDLE sghMusic;
 
 Mix_Music *music;
@@ -18,9 +24,11 @@ char *musicBuffer;
 /* data */
 
 BOOLEAN gbMusicOn = true;
+/** Specifies whether sound effects are enabled. */
 BOOLEAN gbSoundOn = true;
+/** Specifies the active background music track id. */
 int sgnMusicTrack = NUM_MUSIC;
-
+/** Maps from track ID to track name. */
 char *sgszMusicTracks[NUM_MUSIC] = {
 #ifdef SPAWN
 	"Music\\sTowne.wav",
@@ -28,6 +36,10 @@ char *sgszMusicTracks[NUM_MUSIC] = {
 	"Music\\sLvlA.wav",
 	"Music\\sLvlA.wav",
 	"Music\\sLvlA.wav",
+#ifdef HELLFIRE
+	"Music\\sLvlA.wav",
+	"Music\\sLvlA.wav",
+#endif
 	"Music\\sintro.wav",
 #else
 	"Music\\DTowne.wav",
@@ -35,6 +47,10 @@ char *sgszMusicTracks[NUM_MUSIC] = {
 	"Music\\DLvlB.wav",
 	"Music\\DLvlC.wav",
 	"Music\\DLvlD.wav",
+#ifdef HELLFIRE
+	"Music\\DLvlE.wav",
+	"Music\\DLvlF.wav",
+#endif
 	"Music\\Dintro.wav",
 #endif
 };
@@ -141,7 +157,7 @@ void snd_init(HWND hWnd)
 void snd_get_volume(char *value_name, int *value)
 {
 	int v = *value;
-	if (!SRegLoadValue("Diablo", value_name, 0, &v)) {
+	if (!SRegLoadValue(APP_NAME, value_name, 0, &v)) {
 		v = VOLUME_MAX;
 	}
 	*value = v;
@@ -167,7 +183,7 @@ void sound_cleanup()
 
 void snd_set_volume(char *key, int value)
 {
-	SRegSaveValue("Diablo", key, 0, value);
+	SRegSaveValue(APP_NAME, key, 0, value);
 }
 
 void music_stop()

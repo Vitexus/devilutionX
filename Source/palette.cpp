@@ -1,3 +1,8 @@
+/**
+ * @file palette.cpp
+ *
+ * Implementation of functions for handling the engines color palette.
+ */
 #include "all.h"
 #include "../SourceX/display.h"
 #include "../3rdParty/Storm/Source/storm.h"
@@ -10,8 +15,11 @@ SDL_Color orig_palette[256];
 
 /* data */
 
+/** Specifies the gamma correction level. */
 int gamma_correction = 100;
+/** Specifies whether colour cycling is enabled. */
 BOOL color_cycling_enabled = TRUE;
+/** Specifies whether the palette has max brightness. */
 BOOLEAN sgbFadedIn = TRUE;
 
 void palette_update()
@@ -31,11 +39,9 @@ void ApplyGamma(SDL_Color *dst, const SDL_Color *src, int n)
 	g = gamma_correction / 100.0;
 
 	for (i = 0; i < n; i++) {
-		dst->r = pow(src->r / 256.0, g) * 256.0;
-		dst->g = pow(src->g / 256.0, g) * 256.0;
-		dst->b = pow(src->b / 256.0, g) * 256.0;
-		dst++;
-		src++;
+		dst[i].r = pow(src[i].r / 256.0, g) * 256.0;
+		dst[i].g = pow(src[i].g / 256.0, g) * 256.0;
+		dst[i].b = pow(src[i].b / 256.0, g) * 256.0;
 	}
 	force_redraw = 255;
 }
@@ -43,7 +49,9 @@ void ApplyGamma(SDL_Color *dst, const SDL_Color *src, int n)
 void SaveGamma()
 {
 	SRegSaveValue(APP_NAME, "Gamma Correction", 0, gamma_correction);
+#ifndef HELLFIRE
 	SRegSaveValue(APP_NAME, "Color Cycling", FALSE, color_cycling_enabled);
+#endif
 }
 
 static void LoadGamma()
@@ -61,9 +69,11 @@ static void LoadGamma()
 		gamma_value = 100;
 	}
 	gamma_correction = gamma_value - gamma_value % 5;
+#ifndef HELLFIRE
 	if (!SRegLoadValue(APP_NAME, "Color Cycling", 0, &value))
 		value = 1;
 	color_cycling_enabled = value;
+#endif
 }
 
 void palette_init()
@@ -105,6 +115,17 @@ void LoadRndLvlPal(int l)
 	} else {
 		rv = random_(0, 4) + 1;
 		sprintf(szFileName, "Levels\\L%iData\\L%i_%i.PAL", l, l, rv);
+#ifdef HELLFIRE
+		if (l == 5) {
+			sprintf(szFileName, "NLevels\\L5Data\\L5Base.PAL");
+		}
+		if (l == 6) {
+			if (!UseNestArt) {
+				rv++;
+			}
+			sprintf(szFileName, "NLevels\\L%iData\\L%iBase%i.PAL", 6, 6, rv);
+		}
+#endif
 		LoadPalette(szFileName);
 	}
 }
@@ -150,7 +171,7 @@ void SetFadeLevel(DWORD fadeval)
 {
 	int i;
 
-	for (i = 0; i < 255; i++) {
+	for (i = 0; i < 256; i++) { // BUGFIX: should be 256 (fixed)
 		system_palette[i].r = (fadeval * logical_palette[i].r) >> 8;
 		system_palette[i].g = (fadeval * logical_palette[i].g) >> 8;
 		system_palette[i].b = (fadeval * logical_palette[i].b) >> 8;
@@ -211,6 +232,87 @@ void palette_update_caves()
 	palette_update();
 }
 
+#ifdef HELLFIRE
+int dword_6E2D58;
+int dword_6E2D54;
+void palette_update_crypt()
+{
+	int i;
+	SDL_Color col;
+
+	if (dword_6E2D58 > 1) {
+		col = system_palette[15];
+		for (i = 15; i > 1; i--) {
+			system_palette[i].r = system_palette[i - 1].r;
+			system_palette[i].g = system_palette[i - 1].g;
+			system_palette[i].b = system_palette[i - 1].b;
+		}
+		system_palette[i].r = col.r;
+		system_palette[i].g = col.g;
+		system_palette[i].b = col.b;
+
+
+
+		dword_6E2D58 = 0;
+	} else {
+		dword_6E2D58++;
+	}
+	if (dword_6E2D54 > 0) {
+		col = system_palette[31];
+		for (i = 31; i > 16; i--) {
+			system_palette[i].r = system_palette[i - 1].r;
+			system_palette[i].g = system_palette[i - 1].g;
+			system_palette[i].b = system_palette[i - 1].b;
+		}
+		system_palette[i].r = col.r;
+		system_palette[i].g = col.g;
+		system_palette[i].b = col.b;
+		palette_update();
+		dword_6E2D54++;
+	} else {
+		dword_6E2D54 = 1;
+	}
+}
+
+int dword_6E2D5C;
+int dword_6E2D60;
+void palette_update_hive()
+{
+	int i;
+	SDL_Color col;
+
+	if (dword_6E2D60 == 2) {
+		col = system_palette[8];
+		for (i = 8; i > 1; i--) {
+			system_palette[i].r = system_palette[i - 1].r;
+			system_palette[i].g = system_palette[i - 1].g;
+			system_palette[i].b = system_palette[i - 1].b;
+		}
+		system_palette[i].r = col.r;
+		system_palette[i].g = col.g;
+		system_palette[i].b = col.b;
+		dword_6E2D60 = 0;
+	} else {
+		dword_6E2D60++;
+	}
+	if (dword_6E2D5C == 2) {
+		col = system_palette[15];
+		for (i = 15; i > 9; i--) {
+			system_palette[i].r = system_palette[i - 1].r;
+			system_palette[i].g = system_palette[i - 1].g;
+			system_palette[i].b = system_palette[i - 1].b;
+		}
+		system_palette[i].r = col.r;
+		system_palette[i].g = col.g;
+		system_palette[i].b = col.b;
+		palette_update();
+		dword_6E2D5C = 0;
+	} else {
+		dword_6E2D5C++;
+	}
+}
+
+#endif
 #ifndef SPAWN
 void palette_update_quest_palette(int n)
 {

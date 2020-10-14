@@ -15,6 +15,7 @@ option(NIGHTLY_BUILD "Enable options for nightly build" OFF)
 option(USE_SDL1 "Use SDL1.2 instead of SDL2" OFF)
 option(NONET "Disable network" OFF)
 option(RUN_TESTS "Build and run tests" OFF)
+option(HELLFIRE "Build hellfire version" OFF)
 RELEASE_OPTION(CPACK "Configure CPack")
 
 
@@ -92,7 +93,7 @@ elseif(TARGET_PLATFORM STREQUAL "cpigamesh")
   include(cpigamesh_defs)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD OR ${CMAKE_SYSTEM_NAME} STREQUAL OpenBSD)
+if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD|OpenBSD|DragonFly")
   set(ASAN OFF)
   set(UBSAN OFF)
   add_definitions(-D_BSD_SOURCE)
@@ -296,6 +297,7 @@ set(devilutionx_SRCS
   SourceX/DiabloUI/title.cpp
   SourceX/DiabloUI/ttf_render_wrapped.cpp
   SourceX/main.cpp
+  SourceX/devilutionx.exe.manifest
   Packaging/macOS/AppIcon.icns
   Packaging/resources/CharisSILB.ttf
   Packaging/windows/devilutionx.rc)
@@ -332,7 +334,12 @@ if(RUN_TESTS)
     SourceT/drlg_l3_test.cpp
     SourceT/drlg_l4_test.cpp
     SourceT/effects_test.cpp
-    SourceT/file_util_test.cpp)
+    SourceT/file_util_test.cpp
+    SourceT/scrollrt_test.cpp)
+endif()
+
+if(HELLFIRE)
+  add_definitions(-DHELLFIRE)
 endif()
 
 add_executable(${BIN_TARGET} WIN32 MACOSX_BUNDLE ${devilutionx_SRCS})
@@ -569,6 +576,7 @@ if(APPLE)
   set(MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION})
   set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
   set(MACOSX_BUNDLE_LONG_VERSION_STRING "Version ${PROJECT_VERSION}")
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12.0")
   set_target_properties(${BIN_TARGET} PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon")
   set_target_properties(${BIN_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/macOS/Info.plist")
 
@@ -618,16 +626,8 @@ if(CPACK)
         "${PROJECT_SOURCE_DIR}/Packaging/nix/README.txt"
       DESTINATION "share/diasurgical/${project_name}"
     )
-    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/16.png"
-      DESTINATION "share/icons/hicolor/16x16/apps"
-      RENAME "${project_name}.png"
-    )
-    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/Diablo_32.png"
-      DESTINATION "share/icons/hicolor/32x32/apps"
-      RENAME "${project_name}.png"
-    )
-    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/Diablo_48.png"
-      DESTINATION "share/icons/hicolor/48x48/apps"
+    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/icon.png"
+      DESTINATION "share/icons/hicolor/512x512/apps"
       RENAME "${project_name}.png"
     )
     install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/CharisSILB.ttf"
@@ -635,7 +635,7 @@ if(CPACK)
     )
 
     # -G DEB
-    set(CPACK_PACKAGE_CONTACT "kai@gnukai.com")
+    set(CPACK_PACKAGE_CONTACT "anders@jenbo.dk")
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 

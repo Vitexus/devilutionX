@@ -1,3 +1,8 @@
+/**
+ * @file pfile.cpp
+ *
+ * Implementation of the save game encoding functionality.
+ */
 #include "all.h"
 #include "../3rdParty/Storm/Source/storm.h"
 #include "../DiabloUI/diabloui.h"
@@ -75,15 +80,31 @@ void pfile_get_save_path(char *pszBuf, DWORD dwBufSize, DWORD save_num)
 	char path[MAX_PATH];
 
 #ifdef SPAWN
+#ifdef HELLFIRE
+	const char *fmt = "%sshare_%d.hsv";
+#else
 	const char *fmt = "%sshare_%d.sv";
+#endif
 
 	if (gbMaxPlayers <= 1)
+#ifdef HELLFIRE
+		fmt = "%sspawn%d.hsv";
+#else
 		fmt = "%sspawn%d.sv";
+#endif
+#else
+#ifdef HELLFIRE
+	const char *fmt = "%shrinfo_%d.drv";
 #else
 	const char *fmt = "%smulti_%d.sv";
+#endif
 
 	if (gbMaxPlayers <= 1)
+#ifdef HELLFIRE
+		fmt = "%ssingle_%d.hsv";
+#else
 		fmt = "%ssingle_%d.sv";
+#endif
 #endif
 
 	GetPrefPath(path, MAX_PATH);
@@ -181,6 +202,14 @@ BYTE game_2_ui_class(const PlayerStruct *p)
 		uiclass = UI_WARRIOR;
 	else if (p->_pClass == PC_ROGUE)
 		uiclass = UI_ROGUE;
+#ifdef HELLFIRE
+	else if (p->_pClass == PC_MONK)
+		uiclass = UI_MONK;
+	else if (p->_pClass == PC_BARD)
+		uiclass = UI_BARD;
+	else if (p->_pClass == PC_BARBARIAN)
+		uiclass = UI_BARBARIAN;
+#endif
 	else
 		uiclass = UI_SORCERER;
 
@@ -301,6 +330,14 @@ char pfile_get_player_class(unsigned int player_class_nr)
 		pc_class = PC_WARRIOR;
 	else if (player_class_nr == UI_ROGUE)
 		pc_class = PC_ROGUE;
+#ifdef HELLFIRE
+	else if (player_class_nr == 3)
+		pc_class = PC_MONK;
+	else if (player_class_nr == 4)
+		pc_class = PC_BARD;
+	else if (player_class_nr == 5)
+		pc_class = PC_BARBARIAN;
+#endif
 	else
 		pc_class = PC_SORCERER;
 	return pc_class;
