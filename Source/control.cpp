@@ -201,9 +201,9 @@ int PanBtnPos[8][5] = {
 	// clang-format on
 };
 /** Maps from panel_button_id to hotkey name. */
-char *PanBtnHotKey[8] = { "'c'", "'q'", "Tab", "Esc", "'i'", "'b'", "Enter", NULL };
+const char *const PanBtnHotKey[8] = { "'c'", "'q'", "Tab", "Esc", "'i'", "'b'", "Enter", NULL };
 /** Maps from panel_button_id to panel button description. */
-char *PanBtnStr[8] = {
+const char *const PanBtnStr[8] = {
 	"Character Information",
 	"Quests log",
 	"Automap",
@@ -584,7 +584,7 @@ void PrintChar(int sx, int sy, int nCel, char col)
 	CelDrawLight(sx, sy, pPanelText, nCel, 13, tbl);
 }
 
-void AddPanelString(char *str, BOOL just)
+void AddPanelString(const char *str, BOOL just)
 {
 	strcpy(panelstr[pnumlines], str);
 	pstrjust[pnumlines] = just;
@@ -883,12 +883,10 @@ void InitControlPan()
 	sbookflag = FALSE;
 	if (plr[myplr]._pClass == PC_WARRIOR) {
 		SpellPages[0][0] = SPL_REPAIR;
-#ifndef SPAWN
 	} else if (plr[myplr]._pClass == PC_ROGUE) {
 		SpellPages[0][0] = SPL_DISARM;
 	} else if (plr[myplr]._pClass == PC_SORCERER) {
 		SpellPages[0][0] = SPL_RECHARGE;
-#endif
 #ifdef HELLFIRE
 	} else if (plr[myplr]._pClass == PC_MONK) {
 		SpellPages[0][0] = SPL_SEARCH;
@@ -1361,10 +1359,10 @@ void PrintInfo()
 	}
 }
 
-void CPrintString(int y, char *str, BOOL center, int lines)
+void CPrintString(int y, const char *str, BOOL center, int lines)
 {
 	BYTE c;
-	char *tmp;
+	const char *tmp;
 	int lineOffset, strWidth, sx, sy;
 
 	lineOffset = 0;
@@ -1423,12 +1421,10 @@ void DrawChr()
 #else
 	if (plr[myplr]._pClass == PC_WARRIOR) {
 		ADD_PlrStringXY(168, 32, 299, "Warrior", COL_WHITE);
-#ifndef SPAWN
 	} else if (plr[myplr]._pClass == PC_ROGUE) {
 		ADD_PlrStringXY(168, 32, 299, "Rogue", COL_WHITE);
 	} else if (plr[myplr]._pClass == PC_SORCERER) {
 		ADD_PlrStringXY(168, 32, 299, "Sorceror", COL_WHITE);
-#endif
 	}
 #endif
 
@@ -1642,10 +1638,10 @@ void DrawChr()
  * @param col text_color color value
  * @param base Letter spacing
  */
-void MY_PlrStringXY(int x, int y, int endX, char *pszStr, char col, int base)
+void MY_PlrStringXY(int x, int y, int endX, const char *pszStr, char col, int base)
 {
 	BYTE c;
-	char *tmp;
+	const char *tmp;
 	int sx, sy, screen_x, line, widthOffset;
 
 	sx = x + SCREEN_X;
@@ -1960,10 +1956,10 @@ void DrawSpellBook()
 	}
 }
 
-void PrintSBookStr(int x, int y, BOOL cjustflag, char *pszStr, char col)
+void PrintSBookStr(int x, int y, BOOL cjustflag, const char *pszStr, char col)
 {
 	BYTE c;
-	char *tmp;
+	const char *tmp;
 	int screen_x, line, sx;
 
 	sx = x + RIGHT_PANEL_X + SPLICONLENGTH;
@@ -2024,9 +2020,9 @@ void CheckSBook()
 #endif
 }
 
-char *get_pieces_str(int nGold)
+const char *get_pieces_str(int nGold)
 {
-	char *result;
+	const char *result;
 
 	result = "piece";
 	if (nGold != 1)

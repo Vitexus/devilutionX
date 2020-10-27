@@ -26,7 +26,7 @@ int bxadd[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
 /** Specifies the Y-coordinate delta between barrels. */
 int byadd[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
 /** Maps from shrine_id to shrine name. */
-char *shrinestrs[NUM_SHRINETYPE] = {
+const char *const shrinestrs[NUM_SHRINETYPE] = {
 	"Mysterious",
 	"Hidden",
 	"Gloomy",
@@ -188,7 +188,7 @@ BYTE shrineavail[NUM_SHRINETYPE] = {
 #endif
 };
 /** Maps from book_id to book name. */
-char *StoryBookName[] = {
+const char *const StoryBookName[] = {
 	"The Great Conflict",
 	"The Wages of Sin are War",
 	"The Tale of the Horadrim",
@@ -225,10 +225,10 @@ void InitObjectGFX()
 
 #ifdef HELLFIRE
 	int lvl = currlevel;
-	if (currlevel >= 17 && currlevel <= 20)
-		lvl -= 8;
-	else if (currlevel >= 21 && currlevel <= 24)
+	if (currlevel >= 21 && currlevel <= 24)
 		lvl -= 20;
+	else if (currlevel >= 17 && currlevel <= 20)
+		lvl -= 8;
 #endif
 	for (i = 0; AllObjects[i].oload != -1; i++) {
 		if (AllObjects[i].oload == 1
@@ -282,11 +282,11 @@ void FreeObjectGFX()
 
 DIABOOL RndLocOk(int xp, int yp)
 {
-	if (dMonster[xp][yp])
+	if (dMonster[xp][yp] != 0)
 		return FALSE;
-	if (dPlayer[xp][yp])
+	if (dPlayer[xp][yp] != 0)
 		return FALSE;
-	if (dObject[xp][yp])
+	if (dObject[xp][yp] != 0)
 		return FALSE;
 	if (dFlags[xp][yp] & BFLAG_POPULATED)
 		return FALSE;
@@ -1157,7 +1157,6 @@ void InitObjects()
 	}
 }
 
-#ifndef SPAWN
 void SetMapObjects(BYTE *pMap, int startx, int starty)
 {
 	int rw, rh;
@@ -1217,7 +1216,6 @@ void SetMapObjects(BYTE *pMap, int startx, int starty)
 	}
 	InitObjFlag = FALSE;
 }
-#endif
 
 void DeleteObject_(int oi, int i)
 {
@@ -1978,10 +1976,10 @@ void Obj_Door(int i)
 	} else {
 		dx = object[i]._ox;
 		dy = object[i]._oy;
-		dok = !dMonster[dx][dy];
-		dok = dok HFAND !dItem[dx][dy];
-		dok = dok HFAND !dDead[dx][dy];
-		dok = dok HFAND !dPlayer[dx][dy];
+		dok = dMonster[dx][dy] == 0;
+		dok = dok HFAND (dItem[dx][dy] == 0);
+		dok = dok HFAND (dDead[dx][dy] == 0);
+		dok = dok HFAND (dPlayer[dx][dy] == 0);
 		object[i]._oSelFlag = 2;
 		object[i]._oVar4 = dok ? 1 : 2;
 		object[i]._oMissFlag = TRUE;
@@ -2029,7 +2027,7 @@ void Obj_FlameTrap(int i)
 			x = object[i]._ox - 2;
 			y = object[i]._oy;
 			for (j = 0; j < 5; j++) {
-				if (dPlayer[x][y] || dMonster[x][y])
+				if (dPlayer[x][y] != 0 || dMonster[x][y] != 0)
 					object[i]._oVar4 = 1;
 				x++;
 			}
@@ -2037,7 +2035,7 @@ void Obj_FlameTrap(int i)
 			x = object[i]._ox;
 			y = object[i]._oy - 2;
 			for (k = 0; k < 5; k++) {
-				if (dPlayer[x][y] || dMonster[x][y])
+				if (dPlayer[x][y] != 0 || dMonster[x][y] != 0)
 					object[i]._oVar4 = 1;
 				y++;
 			}
@@ -2101,7 +2099,7 @@ void Obj_Trap(int i)
 			dy = object[oti]._oy;
 			for (y = dy - 1; y <= object[oti]._oy + 1; y++) {
 				for (x = object[oti]._ox - 1; x <= object[oti]._ox + 1; x++) {
-					if (dPlayer[x][y]) {
+					if (dPlayer[x][y] != 0) {
 						dx = x;
 						dy = y;
 					}
@@ -2139,7 +2137,6 @@ void Obj_BCrossDamage(int i)
 	} else {
 		if (plr[myplr]._pClass == PC_WARRIOR) {
 			PlaySfxLoc(PS_WARR68, plr[myplr]._px, plr[myplr]._py);
-#ifndef SPAWN
 		} else if (plr[myplr]._pClass == PC_ROGUE) {
 			PlaySfxLoc(PS_ROGUE68, plr[myplr]._px, plr[myplr]._py);
 		} else if (plr[myplr]._pClass == PC_SORCERER) {
@@ -2151,7 +2148,6 @@ void Obj_BCrossDamage(int i)
 			PlaySfxLoc(PS_ROGUE68, plr[myplr]._px, plr[myplr]._py);
 		} else if (plr[myplr]._pClass == PC_BARBARIAN) {
 			PlaySfxLoc(PS_WARR68, plr[myplr]._px, plr[myplr]._py);
-#endif
 #endif
 		}
 	}
@@ -2526,9 +2522,9 @@ void OperateL1RDoor(int pnum, int oi, DIABOOL sendflag)
 		if (!deltaload)
 			PlaySfxLoc(IS_CRCLOS, xp, object[oi]._oy);
 	}
-	BOOLEAN dok = !dMonster[xp][yp];
-	dok = dok && !dItem[xp][yp];
-	dok = dok && !dDead[xp][yp];
+	BOOLEAN dok = dMonster[xp][yp] == 0;
+	dok = dok && dItem[xp][yp] == 0;
+	dok = dok && dDead[xp][yp] == 0;
 	if (dok) {
 #else
 	if (!deltaload)
@@ -2634,9 +2630,9 @@ void OperateL1LDoor(int pnum, int oi, DIABOOL sendflag)
 		if (!deltaload)
 			PlaySfxLoc(IS_CRCLOS, xp, object[oi]._oy);
 	}
-	BOOLEAN dok = !dMonster[xp][yp];
-	dok = dok && !dItem[xp][yp];
-	dok = dok && !dDead[xp][yp];
+	BOOLEAN dok = dMonster[xp][yp] == 0;
+	dok = dok && dItem[xp][yp] == 0;
+	dok = dok && dDead[xp][yp] == 0;
 	if (dok) {
 #else
 	if (!deltaload)
@@ -2707,9 +2703,9 @@ void OperateL2RDoor(int pnum, int oi, DIABOOL sendflag)
 
 	if (!deltaload)
 		PlaySfxLoc(IS_DOORCLOS, object[oi]._ox, yp);
-	dok = !dMonster[xp][yp];
-	dok = dok HFAND !dItem[xp][yp];
-	dok = dok HFAND !dDead[xp][yp];
+	dok = dMonster[xp][yp] == 0;
+	dok = dok HFAND (dItem[xp][yp] == 0);
+	dok = dok HFAND (dDead[xp][yp] == 0);
 	if (dok) {
 		if (pnum == myplr && sendflag)
 			NetSendCmdParam1(TRUE, CMD_CLOSEDOOR, oi);
@@ -2752,9 +2748,9 @@ void OperateL2LDoor(int pnum, int oi, BOOL sendflag)
 
 	if (!deltaload)
 		PlaySfxLoc(IS_DOORCLOS, object[oi]._ox, yp);
-	dok = !dMonster[xp][yp];
-	dok = dok HFAND !dItem[xp][yp];
-	dok = dok HFAND !dDead[xp][yp];
+	dok = dMonster[xp][yp] == 0;
+	dok = dok HFAND (dItem[xp][yp] == 0);
+	dok = dok HFAND (dDead[xp][yp] == 0);
 	if (dok) {
 		if (pnum == myplr && sendflag)
 			NetSendCmdParam1(TRUE, CMD_CLOSEDOOR, oi);
@@ -2798,9 +2794,9 @@ void OperateL3RDoor(int pnum, int oi, DIABOOL sendflag)
 
 	if (!deltaload)
 		PlaySfxLoc(IS_DOORCLOS, object[oi]._ox, yp);
-	dok = !dMonster[xp][yp];
-	dok = dok HFAND !dItem[xp][yp];
-	dok = dok HFAND !dDead[xp][yp];
+	dok = dMonster[xp][yp] == 0;
+	dok = dok HFAND (dItem[xp][yp] == 0);
+	dok = dok HFAND (dDead[xp][yp] == 0);
 	if (dok) {
 		if (pnum == myplr && sendflag)
 			NetSendCmdParam1(TRUE, CMD_CLOSEDOOR, oi);
@@ -2844,9 +2840,9 @@ void OperateL3LDoor(int pnum, int oi, DIABOOL sendflag)
 
 	if (!deltaload)
 		PlaySfxLoc(IS_DOORCLOS, object[oi]._ox, yp);
-	dok = !dMonster[xp][yp];
-	dok = dok HFAND !dItem[xp][yp];
-	dok = dok HFAND !dDead[xp][yp];
+	dok = dMonster[xp][yp] == 0;
+	dok = dok HFAND (dItem[xp][yp] == 0);
+	dok = dok HFAND (dDead[xp][yp] == 0);
 	if (dok) {
 		if (pnum == myplr && sendflag)
 			NetSendCmdParam1(TRUE, CMD_CLOSEDOOR, oi);
@@ -2868,14 +2864,14 @@ void MonstCheckDoors(int m)
 
 	mx = monster[m]._mx;
 	my = monster[m]._my;
-	if (dObject[mx - 1][my - 1]
-	    || dObject[mx][my - 1]
-	    || dObject[mx + 1][my - 1]
-	    || dObject[mx - 1][my]
-	    || dObject[mx + 1][my]
-	    || dObject[mx - 1][my + 1]
-	    || dObject[mx][my + 1]
-	    || dObject[mx + 1][my + 1]) {
+	if (dObject[mx - 1][my - 1] != 0
+	    || dObject[mx][my - 1] != 0
+	    || dObject[mx + 1][my - 1] != 0
+	    || dObject[mx - 1][my] != 0
+	    || dObject[mx + 1][my] != 0
+	    || dObject[mx - 1][my + 1] != 0
+	    || dObject[mx][my + 1] != 0
+	    || dObject[mx + 1][my + 1] != 0) {
 		for (i = 0; i < nobjects; ++i) {
 			oi = objectactive[i];
 			if ((object[oi]._otype == OBJ_L1LDOOR || object[oi]._otype == OBJ_L1RDOOR) && object[oi]._oVar4 == 0) {
@@ -3219,7 +3215,6 @@ void OperateMushPatch(int pnum, int i)
 		if (!deltaload && pnum == myplr) {
 			if (plr[myplr]._pClass == PC_WARRIOR) {
 				PlaySFX(PS_WARR13);
-#ifndef SPAWN
 			} else if (plr[myplr]._pClass == PC_ROGUE) {
 				PlaySFX(PS_ROGUE13);
 			} else if (plr[myplr]._pClass == PC_SORCERER) {
@@ -3231,7 +3226,6 @@ void OperateMushPatch(int pnum, int i)
 				PlaySFX(PS_ROGUE13);
 			} else if (plr[myplr]._pClass == PC_BARBARIAN) {
 				PlaySFX(PS_WARR13);
-#endif
 #endif
 			}
 		}
@@ -3258,7 +3252,6 @@ void OperateInnSignChest(int pnum, int i)
 		if (!deltaload && pnum == myplr) {
 			if (plr[myplr]._pClass == PC_WARRIOR) {
 				PlaySFX(PS_WARR24);
-#ifndef SPAWN
 			} else if (plr[myplr]._pClass == PC_ROGUE) {
 				PlaySFX(PS_ROGUE24);
 			} else if (plr[myplr]._pClass == PC_SORCERER) {
@@ -3270,7 +3263,6 @@ void OperateInnSignChest(int pnum, int i)
 				PlaySFX(PS_ROGUE24);
 			} else if (plr[myplr]._pClass == PC_BARBARIAN) {
 				PlaySFX(PS_WARR24);
-#endif
 #endif
 			}
 		}
@@ -3295,33 +3287,23 @@ void OperateSlainHero(int pnum, int i, DIABOOL sendmsg)
 		if (!deltaload) {
 			if (plr[pnum]._pClass == PC_WARRIOR) {
 				CreateMagicArmor(object[i]._ox, object[i]._oy, ITYPE_HARMOR, ICURS_BREAST_PLATE, FALSE, TRUE);
-#ifndef SPAWN
 				PlaySfxLoc(PS_WARR9, plr[myplr]._px, plr[myplr]._py);
-#endif
 			} else if (plr[pnum]._pClass == PC_ROGUE) {
 				CreateMagicWeapon(object[i]._ox, object[i]._oy, ITYPE_BOW, ICURS_LONG_WAR_BOW, FALSE, TRUE);
-#ifndef SPAWN
 				PlaySfxLoc(PS_ROGUE9, plr[myplr]._px, plr[myplr]._py);
-#endif
 			} else if (plr[pnum]._pClass == PC_SORCERER) {
 				CreateSpellBook(object[i]._ox, object[i]._oy, SPL_LIGHTNING, FALSE, TRUE);
-#ifndef SPAWN
 				PlaySfxLoc(PS_MAGE9, plr[myplr]._px, plr[myplr]._py);
-#endif
 #ifdef HELLFIRE
 			} else if (plr[pnum]._pClass == PC_MONK) {
 				CreateMagicWeapon(object[i]._ox, object[i]._oy, ITYPE_STAFF, ICURS_WAR_STAFF, FALSE, TRUE);
 				PlaySfxLoc(PS_MONK9, plr[myplr]._px, plr[myplr]._py);
-#ifndef SPAWN
 			} else if (plr[pnum]._pClass == PC_BARD) {
 				CreateMagicWeapon(object[i]._ox, object[i]._oy, ITYPE_SWORD, ICURS_BASTARD_SWORD, FALSE, TRUE);
 				PlaySfxLoc(PS_ROGUE9, plr[myplr]._px, plr[myplr]._py);
-#endif
 			} else if (plr[pnum]._pClass == PC_BARBARIAN) {
 				CreateMagicWeapon(object[i]._ox, object[i]._oy, ITYPE_AXE, ICURS_BATTLE_AXE, FALSE, TRUE);
-#ifndef SPAWN
 				PlaySfxLoc(PS_WARR9, plr[myplr]._px, plr[myplr]._py);
-#endif
 #endif
 			}
 			if (pnum == myplr)
@@ -3895,7 +3877,7 @@ void OperateShrine(int pnum, int i, int sType)
 			if (j > MAXDUNX * 112)
 				break;
 			lv = dPiece[xx][yy];
-		} while (nSolidTable[lv] || dObject[xx][yy] || dMonster[xx][yy]);
+		} while (nSolidTable[lv] || dObject[xx][yy] != 0 || dMonster[xx][yy] != 0);
 		AddMissile(plr[pnum]._px, plr[pnum]._py, xx, yy, plr[pnum]._pdir, MIS_RNDTELEPORT, -1, pnum, 0, 2 * leveltype);
 		if (pnum != myplr)
 			return;
@@ -5248,6 +5230,13 @@ void GetObjectStr(int i)
 		break;
 	case OBJ_BARREL:
 	case OBJ_BARRELEX:
+#ifdef HELLFIRE
+		if (currlevel > 16 && currlevel < 21) // for hive levels
+			strcpy(infostr, "Pod"); //Then a barrel is called a pod
+		else if (currlevel > 20 && currlevel < 25) // for crypt levels
+			strcpy(infostr, "Urn"); //Then a barrel is called an urn
+		else
+#endif
 		strcpy(infostr, "Barrel");
 		break;
 	case OBJ_SKELBOOK:

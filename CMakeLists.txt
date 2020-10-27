@@ -8,7 +8,6 @@ DEBUG_OPTION(UBSAN "Enable undefined behaviour sanitizer")
 DEBUG_OPTION(DEBUG "Enable debug mode in engine")
 option(DISABLE_LTO "Disable link-time optimization (by default enabled in release mode)" OFF)
 option(PIE "Generate position-independent code" OFF)
-option(SPAWN "Build the shareware version" OFF)
 option(DIST "Dynamically link only glibc and SDL2" OFF)
 option(BINARY_RELEASE "Enable options for binary release" OFF)
 option(NIGHTLY_BUILD "Enable options for nightly build" OFF)
@@ -93,10 +92,14 @@ elseif(TARGET_PLATFORM STREQUAL "cpigamesh")
   include(cpigamesh_defs)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD|OpenBSD|DragonFly")
+if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD|NetBSD|OpenBSD|DragonFly")
+  if(${CMAKE_SYSTEM_NAME} MATCHES "NetBSD")
+    add_definitions(-D_NETBSD_SOURCE)
+  else()
+    add_definitions(-D_BSD_SOURCE)
+    set(UBSAN OFF)
+  endif()
   set(ASAN OFF)
-  set(UBSAN OFF)
-  add_definitions(-D_BSD_SOURCE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DO_LARGEFILE=0 -Dstat64=stat -Dlstat64=lstat -Dlseek64=lseek -Doff64_t=off_t -Dfstat64=fstat -Dftruncate64=ftruncate")
 endif()
 
@@ -143,7 +146,7 @@ else()
   if(SWITCH)
     find_package(SDL2_STATIC CONFIG QUIET)
   else()
-    find_package(SDL2 CONFIG QUIET)
+    find_package(SDL2 MODULE QUIET)
   endif()
   if (NOT SDL2_FOUND)
     find_package(SDL2 REQUIRED)
@@ -179,6 +182,9 @@ add_library(StormLib STATIC
 add_library(PKWare STATIC
   3rdParty/PKWare/explode.cpp
   3rdParty/PKWare/implode.cpp)
+
+add_library(SourceS STATIC
+  SourceS/paths.cpp)
 
 add_library(devilution STATIC
   Source/appfat.cpp
@@ -375,14 +381,19 @@ endif()
 
 target_include_directories(devilution PUBLIC Source SourceS ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(${BIN_TARGET} PRIVATE
+  SourceS
   SourceX
   3rdParty/asio/include
   3rdParty/Radon/Radon/include
   3rdParty/libsmacker)
 
-target_link_libraries(devilution PUBLIC Threads::Threads)
+target_link_libraries(devilution PUBLIC
+  Threads::Threads
+  SourceS
+)
 target_link_libraries(${BIN_TARGET} PRIVATE
   devilution
+  SourceS
   PKWare
   StormLib
   smacker
@@ -399,7 +410,6 @@ target_compile_definitions(${BIN_TARGET} PRIVATE ASIO_STANDALONE)
 # Defines without value
 foreach(
   def_name
-  SPAWN
   NONET
   PREFILL_PLAYER_NAME
 )
@@ -470,7 +480,7 @@ endforeach(def_name)
 
 genex_for_option(ASAN)
 genex_for_option(UBSAN)
-foreach(target devilution ${BIN_TARGET})
+foreach(target devilution ${BIN_TARGET} SourceS)
   target_compile_options(${target} PUBLIC "$<${ASAN_GENEX}:-fsanitize=address;-fsanitize-recover=address>")
   target_link_libraries(${target} PUBLIC "$<${ASAN_GENEX}:-fsanitize=address;-fsanitize-recover=address>")
   target_compile_options(${target} PUBLIC $<${UBSAN_GENEX}:-fsanitize=undefined>)
@@ -546,7 +556,7 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   target_compile_options(devilution PRIVATE -fpermissive -w)
 
   # Warnings for devilutionX
-  target_compile_options(${BIN_TARGET} PRIVATE -Wall -Wextra -Wno-write-strings -Wno-unused-parameter -Wno-missing-field-initializers -Wno-format-security)
+  target_compile_options(${BIN_TARGET} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Wno-format-security)
 
   # For ARM and other default unsigned char platforms
   target_compile_options(devilution PRIVATE -fsigned-char)

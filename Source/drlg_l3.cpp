@@ -3,7 +3,6 @@
  *
  * Implementation of the caves level generation algorithms.
  */
-#ifndef SPAWN
 
 #include <algorithm>
 
@@ -2713,7 +2712,7 @@ void CreateL3Dungeon(DWORD rseed, int entry)
 	DRLG_SetPC();
 }
 
-void LoadL3Dungeon(char *sFileName, int vx, int vy)
+void LoadL3Dungeon(const char *sFileName, int vx, int vy)
 {
 	int i, j, rw, rh;
 	BYTE *pLevelMap, *lm;
@@ -2775,7 +2774,7 @@ void LoadL3Dungeon(char *sFileName, int vx, int vy)
 	mem_free_dbg(pLevelMap);
 }
 
-void LoadPreL3Dungeon(char *sFileName, int vx, int vy)
+void LoadPreL3Dungeon(const char *sFileName, int vx, int vy)
 {
 	int i, j, rw, rh;
 	BYTE *pLevelMap, *lm;
@@ -2813,4 +2812,3 @@ void LoadPreL3Dungeon(char *sFileName, int vx, int vy)
 }
 
 DEVILUTION_END_NAMESPACE
-#endif

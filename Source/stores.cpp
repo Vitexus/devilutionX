@@ -47,7 +47,7 @@ char stextscrlubtn;
 char stextflag;
 
 /** Maps from towner IDs to NPC names. */
-char *talkname[9] = {
+const char *const talkname[9] = {
 	"Griswold",
 	"Pepin",
 	"",
@@ -134,7 +134,7 @@ void DrawSTextBack()
 	trans_rect(PANEL_LEFT + 347, UI_OFFSET_Y + 28, 265, 297);
 }
 
-void PrintSString(int x, int y, BOOL cjustflag, char *str, char col, int val)
+void PrintSString(int x, int y, BOOL cjustflag, const char *str, char col, int val)
 {
 	int xx, yy;
 	int len, width, sx, sy, i, k, s;
@@ -287,7 +287,7 @@ void OffsetSTextY(int y, int yo)
 	stext[y]._syoff = yo;
 }
 
-void AddSText(int x, int y, BOOL j, char *str, char clr, BOOL sel)
+void AddSText(int x, int y, BOOL j, const char *str, char clr, BOOL sel)
 {
 	stext[y]._sx = x;
 	stext[y]._syoff = 0;
@@ -1411,13 +1411,16 @@ void S_StartTalk()
 	sprintf(tempstr, "Talk to %s", talkname[talker]);
 	AddSText(0, 2, TRUE, tempstr, COL_GOLD, FALSE);
 	AddSLine(5);
-#ifdef SPAWN
-	sprintf(tempstr, "Talking to %s", talkname[talker]);
-	AddSText(0, 10, TRUE, tempstr, COL_WHITE, FALSE);
-	AddSText(0, 12, TRUE, "is not available", COL_WHITE, FALSE);
-	AddSText(0, 14, TRUE, "in the shareware", COL_WHITE, FALSE);
-	AddSText(0, 16, TRUE, "version", COL_WHITE, FALSE);
-#else
+	if (gbIsSpawn) {
+		sprintf(tempstr, "Talking to %s", talkname[talker]);
+		AddSText(0, 10, TRUE, tempstr, COL_WHITE, FALSE);
+		AddSText(0, 12, TRUE, "is not available", COL_WHITE, FALSE);
+		AddSText(0, 14, TRUE, "in the shareware", COL_WHITE, FALSE);
+		AddSText(0, 16, TRUE, "version", COL_WHITE, FALSE);
+		AddSText(0, 22, TRUE, "Back", COL_WHITE, TRUE);
+		return;
+	}
+
 	sn = 0;
 	for (i = 0; i < MAXQUESTS; i++) {
 		if (quests[i]._qactive == QUEST_ACTIVE && ((DWORD *)&Qtalklist[talker])[i] != -1 && quests[i]._qlog)
@@ -1441,7 +1444,6 @@ void S_StartTalk()
 		}
 	}
 	AddSText(0, sn2, TRUE, "Gossip", COL_BLUE, TRUE);
-#endif
 	AddSText(0, 22, TRUE, "Back", COL_WHITE, TRUE);
 }
 
@@ -2244,8 +2246,8 @@ void WitchBuyItem()
 	StoreAutoPlace();
 
 	if (idx >= 3) {
-		if (idx == 19) {
-			witchitem[19]._itype = ITYPE_NONE;
+		if (idx == WITCH_ITEMS - 1) {
+			witchitem[WITCH_ITEMS - 1]._itype = ITYPE_NONE;
 		} else {
 			for (; witchitem[idx + 1]._itype != ITYPE_NONE; idx++) {
 				witchitem[idx] = witchitem[idx + 1];
@@ -2386,20 +2388,14 @@ void BoyBuyItem()
 void HealerBuyItem()
 {
 	int idx;
-	BOOL ok;
 
 	idx = stextvhold + ((stextlhold - stextup) >> 2);
-
-	ok = FALSE;
 	if (gbMaxPlayers == 1) {
 		if (idx < 2)
-			ok = TRUE;
+			plr[myplr].HoldItem._iSeed = GetRndSeed();
 	} else {
 		if (idx < 3)
-			ok = TRUE;
-	}
-	if (ok) {
-		plr[myplr].HoldItem._iSeed = GetRndSeed();
+			plr[myplr].HoldItem._iSeed = GetRndSeed();
 	}
 
 	TakePlrsMoney(plr[myplr].HoldItem._iIvalue);
@@ -2407,26 +2403,23 @@ void HealerBuyItem()
 		plr[myplr].HoldItem._iIdentified = FALSE;
 	StoreAutoPlace();
 
-	ok = FALSE;
 	if (gbMaxPlayers == 1) {
-		if (idx >= 2)
-			ok = TRUE;
+		if (idx < 2)
+			return;
 	} else {
-		if (idx >= 3)
-			ok = TRUE;
+		if (idx < 3)
+			return;
 	}
-	if (ok) {
-		idx = stextvhold + ((stextlhold - stextup) >> 2);
-		if (idx == 19) {
-			healitem[19]._itype = ITYPE_NONE;
-		} else {
-			for (; healitem[idx + 1]._itype != ITYPE_NONE; idx++) {
-				healitem[idx] = healitem[idx + 1];
-			}
-			healitem[idx]._itype = ITYPE_NONE;
+	idx = stextvhold + ((stextlhold - stextup) >> 2);
+	if (idx == 19) {
+		healitem[19]._itype = ITYPE_NONE;
+	} else {
+		for (; healitem[idx + 1]._itype != ITYPE_NONE; idx++) {
+			healitem[idx] = healitem[idx + 1];
 		}
-		CalcPlrInv(myplr, TRUE);
+		healitem[idx]._itype = ITYPE_NONE;
 	}
+	CalcPlrInv(myplr, TRUE);
 }
 
 void S_BBuyEnter()
@@ -2548,6 +2541,14 @@ void S_HealerEnter()
 		gossipend = TEXT_PEPIN11;
 		StartStore(STORE_GOSSIP);
 		break;
+#ifdef HELLFIRE
+	case 14:
+		StartStore(STORE_HBUY);
+		break;
+	case 16:
+		stextflag = STORE_NONE;
+		break;
+#else
 	case 14:
 		if (plr[myplr]._pHitPoints != plr[myplr]._pMaxHP)
 			PlaySFX(IS_CAST8);
@@ -2561,6 +2562,7 @@ void S_HealerEnter()
 	case 18:
 		stextflag = STORE_NONE;
 		break;
+#endif
 	}
 }
 

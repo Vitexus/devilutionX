@@ -277,7 +277,7 @@ int FindClosest(int sx, int sy, int rad)
 	for (i = 1; i < rad; i++) {
 		cr = CrawlNum[i] + 2;
 #ifdef HELLFIRE
-		for (j = CrawlTable[CrawlNum[i]]; j > 0; j--) {
+		for (j = CrawlTable[CrawlNum[i]]; j > 0; j--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 		for (j = (BYTE)CrawlTable[CrawlNum[i]]; j > 0; j--) {
 #endif
@@ -568,9 +568,9 @@ BOOL MonsterTrapHit(int m, int mindam, int maxdam, int dist, int t, BOOLEAN shif
 
 	mir = missiledata[t].mResist;
 	mor = monster[m].mMagicRes;
-	if (mor & IMUNE_MAGIC && mir == MISR_MAGIC
-	    || mor & IMUNE_FIRE && mir == MISR_FIRE
-	    || mor & IMUNE_LIGHTNING && mir == MISR_LIGHTNING) {
+	if (mor & IMMUNE_MAGIC && mir == MISR_MAGIC
+	    || mor & IMMUNE_FIRE && mir == MISR_FIRE
+	    || mor & IMMUNE_LIGHTNING && mir == MISR_LIGHTNING) {
 		return FALSE;
 	}
 
@@ -653,10 +653,10 @@ BOOL MonsterMHit(int pnum, int m, int mindam, int maxdam, int dist, int t, BOOLE
 	mor = monster[m].mMagicRes;
 	mir = missiledata[t].mResist;
 
-	if (mor & IMUNE_MAGIC && mir == MISR_MAGIC
-	    || mor & IMUNE_FIRE && mir == MISR_FIRE
-	    || mor & IMUNE_LIGHTNING && mir == MISR_LIGHTNING
-	    || (mor & IMUNE_ACID) && mir == MISR_ACID)
+	if (mor & IMMUNE_MAGIC && mir == MISR_MAGIC
+	    || mor & IMMUNE_FIRE && mir == MISR_FIRE
+	    || mor & IMMUNE_LIGHTNING && mir == MISR_LIGHTNING
+	    || (mor & IMMUNE_ACID) && mir == MISR_ACID)
 		return FALSE;
 
 	if (mor & RESIST_MAGIC && mir == MISR_MAGIC
@@ -872,12 +872,10 @@ BOOL PlayerMHit(int pnum, int m, int dist, int mind, int maxd, int mtype, BOOLEA
 			} else {
 				if (plr[pnum]._pClass == PC_WARRIOR) {
 					PlaySfxLoc(PS_WARR69, plr[pnum]._px, plr[pnum]._py);
-#ifndef SPAWN
 				} else if (plr[pnum]._pClass == PC_ROGUE) {
 					PlaySfxLoc(PS_ROGUE69, plr[pnum]._px, plr[pnum]._py);
 				} else if (plr[pnum]._pClass == PC_SORCERER) {
 					PlaySfxLoc(PS_MAGE69, plr[pnum]._px, plr[pnum]._py);
-#endif
 				}
 				drawhpflag = TRUE;
 			}
@@ -999,12 +997,10 @@ BOOL Plr2PlrMHit(int pnum, int p, int mindam, int maxdam, int dist, int mtype, B
 				NetSendCmdDamage(TRUE, p, dam - resper * dam / 100);
 			if (plr[pnum]._pClass == PC_WARRIOR) {
 				tac = PS_WARR69;
-#ifndef SPAWN
 			} else if (plr[pnum]._pClass == PC_ROGUE) {
 				tac = PS_ROGUE69;
 			} else if (plr[pnum]._pClass == PC_SORCERER) {
 				tac = PS_MAGE69;
-#endif
 			} else {
 				return TRUE;
 			}
@@ -1124,7 +1120,7 @@ void CheckMissileCol(int i, int mindam, int maxdam, BOOL shift, int mx, int my, 
 			missile[i]._miHitFlag = TRUE;
 		}
 	}
-	if (dObject[mx][my]) {
+	if (dObject[mx][my] != 0) {
 		oi = dObject[mx][my] > 0 ? dObject[mx][my] - 1 : -(dObject[mx][my] + 1);
 		if (!object[oi]._oMissFlag) {
 			if (object[oi]._oBreak == 1)
@@ -1355,7 +1351,7 @@ BOOLEAN missiles_found_target(int mi, int *x, int *y, int rad)
 			ty = *y + CrawlTable[k];
 			if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 				dp = dPiece[tx][ty];
-				if (!nSolidTable[dp] && !dObject[tx][ty] && !dMissile[tx][ty]) {
+				if (!nSolidTable[dp] && dObject[tx][ty] == 0 && dMissile[tx][ty] == 0) {
 					missile[mi]._mix = tx;
 					missile[mi]._miy = ty;
 					*x = tx;
@@ -1470,7 +1466,7 @@ void missiles_berserk(int mi, int sx, int sy, int dx, int dy, int midir, char mi
 					if (dm > 3) {
 						if (!monster[dm]._uniqtype && monster[dm]._mAi != AI_DIABLO) {
 							if (monster[dm]._mmode != MM_FADEIN && monster[dm]._mmode != MM_FADEOUT) {
-								if (!(monster[dm].mMagicRes & IMUNE_MAGIC)) {
+								if (!(monster[dm].mMagicRes & IMMUNE_MAGIC)) {
 									if ((!(monster[dm].mMagicRes & RESIST_MAGIC) || (monster[dm].mMagicRes & RESIST_MAGIC) == 1 && !random_(99, 2)) && monster[dm]._mmode != MM_CHARGE) {
 										j = 6;
 										double slvl = (double)GetSpellLevel(id, SPL_BERSERK);
@@ -2135,10 +2131,10 @@ void AddRndTeleport(int mi, int sx, int sy, int dx, int dy, int midir, char mien
 		if (r1 <= MAXDUNX && r1 >= 0 && r2 <= MAXDUNY && r2 >= 0) { ///BUGFIX: < MAXDUNX / < MAXDUNY
 			pn = dPiece[r1][r2];
 		}
-	} while (nSolidTable[pn] || dObject[r1][r2] || dMonster[r1][r2]);
+	} while (nSolidTable[pn] || dObject[r1][r2] != 0 || dMonster[r1][r2] != 0);
 #else
 		pn = dPiece[r1 + sx][sy + r2];
-	} while (nSolidTable[pn] || dObject[r1 + sx][sy + r2] || dMonster[r1 + sx][sy + r2]);
+	} while (nSolidTable[pn] || dObject[r1 + sx][sy + r2] != 0 || dMonster[r1 + sx][sy + r2] != 0);
 #endif
 
 	missile[mi]._mirange = 2;
@@ -2240,7 +2236,7 @@ void AddTeleport(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy
 			tx = dx + CrawlTable[pn - 1];
 			ty = dy + CrawlTable[pn];
 			if (0 < tx && tx < MAXDUNX && 0 < ty && ty < MAXDUNY) {
-				if (!(nSolidTable[dPiece[tx][ty]] | dMonster[tx][ty] | dObject[tx][ty] | dPlayer[tx][ty])) {
+				if ((nSolidTable[dPiece[tx][ty]] | dMonster[tx][ty] | dObject[tx][ty] | dPlayer[tx][ty]) == 0) {
 					missile[mi]._mix = tx;
 					missile[mi]._miy = ty;
 					missile[mi]._misx = tx;
@@ -2445,7 +2441,7 @@ void AddTown(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy, in
 		for (j = 0; j < 6; j++) {
 			k = CrawlNum[j] + 2;
 #ifdef HELLFIRE
-			for (i = CrawlTable[CrawlNum[j]]; i > 0; i--) {
+			for (i = CrawlTable[CrawlNum[j]]; i > 0; i--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 			for (i = (BYTE)CrawlTable[CrawlNum[j]]; i > 0; i--) {
 #endif
@@ -2453,7 +2449,7 @@ void AddTown(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy, in
 				ty = dy + CrawlTable[k];
 				if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 					dp = dPiece[tx][ty];
-					if (!(dMissile[tx][ty] | nSolidTable[dp] | nMissileTable[dp] | dObject[tx][ty] | dPlayer[tx][ty])) {
+					if ((dMissile[tx][ty] | nSolidTable[dp] | nMissileTable[dp] | dObject[tx][ty] | dPlayer[tx][ty]) == 0) {
 						if (!CheckIfTrig(tx, ty)) {
 							missile[mi]._mix = tx;
 							missile[mi]._miy = ty;
@@ -2583,7 +2579,7 @@ void AddGuardian(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy
 		pn = CrawlNum[i];
 		k = pn + 2;
 #ifdef HELLFIRE
-		for (j = CrawlTable[pn]; j > 0; j--) {
+		for (j = CrawlTable[pn]; j > 0; j--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 		for (j = (BYTE)CrawlTable[pn]; j > 0; j--) {
 #endif
@@ -2592,7 +2588,7 @@ void AddGuardian(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy
 			pn = dPiece[tx][ty];
 			if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 				if (LineClear(sx, sy, tx, ty)) {
-					if (!(dMonster[tx][ty] | nSolidTable[pn] | nMissileTable[pn] | dObject[tx][ty] | dMissile[tx][ty])) {
+					if ((dMonster[tx][ty] | nSolidTable[pn] | nMissileTable[pn] | dObject[tx][ty] | dMissile[tx][ty]) == 0) {
 						missile[mi]._mix = tx;
 						missile[mi]._miy = ty;
 						missile[mi]._misx = tx;
@@ -2814,7 +2810,7 @@ void AddStone(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy, i
 		k = CrawlNum[i];
 		l = k + 2;
 #ifdef HELLFIRE
-		for (j = CrawlTable[k]; j > 0; j--) {
+		for (j = CrawlTable[k]; j > 0; j--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 		for (j = (BYTE)CrawlTable[k]; j > 0; j--) {
 #endif
@@ -3038,7 +3034,7 @@ void AddFirewallC(int mi, int sx, int sy, int dx, int dy, int midir, char mienem
 		k = CrawlNum[i];
 		pn = k + 2;
 #ifdef HELLFIRE
-		for (j = CrawlTable[k]; j > 0; j--) {
+		for (j = CrawlTable[k]; j > 0; j--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 		for (j = (BYTE)CrawlTable[k]; j > 0; j--) {
 #endif
@@ -3047,7 +3043,7 @@ void AddFirewallC(int mi, int sx, int sy, int dx, int dy, int midir, char mienem
 			if (0 < tx && tx < MAXDUNX && 0 < ty && ty < MAXDUNY) {
 				k = dPiece[tx][ty];
 				if (LineClear(sx, sy, tx, ty)) {
-					if ((sx != tx || sy != ty) && !(nSolidTable[k] | dObject[tx][ty])) {
+					if ((sx != tx || sy != ty) && (nSolidTable[k] | dObject[tx][ty]) == 0) {
 						missile[mi]._miVar1 = tx;
 						missile[mi]._miVar2 = ty;
 						missile[mi]._miVar5 = tx;
@@ -3127,17 +3123,10 @@ void AddBlodboil(int mi, int sx, int sy, int dx, int dy, int midir, char mienemy
 	} else {
 		int blodboilSFX[NUM_CLASSES] = {
 			PS_WARR70,
-#ifndef SPAWN
 			PS_ROGUE70,
 			PS_MAGE70,
 			PS_MAGE70,  // BUGFIX: PS_MONK70?
 			PS_ROGUE70,
-#else
-			0,
-			0,
-			0,
-			0,
-#endif
 			PS_WARR70
 		};
 		UseMana(id, 22);
@@ -3525,7 +3514,7 @@ void MI_Golem(int i)
 			k = CrawlNum[l];
 			tid = k + 2;
 #ifdef HELLFIRE
-			for (m = CrawlTable[k]; m > 0; m--) {
+			for (m = CrawlTable[k]; m > 0; m--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 			for (m = (BYTE)CrawlTable[k]; m > 0; m--) {
 #endif
@@ -3535,7 +3524,7 @@ void MI_Golem(int i)
 				if (0 < tx && tx < MAXDUNX && 0 < ty && ty < MAXDUNY) {
 					dp = dPiece[tx][ty];
 					if (LineClear(missile[i]._miVar1, missile[i]._miVar2, tx, ty)) {
-						if (!(dMonster[tx][ty] | nSolidTable[dp] | dObject[tx][ty])) {
+						if ((dMonster[tx][ty] | nSolidTable[dp] | dObject[tx][ty]) == 0) {
 							l = 6;
 							SpawnGolum(src, tx, ty, i);
 							break;
@@ -3945,7 +3934,7 @@ void missiles_4359A0(int i)
 				ty = missile[i]._miy + CrawlTable[k];
 				if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 					dp = dPiece[tx][ty];
-					if (!nSolidTable[dp] && !dMonster[tx][ty] && !dPlayer[tx][ty] && !dObject[tx][ty]) {
+					if (!nSolidTable[dp] && dMonster[tx][ty] == 0 && dPlayer[tx][ty] == 0 && dObject[tx][ty] == 0) {
 						j = 6;
 						int mon = AddMonster(tx, ty, missile[i]._miVar1, 1, TRUE);
 						M_StartStand(mon, missile[i]._miVar1);
@@ -4304,7 +4293,7 @@ void mi_fire_ring(int i)
 		ty = missile[i]._miVar2 + CrawlTable[k];
 		if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 			dp = dPiece[tx][ty];
-			if (!nSolidTable[dp] && !dObject[tx][ty]) {
+			if (!nSolidTable[dp] && dObject[tx][ty] == 0) {
 				if (LineClear(missile[i]._mix, missile[i]._miy, tx, ty)) {
 					if (nMissileTable[dp] || missile[i]._miVar8)
 						missile[i]._miVar8 = 1;
@@ -4335,7 +4324,7 @@ void mi_light_ring(int i)
 		ty = missile[i]._miVar2 + CrawlTable[k];
 		if (tx > 0 && tx < MAXDUNX && ty > 0 && ty < MAXDUNY) {
 			dp = dPiece[tx][ty];
-			if (!nSolidTable[dp] && !dObject[tx][ty]) {
+			if (!nSolidTable[dp] && dObject[tx][ty] == 0) {
 				if (LineClear(missile[i]._mix, missile[i]._miy, tx, ty)) {
 					if (nMissileTable[dp] || missile[i]._miVar8)
 						missile[i]._miVar8 = 1;
@@ -4922,7 +4911,7 @@ void MI_Chain(int i)
 		k = CrawlNum[m];
 		l = k + 2;
 #ifdef HELLFIRE
-		for (n = CrawlTable[k]; n > 0; n--) {
+		for (n = CrawlTable[k]; n > 0; n--) { // BUGFIX: should cast to BYTE or CrawlTable header will be wrong
 #else
 		for (n = (BYTE)CrawlTable[k]; n > 0; n--) {
 #endif
@@ -5357,17 +5346,10 @@ void MI_Blodboil(int i)
 		if ((plr[id]._pSpellFlags & 2) == 2) {
 			int blodboilSFX[NUM_CLASSES] = {
 				PS_WARR72,
-#ifndef SPAWN
 				PS_ROGUE72,
 				PS_MAGE72,
 				PS_MAGE72, // BUGFIX: should be PS_MONK72?
 				PS_ROGUE72,
-#else
-				0,
-				0,
-				0,
-				0,
-#endif
 				PS_WARR72
 			};
 			plr[id]._pSpellFlags &= ~0x2;
@@ -5387,17 +5369,10 @@ void MI_Blodboil(int i)
 		} else {
 			int blodboilSFX[NUM_CLASSES] = {
 				PS_WARR72,
-#ifndef SPAWN
 				PS_ROGUE72,
 				PS_MAGE72,
 				PS_MAGE72, // BUGFIX: should be PS_MONK72?
 				PS_ROGUE72,
-#else
-				0,
-				0,
-				0,
-				0,
-#endif
 				PS_WARR72
 			};
 			missile[i]._miDelFlag = TRUE;

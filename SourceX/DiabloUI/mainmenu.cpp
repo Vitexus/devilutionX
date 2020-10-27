@@ -19,7 +19,7 @@ void UiMainMenuSelect(int value)
 
 void mainmenu_Esc()
 {
-	int last = vecMenuItems.size() - 1;
+	std::size_t last = vecMenuItems.size() - 1;
 	if (SelectedItem == last) {
 		UiMainMenuSelect(last);
 	} else {
@@ -32,7 +32,7 @@ void mainmenu_restart_repintro()
 	dwAttractTicks = SDL_GetTicks() + mainmenu_attract_time_out * 1000;
 }
 
-void mainmenu_Load(char *name, void (*fnSound)(char *file))
+void mainmenu_Load(const char *name, void (*fnSound)(const char *file))
 {
 	gfnSoundFunction = fnSound;
 
@@ -40,7 +40,7 @@ void mainmenu_Load(char *name, void (*fnSound)(char *file))
 	vecMenuItems.push_back(new UiListItem("Multi Player", MAINMENU_MULTIPLAYER));
 	vecMenuItems.push_back(new UiListItem("Replay Intro", MAINMENU_REPLAY_INTRO));
 #ifdef HELLFIRE
-	vecMenuItems.push_back(new UiListItem("Support", MAINMENU_SHOW_CREDITS));
+	vecMenuItems.push_back(new UiListItem("Support", MAINMENU_SHOW_SUPPORT));
 	vecMenuItems.push_back(new UiListItem("Credits", MAINMENU_SHOW_CREDITS));
 	vecMenuItems.push_back(new UiListItem("Exit Hellfire", MAINMENU_EXIT_DIABLO));
 #else
@@ -87,7 +87,7 @@ void mainmenu_Free()
 	vecMenuItems.clear();
 }
 
-BOOL UiMainMenuDialog(char *name, int *pdwResult, void (*fnSound)(char *file), int attractTimeOut)
+BOOL UiMainMenuDialog(const char *name, int *pdwResult, void (*fnSound)(const char *file), int attractTimeOut)
 {
 	MainMenuResult = 0;
 	while (MainMenuResult == 0) {
@@ -106,10 +106,12 @@ BOOL UiMainMenuDialog(char *name, int *pdwResult, void (*fnSound)(char *file), i
 
 		mainmenu_Free();
 
+#ifndef HELLFIRE
 		if (gbSpawned && MainMenuResult == MAINMENU_REPLAY_INTRO) {
 			UiSelOkDialog(NULL, "The Diablo introduction cinematic is only available in the full retail version of Diablo. Visit https://www.gog.com/game/diablo to purchase.", true);
 			MainMenuResult = 0;
 		}
+#endif
 	}
 
 	*pdwResult = MainMenuResult;

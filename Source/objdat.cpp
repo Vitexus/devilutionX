@@ -242,7 +242,7 @@ ObjDataStruct AllObjects[] = {
 	{      1, OFILE_MCIRL,     0,       0, DTYPE_CATHEDRAL, THEME_NONE,              Q_BETRAYER,         0,          1,        0,         96, FALSE,      TRUE,      TRUE,            0,        0, FALSE     },
 	{      1, OFILE_MCIRL,     0,       0, DTYPE_CATHEDRAL, THEME_NONE,              Q_BETRAYER,         0,          1,        0,         96, FALSE,      TRUE,      TRUE,            0,        0, FALSE     },
 #ifdef HELLFIRE
-	{      1, OFILE_BKSLBRNT,  1,      24, 0,               THEME_NONE,              -1,                 0,          1,        0,         96, TRUE,       TRUE,      TRUE,            0,        3, FALSE     },
+	{      1, OFILE_BKSLBRNT,  1,      24, 0,               THEME_NONE,              -1,                 0,          1,        0,         96, TRUE,       TRUE,      TRUE,            0,        3, FALSE     }, // BUGFIX should only be loaded on level 1-12 (crypt masks as 1-4)
 #else
 	{      1, OFILE_BKSLBRNT,  4,      12, 0,               THEME_NONE,              -1,                 0,          1,        0,         96, TRUE,       TRUE,      TRUE,            0,        3, FALSE     },
 #endif
@@ -263,7 +263,7 @@ ObjDataStruct AllObjects[] = {
 };
 
 /** Maps from object_graphic_id to object CEL name. */
-char *ObjMasterLoadList[] = { // might be const
+const char *const ObjMasterLoadList[] = {
 	"L1Braz",
 	"L1Doors",
 	"Lever",

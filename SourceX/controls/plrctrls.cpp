@@ -197,8 +197,9 @@ bool CanTargetMonster(int mi)
 
 void FindRangedTarget()
 {
-	int distance, rotations;
-	bool canTalk;
+    int rotations = 0;
+    int distance = 0;
+	bool canTalk = false;
 
 	// The first MAX_PLRS monsters are reserved for players' golems.
 	for (int mi = MAX_PLRS; mi < MAXMONSTERS; mi++) {
@@ -230,8 +231,8 @@ void FindMeleeTarget()
 {
 	bool visited[MAXDUNX][MAXDUNY] = { { 0 } };
 	int maxSteps = 25; // Max steps for FindPath is 25
-	int rotations;
-	bool canTalk;
+	int rotations = 0;
+	bool canTalk = false;
 
 	struct SearchNode {
 		int x, y;
@@ -309,7 +310,9 @@ void CheckMonstersNearby()
 
 void CheckPlayerNearby()
 {
-	int distance, newDdistance, rotations;
+    int newDdistance;
+    int rotations = 0;
+    int distance = 0;
 
 	if (pcursmonst != -1)
 		return;
@@ -365,7 +368,8 @@ int pcursquest;
 
 void FindTrigger()
 {
-	int distance, rotations;
+    int rotations;
+    int distance = 0;
 
 	if (pcursitem != -1 || pcursobj != -1)
 		return; // Prefer showing items/objects over triggers (use of cursm* conflicts)
@@ -1156,12 +1160,10 @@ void PerformSpellAction()
 	    || (pcursobj == -1 && spl == SPL_DISARM)) {
 		if (plr[myplr]._pClass == PC_WARRIOR) {
 			PlaySFX(PS_WARR27);
-#ifndef SPAWN
 		} else if (plr[myplr]._pClass == PC_ROGUE) {
 			PlaySFX(PS_ROGUE27);
 		} else if (plr[myplr]._pClass == PC_SORCERER) {
 			PlaySFX(PS_MAGE27);
-#endif
 		}
 		return;
 	}

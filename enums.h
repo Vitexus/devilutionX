@@ -82,9 +82,7 @@ typedef enum unique_base_item {
 	UITYPE_GRISWOLD    = 0x42,
 	UITYPE_LGTFORGE    = 0x43,
 	UITYPE_LAZSTAFF    = 0x44,
-#ifdef HELLFIRE
 	UITYPE_BOVINE      = 0x45,
-#endif
 	UITYPE_INVALID     = -1,
 } unique_base_item;
 
@@ -163,7 +161,6 @@ typedef enum item_effect_type {
 	IPL_ADDMANAAC        = 0x4D,
 	IPL_FIRERESCLVL      = 0x4E,
 	IPL_AC_CURSE         = 0x4F,
-#ifdef HELLFIRE
 	IPL_FIRERES_CURSE    = 0x50,
 	IPL_LIGHTRES_CURSE   = 0x51,
 	IPL_MAGICRES_CURSE   = 0x52,
@@ -178,7 +175,6 @@ typedef enum item_effect_type {
 	IPL_ACUNDEAD         = 0x5B,
 	IPL_MANATOLIFE       = 0x5C,
 	IPL_LIFETOMANA       = 0x5D,
-#endif
 	IPL_INVALID          = -1,
 } item_effect_type;
 
@@ -301,7 +297,6 @@ typedef enum item_cursor_graphic {
 	ICURS_COMPOSITE_STAFF             = 166,
 	ICURS_SHORT_BATTLE_BOW            = 167,
 	ICURS_GOLD                        = 168,
-#ifdef HELLFIRE
 	ICURS_AURIC_AMULET                = 180,
 	ICURS_RUNE_BOMB                   = 187,
 	ICURS_THEODORE                    = 188,
@@ -317,7 +312,6 @@ typedef enum item_cursor_graphic {
 	ICURS_GREY_SUIT                   = 198,
 	ICURS_BROWN_SUIT                  = 199,
 	ICURS_BOVINE                      = 226,
-#endif
 } item_cursor_graphic;
 
 typedef enum _sfx_id {
@@ -333,20 +327,16 @@ typedef enum _sfx_id {
 	PS_SWING,
 	PS_SWING2,
 	PS_DEAD,
-#ifdef HELLFIRE
 	IS_STING1,
 	IS_FBALLBOW,
-#endif
 	IS_QUESTDN,
 	IS_ARMRFKD,
 	IS_BARLFIRE,
 	IS_BARREL,
-#ifdef HELLFIRE
 	IS_POPPOP8,
 	IS_POPPOP5,
 	IS_POPPOP3,
 	IS_POPPOP2,
-#endif
 	IS_BHIT,
 	IS_BHIT1,
 	IS_CHEST,
@@ -454,9 +444,7 @@ typedef enum _sfx_id {
 	LS_LNING1,
 	LS_LTNING,
 	LS_MSHIELD,
-#ifdef HELLFIRE
 	LS_NESTXPLD,
-#endif
 	LS_NOVA,
 	LS_PORTAL,
 	LS_PUDDLE,
@@ -474,10 +462,7 @@ typedef enum _sfx_id {
 	LS_VTHEFT,
 	LS_WALLLOOP,
 	LS_WALLSTRT,
-#ifdef HELLFIRE
 	LS_LMAG,
-#endif
-#ifndef SPAWN
 	TSFX_BMAID1,
 	TSFX_BMAID2,
 	TSFX_BMAID3,
@@ -508,9 +493,7 @@ typedef enum _sfx_id {
 	TSFX_BMAID28,
 	TSFX_BMAID29,
 	TSFX_BMAID30,
-#endif
 	TSFX_BMAID31,
-#ifndef SPAWN
 	TSFX_BMAID32,
 	TSFX_BMAID33,
 	TSFX_BMAID34,
@@ -563,9 +546,7 @@ typedef enum _sfx_id {
 	TSFX_SMITH41,
 	TSFX_SMITH42,
 	TSFX_SMITH43,
-#endif
 	TSFX_SMITH44,
-#ifndef SPAWN
 	TSFX_SMITH45,
 	TSFX_SMITH46,
 	TSFX_SMITH47,
@@ -578,14 +559,10 @@ typedef enum _sfx_id {
 	TSFX_SMITH54,
 	TSFX_SMITH55,
 	TSFX_SMITH56,
-#endif
 	TSFX_COW1,
 	TSFX_COW2,
-#ifdef HELLFIRE
 	TSFX_COW7,
 	TSFX_COW8,
-#endif
-#ifndef SPAWN
 	TSFX_DEADGUY,
 	TSFX_DRUNK1,
 	TSFX_DRUNK2,
@@ -613,9 +590,7 @@ typedef enum _sfx_id {
 	TSFX_DRUNK24,
 	TSFX_DRUNK25,
 	TSFX_DRUNK26,
-#endif
 	TSFX_DRUNK27,
-#ifndef SPAWN
 	TSFX_DRUNK28,
 	TSFX_DRUNK29,
 	TSFX_DRUNK30,
@@ -660,9 +635,7 @@ typedef enum _sfx_id {
 	TSFX_HEALER34,
 	TSFX_HEALER35,
 	TSFX_HEALER36,
-#endif
 	TSFX_HEALER37,
-#ifndef SPAWN
 	TSFX_HEALER38,
 	TSFX_HEALER39,
 	TSFX_HEALER40,
@@ -704,9 +677,7 @@ typedef enum _sfx_id {
 	TSFX_PEGBOY29,
 	TSFX_PEGBOY30,
 	TSFX_PEGBOY31,
-#endif
 	TSFX_PEGBOY32,
-#ifndef SPAWN
 	TSFX_PEGBOY33,
 	TSFX_PEGBOY34,
 	TSFX_PEGBOY35,
@@ -751,9 +722,7 @@ typedef enum _sfx_id {
 	TSFX_STORY22,
 	TSFX_STORY23,
 	TSFX_STORY24,
-#endif
 	TSFX_STORY25,
-#ifndef SPAWN
 	TSFX_STORY26,
 	TSFX_STORY27,
 	TSFX_STORY28,
@@ -767,9 +736,7 @@ typedef enum _sfx_id {
 	TSFX_STORY36,
 	TSFX_STORY37,
 	TSFX_STORY38,
-#endif
 	TSFX_TAVERN0,
-#ifndef SPAWN
 	TSFX_TAVERN1,
 	TSFX_TAVERN2,
 	TSFX_TAVERN3,
@@ -805,9 +772,7 @@ typedef enum _sfx_id {
 	TSFX_TAVERN33,
 	TSFX_TAVERN34,
 	TSFX_TAVERN35,
-#endif
 	TSFX_TAVERN36,
-#ifndef SPAWN
 	TSFX_TAVERN37,
 	TSFX_TAVERN38,
 	TSFX_TAVERN39,
@@ -854,9 +819,7 @@ typedef enum _sfx_id {
 	TSFX_WITCH35,
 	TSFX_WITCH36,
 	TSFX_WITCH37,
-#endif
 	TSFX_WITCH38,
-#ifndef SPAWN
 	TSFX_WITCH39,
 	TSFX_WITCH40,
 	TSFX_WITCH41,
@@ -1088,7 +1051,6 @@ typedef enum _sfx_id {
 	PS_WARR10,
 	PS_WARR11,
 	PS_WARR12,
-#endif
 	PS_WARR13,
 	PS_WARR14,
 	PS_WARR14B,
@@ -1163,7 +1125,6 @@ typedef enum _sfx_id {
 	PS_WARR77,
 	PS_WARR78,
 	PS_WARR79,
-#ifndef SPAWN
 	PS_WARR80,
 	PS_WARR81,
 	PS_WARR82,
@@ -1185,17 +1146,13 @@ typedef enum _sfx_id {
 	PS_WARR95D,
 	PS_WARR95E,
 	PS_WARR95F,
-#endif
 	PS_WARR96B,
 	PS_WARR97,
 	PS_WARR98,
 	PS_WARR99,
-#ifndef SPAWN
 	PS_WARR100,
 	PS_WARR101,
 	PS_WARR102,
-#endif
-#ifdef HELLFIRE
 	PS_MONK1,
 	PS_MONK2,
 	PS_MONK3,
@@ -1299,8 +1256,6 @@ typedef enum _sfx_id {
 	PS_MONK100,
 	PS_MONK101,
 	PS_MONK102,
-#endif
-#ifndef SPAWN
 	PS_NAR1,
 	PS_NAR2,
 	PS_NAR3,
@@ -1331,7 +1286,6 @@ typedef enum _sfx_id {
 	USFX_ZHAR1,
 	USFX_ZHAR2,
 	USFX_DIABLOD,
-#endif
 	TSFX_FARMER1,
 	TSFX_FARMER2,
 	TSFX_FARMER2A,
@@ -1393,7 +1347,7 @@ typedef enum sfx_flag {
 	sfx_ROGUE    = 0x10,
 	sfx_WARRIOR  = 0x20,
 	sfx_SORCEROR = 0x40,
-	sfx_LOADED   = 0x80,
+	sfx_HELLFIRE = 0x80,
 } sfx_flag;
 
 typedef enum item_equip_type {
@@ -1805,11 +1759,9 @@ typedef enum {
 	UMT_LACHDAN   = 7,
 	UMT_WARLORD   = 8,
 	UMT_BUTCHER   = 9,
-#ifdef HELLFIRE
 	UMT_HORKDMN   = 10,
 	UMT_DEFILER   = 11,
 	UMT_NAKRUL    = 12,
-#endif
 } _uniq_monsterid;
 
 typedef enum monster_flag {
@@ -1842,11 +1794,11 @@ typedef enum monster_resistance {
 	RESIST_MAGIC     = 0x01,
 	RESIST_FIRE      = 0x02,
 	RESIST_LIGHTNING = 0x04,
-	IMUNE_MAGIC      = 0x08,
-	IMUNE_FIRE       = 0x10,
-	IMUNE_LIGHTNING  = 0x20,
-	IMUNE_NULL_40    = 0x40,
-	IMUNE_ACID       = 0x80,
+	IMMUNE_MAGIC      = 0x08,
+	IMMUNE_FIRE       = 0x10,
+	IMMUNE_LIGHTNING  = 0x20,
+	IMMUNE_NULL_40    = 0x40,
+	IMMUNE_ACID       = 0x80,
 } monster_resistance;
 
 typedef enum missile_resistance {
@@ -2117,7 +2069,6 @@ typedef enum _speech_id {
 	TEXT_BOOK32     = 0x100,
 	TEXT_BOOK33     = 0x101,
 	TEXT_INTRO      = 0x102,
-#ifdef HELLFIRE
 	TEXT_HBONER    = 0x103,
 	TEXT_HBLOODY   = 0x104,
 	TEXT_HBLINDING = 0x105,
@@ -2197,7 +2148,6 @@ typedef enum _speech_id {
 	TEXT_BBOOKA     = 0x14F,
 	TEXT_BBOOKB     = 0x150,
 	TEXT_BBOOKC     = 0x151,
-#endif
 } _speech_id;
 
 typedef enum object_graphic_id {
@@ -2265,10 +2215,8 @@ typedef enum dungeon_type {
 	DTYPE_CATACOMBS = 0x2,
 	DTYPE_CAVES     = 0x3,
 	DTYPE_HELL      = 0x4,
-#ifdef HELLFIRE
 	DTYPE_NEST      = 0x5,
 	DTYPE_CRYPT     = 0x6,
-#endif
 	DTYPE_NONE      = 0xFF,
 } dungeon_type;
 
@@ -2369,7 +2317,6 @@ typedef enum diablo_message {
 	EMSG_REQUIRES_LVL_13        = 41,
 	EMSG_REQUIRES_LVL_17        = 42,
 	EMSG_BONECHAMB              = 43,
-#ifdef HELLFIRE
 	EMSG_SHRINE_OILY            = 44,
 	EMSG_SHRINE_GLOWING         = 45,
 	EMSG_SHRINE_MENDICANT       = 46,
@@ -2381,7 +2328,6 @@ typedef enum diablo_message {
 	EMSG_SHRINE_SOLAR3          = 52,
 	EMSG_SHRINE_SOLAR4          = 53,
 	EMSG_SHRINE_MURPHYS         = 54,
-#endif
 } diablo_message;
 
 typedef enum magic_type {
@@ -2609,7 +2555,6 @@ typedef enum spell_id {
 	SPL_HEALOTHER   = 0x22,
 	SPL_FLARE       = 0x23,
 	SPL_BONESPIRIT  = 0x24,
-#ifdef HELLFIRE
 	SPL_MANA        = 0x25,
 	SPL_MAGI        = 0x26,
 	SPL_JESTER      = 0x27,
@@ -2625,7 +2570,6 @@ typedef enum spell_id {
 	SPL_RUNENOVA    = 0x31,
 	SPL_RUNEIMMOLAT = 0x32,
 	SPL_RUNESTONE   = 0x33,
-#endif
 	SPL_INVALID     = -1,
 } spell_id;
 
@@ -2726,7 +2670,6 @@ typedef enum _cmd_id {
 	CMD_REMSHIELD,
 	FAKE_CMD_SETID,
 	FAKE_CMD_DROPID,
-#ifdef HELLFIRE
 	CMD_DLEVEL_17,
 	CMD_DLEVEL_18,
 	CMD_DLEVEL_19,
@@ -2739,7 +2682,6 @@ typedef enum _cmd_id {
 	CMD_NAKRUL,
 	CMD_OPENHIVE,
 	CMD_OPENCRYPT,
-#endif
 	NUM_CMDS,
 } _cmd_id;
 
@@ -2779,11 +2721,14 @@ typedef enum _music_id {
 
 typedef enum _mainmenu_selections {
 	MAINMENU_SINGLE_PLAYER = 1,
-	MAINMENU_MULTIPLAYER   = 2,
-	MAINMENU_REPLAY_INTRO  = 3,
-	MAINMENU_SHOW_CREDITS  = 4,
-	MAINMENU_EXIT_DIABLO   = 5,
-	MAINMENU_ATTRACT_MODE  = 6,
+	MAINMENU_MULTIPLAYER,
+	MAINMENU_REPLAY_INTRO,
+#ifdef HELLFIRE
+	MAINMENU_SHOW_SUPPORT,
+#endif
+	MAINMENU_SHOW_CREDITS,
+	MAINMENU_EXIT_DIABLO,
+	MAINMENU_ATTRACT_MODE,
 } _mainmenu_selections;
 
 typedef enum _selhero_selections {
@@ -2959,7 +2904,6 @@ typedef enum item_misc_id {
 	IMISC_MAPOFDOOM = 0x2A,
 	IMISC_EAR       = 0x2B,
 	IMISC_SPECELIX  = 0x2C,
-#ifdef HELLFIRE
 	IMISC_RUNEFIRST = 0x2E,
 	IMISC_RUNEF     = 0x2F,
 	IMISC_RUNEL     = 0x30,
@@ -2969,7 +2913,6 @@ typedef enum item_misc_id {
 	IMISC_RUNELAST  = 0x34,
 	IMISC_AURIC     = 0x35,
 	IMISC_NOTE      = 0x36,
-#endif
 	IMISC_INVALID   = -1,
 } item_misc_id;
 
@@ -3030,7 +2973,6 @@ typedef enum _item_indexes {
 	IDI_LGTFORGE,
 	IDI_LAZSTAFF,
 	IDI_RESURRECT,
-#ifdef HELLFIRE
 	IDI_OIL,
 	IDI_SHORTSTAFF,
 	IDI_SWORD,
@@ -3044,7 +2986,6 @@ typedef enum _item_indexes {
 	IDI_FULLNOTE,
 	IDI_BROWNSUIT,
 	IDI_GREYSUIT,
-#endif
 } _item_indexes;
 
 typedef enum _setlevels {
@@ -3300,7 +3241,7 @@ typedef enum item_special_effect {
 	ISPL_DRAINLIFE      = 0x00000040,
 	ISPL_UNKNOWN_1      = 0x00000080,
 	ISPL_NOHEALPLR      = 0x00000100,
-	ISPL_UNKNOWN_2      = 0x00000200,
+	ISPL_MULT_ARROWS    = 0x00000200,
 	ISPL_UNKNOWN_3      = 0x00000400,
 	ISPL_KNOCKBACK      = 0x00000800,
 	ISPL_NOHEALMON      = 0x00001000,
@@ -3406,10 +3347,8 @@ typedef enum anim_weapon_id {
 
 typedef enum anim_armor_id {
 	ANIM_ID_LIGHT_ARMOR = 0x00,
-#ifndef SPAWN
 	ANIM_ID_MEDIUM_ARMOR = 0x10,
 	ANIM_ID_HEAVY_ARMOR  = 0x20
-#endif
 } anim_armor_id;
 
 typedef enum shrine_gametype {
