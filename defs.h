@@ -4,9 +4,21 @@
  * Global definitions and Macros.
  */
 
+#ifdef HELLFIRE
+#define DIABOOL					BOOLEAN
+#define GAME_NAME				"HELLFIRE"
+#define APP_NAME				"Hellfire"
+#else
 #define DIABOOL					BOOL
 #define GAME_NAME				"DIABLO"
 #define APP_NAME				"Diablo"
+#endif
+
+#ifdef HELLFIRE
+#define HFAND &&
+#else
+#define HFAND &
+#endif
 
 #define DMAXX					40
 #define DMAXY					40
@@ -20,10 +32,20 @@
 #define MAX_PLRS				4
 
 #define MAX_CHARACTERS			10
+#ifdef HELLFIRE
+#define MAX_LVLS				24
+#define MAX_LVLMTYPES			24
+#define MAX_SPELLS				52
+#else
+#define MAX_LVLS				16
 #define MAX_LVLMTYPES			16
+#define MAX_SPELLS				37
+#endif
+
+#define MAX_CHUNKS				(MAX_LVLS + 5)
+
 // #define MAX_PATH				260
 #define MAX_SEND_STR_LEN		80
-#define MAX_SPELLS				37
 
 #define MAXDEAD					31
 #define MAXDUNX					112
@@ -33,18 +55,31 @@
 #define MAXLIGHTS				32
 #define MAXMISSILES				125
 #define MAXMONSTERS				200
-#define MAXMULTIQUESTS			4
 #define MAXOBJECTS				127
 #define MAXPORTAL				4
+#ifdef HELLFIRE
+#define MAXQUESTS				24
+#define MAXMULTIQUESTS			10
+#else
 #define MAXQUESTS				16
+#define MAXMULTIQUESTS			4
+#endif
 #define MAXTHEMES				50
 #define MAXTILES				2048
+#ifdef HELLFIRE
+#define MAXTRIGGERS				7
+#else
 #define MAXTRIGGERS				5
+#endif
 #define MAXVISION				32
 #define MDMAXX					40
 #define MDMAXY					40
 #define MAXCHARLEVEL			51
+#ifdef HELLFIRE
+#define ITEMTYPES				43
+#else
 #define ITEMTYPES				35
+#endif
 
 // number of inventory grid cells
 #define NUM_INV_GRID_ELEM		40
@@ -59,11 +94,23 @@
 #define NUM_TOWNERS				16
 
 // todo: enums
+#ifdef HELLFIRE
+#define NUMLEVELS				25
+#define WITCH_ITEMS				25
+#define SMITH_ITEMS				25
+#define SMITH_PREMIUM_ITEMS		15
+#define SMITH_MAX_VALUE			200000
+#define SMITH_MAX_PREMIUM_VALUE 200000
+#define STORE_LINES				104
+#else
 #define NUMLEVELS				17
+#define WITCH_ITEMS				20
 #define SMITH_ITEMS				20
 #define SMITH_PREMIUM_ITEMS		6
 #define SMITH_MAX_VALUE			140000
 #define SMITH_MAX_PREMIUM_VALUE 140000
+#define STORE_LINES				24
+#endif
 
 // from diablo 2 beta
 #define MAXEXP					2000000000
@@ -86,7 +133,15 @@
 #define PMSG_COUNT				8
 
 // Diablo Retail Version Game ID
+#ifdef HELLFIRE
+#define GAME_ID					((int)'HRTL')
+#define GAME_VERSION			34
+#define PROGRAM_NAME			"Hellfire Retail"
+#else
 #define GAME_ID					((int)'DRTL')
+#define GAME_VERSION			42
+#define PROGRAM_NAME			"Diablo Retail"
+#endif
 
 // Diablo uses a 256 color palette
 // Entry 0-127 (0x00-0x7F) are level specific
@@ -108,8 +163,8 @@
 #define PAL16_RED		224
 #define PAL16_GRAY		240
 
-#define SCREEN_WIDTH	640
-#define SCREEN_HEIGHT	480
+#define SCREEN_WIDTH	dvl::screenWidth
+#define SCREEN_HEIGHT	dvl::screenHeight
 
 // If defined, use 32-bit colors instead of 8-bit [Default -> Undefined]
 //#define RGBMODE
@@ -122,7 +177,7 @@
 
 #define BORDER_LEFT		64
 #define BORDER_TOP		160
-#define BORDER_RIGHT	64
+#define BORDER_RIGHT	dvl::borderRight
 #define BORDER_BOTTOM	16
 
 #define SCREEN_X		BORDER_LEFT
@@ -130,6 +185,8 @@
 
 #define BUFFER_WIDTH	(BORDER_LEFT + SCREEN_WIDTH + BORDER_RIGHT)
 #define BUFFER_HEIGHT	(BORDER_TOP + SCREEN_HEIGHT + BORDER_BOTTOM)
+
+#define UI_OFFSET_Y		((SCREEN_HEIGHT - 480) / 2)
 
 #define TILE_WIDTH		64
 #define TILE_HEIGHT		32
@@ -148,16 +205,18 @@
 #define RIGHT_PANEL		(SCREEN_WIDTH - SPANEL_WIDTH)
 #define RIGHT_PANEL_X	(SCREEN_X + RIGHT_PANEL)
 
-#if SCREEN_WIDTH <= PANEL_WIDTH
-#define VIEWPORT_HEIGHT	(SCREEN_HEIGHT - PANEL_HEIGHT)
-#else
-#define VIEWPORT_HEIGHT	SCREEN_HEIGHT
-#endif
+#define VIEWPORT_HEIGHT dvl::viewportHeight
 
 #define DIALOG_TOP		((SCREEN_HEIGHT - PANEL_HEIGHT) / 2 - 18)
 #define DIALOG_Y		(SCREEN_Y + DIALOG_TOP)
 
 #define SCREENXY(x, y)	((x) + SCREEN_X + ((y) + SCREEN_Y) * BUFFER_WIDTH)
+
+#define NIGHTMARE_TO_HIT_BONUS  85
+#define HELL_TO_HIT_BONUS      120
+
+#define NIGHTMARE_AC_BONUS 50
+#define HELL_AC_BONUS      80
 
 #define MemFreeDbg(p)	\
 {						\

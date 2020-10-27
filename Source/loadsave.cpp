@@ -9,6 +9,10 @@ DEVILUTION_BEGIN_NAMESPACE
 
 BYTE *tbuff;
 
+/**
+ * @brief Load game state
+ * @param firstflag Can be set to false if we are simply reloading the current game
+ */
 void LoadGame(BOOL firstflag)
 {
 	int i, j;
@@ -23,7 +27,11 @@ void LoadGame(BOOL firstflag)
 	LoadBuff = pfile_read(szName, &dwLen);
 	tbuff = LoadBuff;
 
+#ifdef HELLFIRE
+	if (ILoad() != 'HELF')
+#else
 	if (ILoad() != 'RETL')
+#endif
 		app_fatal("Invalid save file");
 
 	setlevel = OLoad();
@@ -45,6 +53,10 @@ void LoadGame(BOOL firstflag)
 	}
 
 	LoadPlayer(myplr);
+
+	gnDifficulty = plr[myplr].pDifficulty;
+	if (gnDifficulty < DIFF_NORMAL || gnDifficulty > DIFF_HELL)
+		gnDifficulty = DIFF_NORMAL;
 
 	for (i = 0; i < MAXQUESTS; i++)
 		LoadQuest(i);
@@ -357,6 +369,9 @@ void LoadPlayer(int i)
 	CopyInt(tbuff, &pPlayer->_pStatPts);
 	CopyInt(tbuff, &pPlayer->_pDamageMod);
 	CopyInt(tbuff, &pPlayer->_pBaseToBlk);
+	if (pPlayer->_pBaseToBlk == 0) {
+		pPlayer->_pBaseToBlk = ToBlkTbl[pPlayer->_pClass];
+	}
 	CopyInt(tbuff, &pPlayer->_pHPBase);
 	CopyInt(tbuff, &pPlayer->_pMaxHPBase);
 	CopyInt(tbuff, &pPlayer->_pHitPoints);
@@ -451,13 +466,26 @@ void LoadPlayer(int i)
 	CopyChar(tbuff, &pPlayer->pTownWarps);
 	CopyChar(tbuff, &pPlayer->pDungMsgs);
 	CopyChar(tbuff, &pPlayer->pLvlLoad);
+#ifdef HELLFIRE
+	CopyChar(tbuff, &pPlayer->pDungMsgs2);
+	pPlayer->pBattleNet = false;
+#else
 	CopyChar(tbuff, &pPlayer->pBattleNet);
+#endif
 	CopyChar(tbuff, &pPlayer->pManaShield);
+#ifndef HELLFIRE
 	CopyBytes(tbuff, 3, &pPlayer->bReserved);
-	CopyShorts(tbuff, 8, &pPlayer->wReserved);
+#else
+	CopyChar(tbuff, &pPlayer->pDungMsgs2);
+	CopyBytes(tbuff, 2, &pPlayer->bReserved);
+#endif
+	CopyShort(tbuff, &pPlayer->wReflection);
+	CopyShorts(tbuff, 7, &pPlayer->wReserved);
 
 	CopyInt(tbuff, &pPlayer->pDiabloKillLevel);
-	CopyInts(tbuff, 7, &pPlayer->dwReserved);
+	CopyInt(tbuff, &pPlayer->pDifficulty);
+	CopyInt(tbuff, &pPlayer->pDamAcFlags);
+	CopyInts(tbuff, 5, &pPlayer->dwReserved);
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -541,10 +569,10 @@ void LoadMonster(int i)
 	tbuff += 1; // Alignment
 	CopyShort(tbuff, &pMonster->mExp);
 
-	CopyChar(tbuff, &pMonster->mHit);
+	tbuff += 1; // Skip mHit as it's already initialized
 	CopyChar(tbuff, &pMonster->mMinDamage);
 	CopyChar(tbuff, &pMonster->mMaxDamage);
-	CopyChar(tbuff, &pMonster->mHit2);
+	tbuff += 1; // Skip mHit2 as it's already initialized
 	CopyChar(tbuff, &pMonster->mMinDamage2);
 	CopyChar(tbuff, &pMonster->mMaxDamage2);
 	CopyChar(tbuff, &pMonster->mArmorClass);
@@ -835,7 +863,11 @@ void SaveGame()
 	BYTE *SaveBuff = DiabloAllocPtr(dwLen);
 	tbuff = SaveBuff;
 
+#ifdef HELLFIRE
+	ISave('HELF');
+#else
 	ISave('RETL');
+#endif
 	OSave(setlevel);
 	WSave(setlvlnum);
 	WSave(currlevel);
@@ -854,6 +886,7 @@ void SaveGame()
 		WSave(gnLevelTypeTbl[i]);
 	}
 
+	plr[myplr].pDifficulty = gnDifficulty;
 	SavePlayer(myplr);
 
 	for (i = 0; i < MAXQUESTS; i++)
@@ -1177,13 +1210,21 @@ void SavePlayer(int i)
 	CopyChar(&pPlayer->pTownWarps, tbuff);
 	CopyChar(&pPlayer->pDungMsgs, tbuff);
 	CopyChar(&pPlayer->pLvlLoad, tbuff);
+#ifdef HELLFIRE
+	CopyChar(&pPlayer->pDungMsgs2, tbuff);
+#else
 	CopyChar(&pPlayer->pBattleNet, tbuff);
+#endif
 	CopyChar(&pPlayer->pManaShield, tbuff);
-	CopyBytes(&pPlayer->bReserved, 3, tbuff);
-	CopyShorts(&pPlayer->wReserved, 8, tbuff);
+	CopyChar(&pPlayer->pDungMsgs2, tbuff);
+	CopyBytes(&pPlayer->bReserved, 2, tbuff);
+	CopyShort(&pPlayer->wReflection, tbuff);
+	CopyShorts(&pPlayer->wReserved, 7, tbuff);
 
 	CopyInt(&pPlayer->pDiabloKillLevel, tbuff);
-	CopyInts(&pPlayer->dwReserved, 7, tbuff);
+	CopyInt(&pPlayer->pDifficulty, tbuff);
+	CopyInt(&pPlayer->pDamAcFlags, tbuff);
+	CopyInts(&pPlayer->dwReserved, 5, tbuff);
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -1200,6 +1241,7 @@ void SavePlayer(int i)
 void SaveMonster(int i)
 {
 	MonsterStruct *pMonster = &monster[i];
+	char tempChar;
 
 	CopyInt(&pMonster->_mMTidx, tbuff);
 	CopyInt(&pMonster->_mmode, tbuff);
@@ -1267,10 +1309,14 @@ void SaveMonster(int i)
 	tbuff += 1; // Alignment
 	CopyShort(&pMonster->mExp, tbuff);
 
-	CopyChar(&pMonster->mHit, tbuff);
+	// Wtite mHit for backwards compatabiliyt
+	tempChar = pMonster->mHit < SCHAR_MAX ? pMonster->mHit : SCHAR_MAX;
+	CopyChar(&tempChar, tbuff);
 	CopyChar(&pMonster->mMinDamage, tbuff);
 	CopyChar(&pMonster->mMaxDamage, tbuff);
-	CopyChar(&pMonster->mHit2, tbuff);
+	// Wtite mHit2 for backwards compatabiliyt
+	tempChar = pMonster->mHit2 < SCHAR_MAX ? pMonster->mHit2 : SCHAR_MAX;
+	CopyChar(&tempChar, tbuff);
 	CopyChar(&pMonster->mMinDamage2, tbuff);
 	CopyChar(&pMonster->mMaxDamage2, tbuff);
 	CopyChar(&pMonster->mArmorClass, tbuff);
