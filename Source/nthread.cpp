@@ -220,6 +220,11 @@ void nthread_ignore_mutex(BOOL bStart)
 	}
 }
 
+/**
+ * @brief Checks if it's time for the logic to advance
+ * @param unused
+ * @return True if the engine should tick
+ */
 BOOL nthread_has_500ms_passed(BOOL unused)
 {
 	DWORD currentTickCount;
@@ -227,7 +232,7 @@ BOOL nthread_has_500ms_passed(BOOL unused)
 
 	currentTickCount = SDL_GetTicks();
 	ticksElapsed = currentTickCount - last_tick;
-	if (gbMaxPlayers == 1 && ticksElapsed > 500) {
+	if (gbMaxPlayers == 1 && ticksElapsed > tick_delay * 10) {
 		last_tick = currentTickCount;
 		ticksElapsed = 0;
 	}
