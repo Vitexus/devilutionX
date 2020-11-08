@@ -116,16 +116,10 @@ void init_cleanup()
 	NetClose();
 }
 
-void init_create_window()
+static void init_get_file_info()
 {
-	if (!SpawnWindow(PROJECT_NAME))
-		app_fatal("Unable to create main window");
-	dx_init(NULL);
-	was_window_init = true;
-	gbActive = true;
-	gpBufStart = &gpBuffer[BUFFER_WIDTH * SCREEN_Y];
-	gpBufEnd = (BYTE *)(BUFFER_WIDTH * (SCREEN_HEIGHT + SCREEN_Y));
-	SDL_DisableScreenSaver();
+	snprintf(gszProductName, sizeof(gszProductName) / sizeof(char), "%s v%s", PROJECT_NAME, PROJECT_VERSION);
+	snprintf(gszVersionNumber, sizeof(gszVersionNumber) / sizeof(char), "version %s", PROJECT_VERSION);
 }
 
 void init_archives()
@@ -165,29 +159,27 @@ void init_archives()
 #endif
 }
 
-void init_get_file_info()
+void init_create_window()
 {
-	snprintf(gszProductName, sizeof(gszProductName) / sizeof(char), "%s v%s", PROJECT_NAME, PROJECT_VERSION);
-	snprintf(gszVersionNumber, sizeof(gszVersionNumber) / sizeof(char), "version %s", PROJECT_VERSION);
+	if (!SpawnWindow(PROJECT_NAME))
+		app_fatal("Unable to create main window");
+	dx_init(NULL);
+	gbActive = true;
+	gpBufStart = &gpBuffer[BUFFER_WIDTH * SCREEN_Y];
+	gpBufEnd = (BYTE *)(BUFFER_WIDTH * (SCREEN_HEIGHT + SCREEN_Y));
+	SDL_DisableScreenSaver();
 }
 
-LRESULT MainWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+void MainWndProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (Msg) {
-	case DVL_WM_ERASEBKGND:
-		return 0;
 	case DVL_WM_PAINT:
 		force_redraw = 255;
 		break;
-	case DVL_WM_CLOSE:
-		return 0;
-	case DVL_WM_QUERYNEWPALETTE:
-		return 1;
 	case DVL_WM_QUERYENDSESSION:
 		diablo_quit(0);
+		break;
 	}
-
-	return 0;
 }
 
 WNDPROC SetWindowProc(WNDPROC NewProc)
