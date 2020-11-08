@@ -511,6 +511,7 @@ void diablo_quit(int exitStatus)
 int DiabloMain(int argc, char **argv)
 {
 	diablo_parse_flags(argc, argv);
+	diablo_parse_config();
 	diablo_init();
 	diablo_splash();
 	mainmenu_loop();
@@ -800,6 +801,9 @@ static void ReleaseKey(int vkey)
 {
 	if (vkey == DVL_VK_SNAPSHOT)
 		CaptureScreen();
+	if (vkey == DVL_VK_MENU || vkey == DVL_VK_LMENU || vkey == DVL_VK_RMENU) {
+		altPressed = false;
+	}
 }
 
 BOOL PressEscKey()
@@ -848,6 +852,10 @@ static void PressKey(int vkey)
 {
 	if (gmenu_presskeys(vkey) || control_presskeys(vkey)) {
 		return;
+	}
+
+	if (vkey == DVL_VK_MENU || vkey == DVL_VK_LMENU || vkey == DVL_VK_RMENU) {
+		altPressed = true;
 	}
 
 	if (deathflag) {
@@ -1626,8 +1634,10 @@ void LoadGameLevel(BOOL firstflag, int lvldir)
 
 	SetRndSeed(glSeedTbl[currlevel]);
 
-	if (leveltype == DTYPE_TOWN)
+	if (leveltype == DTYPE_TOWN) {
 		SetupTownStores();
+		LoadHotkeys();
+	}
 
 	IncProgress();
 	InitAutomap();

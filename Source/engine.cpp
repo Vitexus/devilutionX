@@ -227,7 +227,10 @@ void CelBlitSafe(BYTE *pDecodeTo, BYTE *pRLEBytes, int nDataSize, int nWidth)
 			if (!(width & 0x80)) {
 				i -= width;
 				if (dst < gpBufEnd && dst > gpBufStart) {
-					memcpy(dst, src, width);
+					if (!isGeneratingLabels)
+						memcpy(dst, src, width);
+					else
+						UpdateLabels(dst, width);
 				}
 				src += width;
 				dst += width;
