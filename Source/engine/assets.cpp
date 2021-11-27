@@ -63,7 +63,7 @@ SDL_RWops *OpenAsset(const char *filename, bool threadsafe)
 	if ((rwops = SDL_RWFromFile(path.c_str(), "rb")) != nullptr)
 		return rwops;
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(TARGET_OS_IPHONE)
 	// On Android, fall back to the APK's assets.
 	// This is handled by SDL when we pass a relative path.
 	if (!paths::AssetsPath().empty() && (rwops = SDL_RWFromFile(relativePath.c_str(), "rb")))
