@@ -8,6 +8,10 @@
 #include "platform/ctr/display.hpp"
 #endif
 
+#ifdef TARGET_OS_IPHONE
+#include <algorithm>
+#endif
+
 #include "DiabloUI/diabloui.h"
 #include "control.h"
 #include "controls/controller.h"
@@ -111,6 +115,10 @@ void CalculatePreferdWindowSize(int &width, int &height)
 	if (SDL_GetDesktopDisplayMode(0, &mode) != 0) {
 		ErrSdl();
 	}
+
+#ifdef TARGET_OS_IPHONE
+	std::swap(mode.w, mode.h);
+#endif
 
 	if (!sgOptions.Graphics.bIntegerScaling) {
 		float wFactor = (float)mode.w / width;
