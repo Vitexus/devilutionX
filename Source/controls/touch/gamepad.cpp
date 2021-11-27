@@ -67,6 +67,9 @@ void InitializeVirtualGamepad()
 		vdpi *= static_cast<float>(gnScreenHeight) / clientHeight;
 
 		float dpi = std::min(hdpi, vdpi);
+#ifdef TARGET_OS_IPHONE
+		dpi *= 0.3;
+#endif
 		inputMargin = round(0.25 * dpi);
 		menuButtonWidth = round(0.2 * dpi);
 		directionPadSize = round(dpi);
