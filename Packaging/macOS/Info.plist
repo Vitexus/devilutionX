@@ -34,8 +34,8 @@
 	<string>${MACOSX_BUNDLE_COPYRIGHT}</string>
 	<key>SDL_FILESYSTEM_BASE_DIR_TYPE</key>
 	<string>parent</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Connect with gamepads</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 </dict>
