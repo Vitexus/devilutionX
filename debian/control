@@ -10,7 +10,7 @@ Build-Depends:
 	gettext,
 	libsdl2-dev,
 	libsodium-dev,
-	libpng-dev
+	libpng-dev,
 	smpq,
 	libbz2-dev
 Standards-Version: 4.3.0
