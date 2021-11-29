@@ -1,0 +1,5 @@
+obj-x86_64-linux-gnu/devilutionx 			/usr/share/games/diablo/
+obj-x86_64-linux-gnu/devilutionx.mpq 			/usr/share/games/diablo/
+obj-x86_64-linux-gnu/devilutionx-hellfire.desktop 	/usr/share/applications/
+obj-x86_64-linux-gnu/devilutionx.desktop		/usr/share/applications/
+debian/io.github.diasurgical.devilutionx.metainfo.xml   /usr/share/metainfo/

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.diasurgical.devilutionx</id>
+  
+  <name>DevilutionX</name>
+  <summary>Diablo build for modern operating systems </summary>
+  
+  <metadata_license>MIT</metadata_license>
+  <project_license>UnLicense</project_license>
+  
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>gamepad</control>
+  </recommends>
+  
+  <description>
+    <p>
+      source port of Diablo and Hellfire that strives to make it simple to run the game while providing engine improvements, bugfixes, and some optional quality of life features.
+    </p>
+  </description>
+  
+  <launchable type="desktop-id">devilutionx.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://user-images.githubusercontent.com/204594/113578478-26912400-9623-11eb-9ff6-9bd9717462b6.png</image>
+    </screenshot>
+  </screenshots>
+</component>
+
