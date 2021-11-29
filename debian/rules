@@ -31,6 +31,7 @@ override_dh_auto_install:
 	dh_auto_install
 
 override_dh_install:
-	sed -i 's/Exec=devilutionx/Exec=devilutionx --data-dir \/usr\/share\/games\/diablo/'  debian/package/debian/tmp/usr/share/applications/*.desktop
+	sed -i 's/Exec=devilutionx/Exec=devilutionx --data-dir \/usr\/share\/games\/diablo/'  debian/tmp/usr/share/applications/*.desktop
 	dh_install
-
+	mkdir -p debian/diablo-data/usr/share/games/diablo/
+	cp debian/*.mpq debian/diablo-data/usr/share/games/diablo/ || true

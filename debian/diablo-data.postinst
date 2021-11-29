@@ -24,9 +24,8 @@ set -e
 case "$1" in
     configure)
 
-    test -f "/usr/share/games/diablo/diabdat.mpq" && chgrp games /usr/share/games/diablo/diabdat.mpq || true
-    test -f "/usr/share/games/diablo/diabdat.mpq" && chmod g+wr	/usr/share/games/diablo/diabdat.mpq || true
-
+    chgrp games /usr/share/games/diablo/*.mpq || true
+    chmod g+wr	/usr/share/games/diablo/*.mpq || true
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
