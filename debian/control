@@ -12,6 +12,7 @@ Build-Depends:
 	libsodium-dev,
 	libpng-dev,
 	smpq,
+	libfmt-dev,
 	libbz2-dev
 Standards-Version: 4.3.0
 Homepage: https://github.com/diasurgical/devilutionX
