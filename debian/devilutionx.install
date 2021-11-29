@@ -1,3 +1,1 @@
-obj-x86_64-linux-gnu/devilutionx 			/usr/share/games/diablo/
-obj-x86_64-linux-gnu/devilutionx.mpq 			/usr/share/games/diablo/
-debian/io.github.diasurgical.devilutionx.metainfo.xml   /usr/share/metainfo/
+debian/io.github.diasurgical.devilutionx.metainfo.xml   usr/share/metainfo
