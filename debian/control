@@ -8,9 +8,11 @@ Build-Depends:
 	git,
 	g++,
 	gettext,
-	libsdl2-ttf-dev,
+	libsdl2-dev,
 	libsodium-dev,
-	smpq
+	libpng-dev
+	smpq,
+	libbz2-dev
 Standards-Version: 4.3.0
 Homepage: https://github.com/diasurgical/devilutionX
 Vcs-Git: git://git@github.com:diasurgical/devilutionX.git
