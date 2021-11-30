@@ -29,13 +29,13 @@ Description: Diablo build for modern operating systems
  Diablo by Blizzard Entertainment is undoubtedly one of
  the best games of the 1990s
 
-#Package: diablo-data
-#Architecture: all
-#Multi-Arch: foreign
-#Depends:
-# ${shlibs:Depends},
-# ${misc:Depends},
-# devilutionx | diablo,
-#Description: Diablo game data
-# Copy diabdat.mpq from your CD, or GoG install folder
+Package: diablo-data
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ devilutionx | diablo,
+Description: Diablo game data
+ Copy diabdat.mpq from your CD, or GoG install folder
 
