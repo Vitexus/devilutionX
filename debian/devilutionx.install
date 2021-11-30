@@ -1,5 +1,4 @@
 debian/io.github.diasurgical.devilutionx.metainfo.xml   usr/share/metainfo
-/usr/share/applications/devilutionx-hellfire.desktop
-/usr/share/applications/devilutionx.desktop
+debian/*.desktop
 debian/diablo						usr/games
 debian/hellfire						usr/games
