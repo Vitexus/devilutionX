@@ -1,0 +1,2 @@
+#!/bin/sh
+devilutionx --data-dir /usr/share/games/diablo/ --diablo

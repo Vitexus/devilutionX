@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=DevilutionX Hellfire
+GenericName=DevilutionX Hellfire
+Comment=Play Diablo: Hellfire on Linux
+Comment[da]=Spil Diablo: Hellfire på Linux
+Comment[hr]=Igrajte Diablo: Hellfire na Linuxu
+Comment[it]=Gioca a Diablo: Hellfire su Linux
+Comment[cs]=Hrajte Diablo: Hellfire v Linuxu
+Exec=devilutionx --data-dir /usr/share/games/diablo --hellfire
+Icon=devilutionx-hellfire
+Terminal=false
+Type=Application
+X-DCOP-ServiceType=Multi
+X-KDE-StartupNotify=true
+Categories=Game;RolePlaying;
+X-Desktop-File-Install-Version=0.26

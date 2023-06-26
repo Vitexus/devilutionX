@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=DevilutionX
+GenericName=DevilutionX
+Comment=Play Diablo I on Linux
+Comment[da]=Spil Diablo I på Linux
+Comment[hr]=Igrajte Diablo I na Linuxu
+Comment[it]=Gioca a Diablo I su Linux
+Comment[cs]=Hrajte Diablo I v Linuxu
+Exec=devilutionx --data-dir /usr/share/games/diablo --diablo
+Icon=devilutionx
+Terminal=false
+Type=Application
+X-DCOP-ServiceType=Multi
+X-KDE-StartupNotify=true
+Categories=Game;RolePlaying;
+X-Desktop-File-Install-Version=0.26
