@@ -49,6 +49,7 @@
 #include "utils/log.hpp"
 #include "utils/sdl_geometry.h"
 #include "utils/stdcompat/optional.hpp"
+#include "utils/str_case.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/string_or_view.hpp"
 #include "utils/utf8.hpp"
@@ -442,11 +443,9 @@ std::string TextCmdInspect(const string_view parameter)
 		return ret;
 	}
 
-	std::string param { parameter.data() };
-	std::transform(param.begin(), param.end(), param.begin(), [](unsigned char c) { return std::tolower(c); });
+	const std::string param = AsciiStrToLower(parameter);
 	for (auto &player : Players) {
-		std::string playerName { player._pName };
-		std::transform(playerName.begin(), playerName.end(), playerName.begin(), [](unsigned char c) { return std::tolower(c); });
+		const std::string playerName = AsciiStrToLower(player._pName);
 		if (playerName.find(param) != std::string::npos) {
 			InspectPlayer = &player;
 			StrAppend(ret, _("Inspecting player: "));
@@ -522,10 +521,10 @@ std::string TextCmdLevelSeed(const string_view parameter)
 }
 
 std::vector<TextCmdItem> TextCmdList = {
-	{ N_("/help"), N_("Prints help overview or help for a specific command."), N_("({command})"), &TextCmdHelp },
-	{ N_("/arena"), N_("Enter a PvP Arena."), N_("{arena-number}"), &TextCmdArena },
-	{ N_("/arenapot"), N_("Gives Arena Potions."), N_("{number}"), &TextCmdArenaPot },
-	{ N_("/inspect"), N_("Inspects stats and equipment of another player."), N_("{player name}"), &TextCmdInspect },
+	{ N_("/help"), N_("Prints help overview or help for a specific command."), N_("[command]"), &TextCmdHelp },
+	{ N_("/arena"), N_("Enter a PvP Arena."), N_("<arena-number>"), &TextCmdArena },
+	{ N_("/arenapot"), N_("Gives Arena Potions."), N_("<number>"), &TextCmdArenaPot },
+	{ N_("/inspect"), N_("Inspects stats and equipment of another player."), N_("<player name>"), &TextCmdInspect },
 	{ N_("/seedinfo"), N_("Show seed infos for current level."), "", &TextCmdLevelSeed },
 };
 
