@@ -368,7 +368,8 @@ msgid "Client-Server (TCP)"
 msgstr "客户​端​-​服务器​(​TCP)"
 
 #: Source/DiabloUI/selconn.cpp:15
-msgid "Loopback"
+#, fuzzy
+msgid "Offline" 
 msgstr "回环"
 
 #: Source/DiabloUI/selconn.cpp:54 Source/DiabloUI/selgame.cpp:604
@@ -819,11 +820,11 @@ msgstr "上​一​个​菜单"
 
 #: Source/DiabloUI/support_lines.cpp:8
 msgid ""
-"We maintain a chat server at Discord.gg/YQKCAYQ Follow the links to join our "
+"We maintain a chat server at Discord.gg/devilutionx Follow the links to join our "
 "community where we talk about things related to Diablo, and the Hellfire "
 "expansion."
 msgstr ""
-"我们​维护​的​聊天​服务器​部署​在 Discord.gg/YQKCAYQ ，点击​连接​加入​我们​的​社群，我们​"
+"我们​维护​的​聊天​服务器​部署​在 Discord.gg/devilutionx ，点击​连接​加入​我们​的​社群，我们​"
 "在​那里​谈论​有关​暗黑​破坏​神​以及​地狱火​资料片。"
 
 #: Source/DiabloUI/support_lines.cpp:10
@@ -1448,7 +1449,7 @@ msgstr "难度​：​{}"
 msgid "In Menu"
 msgstr "菜​单​中"
 
-#: Source/dvlnet/loopback.cpp:113
+#: Source/dvlnet/loopback.cpp:118
 msgid "loopback"
 msgstr "环回"
 
@@ -9054,7 +9055,7 @@ msgid ""
 "What? Now you bring me that elixir from the healer? I was able to finish my "
 "brew without it. Why don't you just keep it..."
 msgstr ""
-"什么？现在​你​把​医治者​的​长生​不​老​药​带给​我？不用​它​我​就​能​喝​完​我​的​啤酒。你​为什么​不​"
+"什么？现在​你​把​医治者​的​长生​不​老​药​带给​我？不用​它​我​也能​完成​我​的​酿造。你​为什么​不​"
 "留​着​它"
 
 #. TRANSLATORS: Quest dialog spoken by Wirt

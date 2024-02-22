@@ -45,7 +45,7 @@ struct PlayerPack {
 	uint8_t pBaseMag;
 	uint8_t pBaseDex;
 	uint8_t pBaseVit;
-	int8_t pLevel;
+	uint8_t pLevel;
 	uint8_t pStatPts;
 	uint32_t pExperience;
 	int32_t pGold;
@@ -79,6 +79,12 @@ struct PlayerPack {
 	uint8_t reserved3[20]; // For future use
 };
 
+union ItemNetPack {
+	TItemDef def;
+	TItem item;
+	TEar ear;
+};
+
 struct PlayerNetPack {
 	uint8_t plrlevel;
 	uint8_t px;
@@ -98,19 +104,49 @@ struct PlayerNetPack {
 	int32_t pMaxManaBase;
 	uint8_t pSplLvl[MAX_SPELLS];
 	uint64_t pMemSpells;
-	TItem InvBody[NUM_INVLOC];
-	TItem InvList[InventoryGridCells];
+	ItemNetPack InvBody[NUM_INVLOC];
+	ItemNetPack InvList[InventoryGridCells];
 	int8_t InvGrid[InventoryGridCells];
 	uint8_t _pNumInv;
-	TItem SpdList[MaxBeltItems];
+	ItemNetPack SpdList[MaxBeltItems];
 	uint8_t pManaShield;
 	uint16_t wReflections;
 	uint8_t pDiabloKillLevel;
 	uint8_t friendlyMode;
 	uint8_t isOnSetLevel;
+
+	// For validation
+	int32_t pStrength;
+	int32_t pMagic;
+	int32_t pDexterity;
+	int32_t pVitality;
+	int32_t pHitPoints;
+	int32_t pMaxHP;
+	int32_t pMana;
+	int32_t pMaxMana;
+	int32_t pDamageMod;
+	int32_t pBaseToBlk;
+	int32_t pIMinDam;
+	int32_t pIMaxDam;
+	int32_t pIAC;
+	int32_t pIBonusDam;
+	int32_t pIBonusToHit;
+	int32_t pIBonusAC;
+	int32_t pIBonusDamMod;
+	int32_t pIGetHit;
+	int32_t pIEnAc;
+	int32_t pIFMinDam;
+	int32_t pIFMaxDam;
+	int32_t pILMinDam;
+	int32_t pILMaxDam;
 };
 #pragma pack(pop)
 
+bool IsCreationFlagComboValid(uint16_t iCreateInfo);
+bool IsTownItemValid(uint16_t iCreateInfo, const Player &player);
+bool IsUniqueMonsterItemValid(uint16_t iCreateInfo, uint32_t dwBuff);
+bool IsDungeonItemValid(uint16_t iCreateInfo, uint32_t dwBuff);
+bool RecreateHellfireSpellBook(const Player &player, const TItem &packedItem, Item *item = nullptr);
 void PackPlayer(PlayerPack &pPack, const Player &player);
 void UnPackPlayer(const PlayerPack &pPack, Player &player);
 void PackNetPlayer(PlayerNetPack &packed, const Player &player);
@@ -133,5 +169,21 @@ void PackItem(ItemPack &packedItem, const Item &item, bool isHellfire);
  * @param isHellfire Whether the item is from Hellfire or not
  */
 void UnPackItem(const ItemPack &packedItem, const Player &player, Item &item, bool isHellfire);
+
+/**
+ * @brief Save the attributes needed to recreate this item into an ItemNetPack struct
+ * @param item The source item
+ * @param packedItem The destination packed struct
+ */
+void PackNetItem(const Item &item, ItemNetPack &packedItem);
+
+/**
+ * @brief Expand a ItemPack in to a Item
+ * @param player The player holding the item
+ * @param packedItem The source packed item
+ * @param item The destination item
+ * @return True if the item is valid
+ */
+bool UnPackNetItem(const Player &player, const ItemNetPack &packedItem, Item &item);
 
 } // namespace devilution

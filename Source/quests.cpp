@@ -31,6 +31,10 @@
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
+#ifdef _DEBUG
+#include "debug.h"
+#endif
+
 namespace devilution {
 
 bool QuestLogIsOpen;
@@ -143,7 +147,7 @@ void DrawWarLord(Point position)
 {
 	auto dunData = LoadFileInMem<uint16_t>("levels\\l4data\\warlord2.dun");
 
-	SetPiece = { position, WorldTileSize(SDL_SwapLE16(dunData[0]), SDL_SwapLE16(dunData[1])) };
+	SetPiece = { position, GetDunSize(dunData.get()) };
 
 	PlaceDunTiles(dunData.get(), position, 6);
 }
@@ -152,7 +156,7 @@ void DrawSChamber(quest_id q, Point position)
 {
 	auto dunData = LoadFileInMem<uint16_t>("levels\\l2data\\bonestr1.dun");
 
-	SetPiece = { position, WorldTileSize(SDL_SwapLE16(dunData[0]), SDL_SwapLE16(dunData[1])) };
+	SetPiece = { position, GetDunSize(dunData.get()) };
 
 	PlaceDunTiles(dunData.get(), position, 3);
 
@@ -163,16 +167,15 @@ void DrawLTBanner(Point position)
 {
 	auto dunData = LoadFileInMem<uint16_t>("levels\\l1data\\banner1.dun");
 
-	int width = SDL_SwapLE16(dunData[0]);
-	int height = SDL_SwapLE16(dunData[1]);
+	WorldTileSize size = GetDunSize(dunData.get());
 
-	SetPiece = { position, WorldTileSize(SDL_SwapLE16(dunData[0]), SDL_SwapLE16(dunData[1])) };
+	SetPiece = { position, size };
 
 	const uint16_t *tileLayer = &dunData[2];
 
-	for (int j = 0; j < height; j++) {
-		for (int i = 0; i < width; i++) {
-			auto tileId = static_cast<uint8_t>(SDL_SwapLE16(tileLayer[j * width + i]));
+	for (WorldTileCoord j = 0; j < size.height; j++) {
+		for (WorldTileCoord i = 0; i < size.width; i++) {
+			auto tileId = static_cast<uint8_t>(SDL_SwapLE16(tileLayer[j * size.width + i]));
 			if (tileId != 0) {
 				pdungeon[position.x + i][position.y + j] = tileId;
 			}
@@ -193,7 +196,7 @@ void DrawBlood(Point position)
 {
 	auto dunData = LoadFileInMem<uint16_t>("levels\\l2data\\blood2.dun");
 
-	SetPiece = { position, WorldTileSize(SDL_SwapLE16(dunData[0]), SDL_SwapLE16(dunData[1])) };
+	SetPiece = { position, GetDunSize(dunData.get()) };
 
 	PlaceDunTiles(dunData.get(), position, 0);
 }
@@ -214,14 +217,15 @@ int QuestLogMouseToEntry()
 	return -1;
 }
 
-void PrintQLString(const Surface &out, int x, int y, string_view str, bool marked, bool disabled = false)
+void PrintQLString(const Surface &out, int x, int y, std::string_view str, bool marked, bool disabled = false)
 {
 	int width = GetLineWidth(str);
 	x += std::max((257 - width) / 2, 0);
 	if (marked) {
 		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x - 20, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
-	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { x, y }), { 257, 0 } }, disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
+	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { x, y }), { 257, 0 } },
+	    { .flags = disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
 	if (marked) {
 		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x + width + 7, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
@@ -229,7 +233,7 @@ void PrintQLString(const Surface &out, int x, int y, string_view str, bool marke
 
 void StartPWaterPurify()
 {
-	PlaySfxLoc(IS_QUESTDN, MyPlayer->position.tile);
+	PlaySfxLoc(SfxID::QuestDone, MyPlayer->position.tile);
 	LoadPalette("levels\\l3data\\l3pwater.pal", false);
 	UpdatePWaterPalette();
 	WaterDone = 32;
@@ -294,24 +298,24 @@ void InitQuests()
 
 void InitialiseQuestPools(uint32_t seed, Quest quests[])
 {
-	SetRndSeed(seed);
-	quests[PickRandomlyAmong({ Q_SKELKING, Q_PWATER })]._qactive = QUEST_NOTAVAIL;
+	DiabloGenerator rng(seed);
+	quests[rng.pickRandomlyAmong({ Q_SKELKING, Q_PWATER })]._qactive = QUEST_NOTAVAIL;
 
 	// using int and not size_t here to detect negative values from GenerateRnd
-	int randomIndex = GenerateRnd(sizeof(QuestGroup1) / sizeof(*QuestGroup1));
+	int randomIndex = rng.generateRnd(sizeof(QuestGroup1) / sizeof(*QuestGroup1));
 
 	if (randomIndex >= 0)
 		quests[QuestGroup1[randomIndex]]._qactive = QUEST_NOTAVAIL;
 
-	randomIndex = GenerateRnd(sizeof(QuestGroup2) / sizeof(*QuestGroup2));
+	randomIndex = rng.generateRnd(sizeof(QuestGroup2) / sizeof(*QuestGroup2));
 	if (randomIndex >= 0)
 		quests[QuestGroup2[randomIndex]]._qactive = QUEST_NOTAVAIL;
 
-	randomIndex = GenerateRnd(sizeof(QuestGroup3) / sizeof(*QuestGroup3));
+	randomIndex = rng.generateRnd(sizeof(QuestGroup3) / sizeof(*QuestGroup3));
 	if (randomIndex >= 0)
 		quests[QuestGroup3[randomIndex]]._qactive = QUEST_NOTAVAIL;
 
-	randomIndex = GenerateRnd(sizeof(QuestGroup4) / sizeof(*QuestGroup4));
+	randomIndex = rng.generateRnd(sizeof(QuestGroup4) / sizeof(*QuestGroup4));
 
 	// always true, QuestGroup4 has two members
 	if (randomIndex >= 0)
@@ -340,7 +344,7 @@ void CheckQuests()
 	    && (quest._qactive == QUEST_ACTIVE || quest._qactive == QUEST_DONE)
 	    && (quest._qvar2 == 0 || quest._qvar2 == 2)) {
 		// Spawn a portal at the quest trigger location
-		AddMissile(quest.position, quest.position, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, MyPlayerId, 0, 0);
+		AddMissile(quest.position, quest.position, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, *MyPlayer, 0, 0);
 		quest._qvar2 = 1;
 		if (quest._qactive == QUEST_ACTIVE && quest._qvar1 == 2) {
 			quest._qvar1 = 3;
@@ -352,7 +356,7 @@ void CheckQuests()
 	    && setlvlnum == SL_VILEBETRAYER
 	    && quest._qvar2 == 4) {
 		Point portalLocation { 35, 32 };
-		AddMissile(portalLocation, portalLocation, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, MyPlayerId, 0, 0);
+		AddMissile(portalLocation, portalLocation, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, *MyPlayer, 0, 0);
 		quest._qvar2 = 3;
 	}
 
@@ -373,7 +377,8 @@ void CheckQuests()
 			if (currlevel == quest._qlevel
 			    && quest._qslvl != 0
 			    && quest._qactive != QUEST_NOTAVAIL
-			    && MyPlayer->position.tile == quest.position) {
+			    && MyPlayer->position.tile == quest.position
+			    && (quest._qidx != Q_BETRAYER || quest._qvar1 >= 3)) {
 				if (quest._qlvltype != DTYPE_NONE) {
 					setlvltype = quest._qlvltype;
 				}
@@ -456,7 +461,7 @@ void CheckQuestKill(const Monster &monster, bool sendmsg)
 		} else {
 			InitVPTriggers();
 			betrayerQuest._qvar2 = 4;
-			AddMissile({ 35, 32 }, { 35, 32 }, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, MyPlayerId, 0, 0);
+			AddMissile({ 35, 32 }, { 35, 32 }, Direction::South, MissileID::RedPortal, TARGET_MONSTERS, myPlayer, 0, 0);
 		}
 		if (sendmsg) {
 			NetSendCmdQuest(true, betrayerQuest);
@@ -520,6 +525,11 @@ int GetMapReturnLevel()
 
 Point GetMapReturnPosition()
 {
+#ifdef _DEBUG
+	if (!TestMapPath.empty())
+		return ViewPosition;
+#endif
+
 	switch (setlvlnum) {
 	case SL_SKELKING:
 		return Quests[Q_SKELKING].position + Direction::SouthEast;
@@ -876,7 +886,7 @@ void QuestlogUp()
 		if (SelectedQuest < 0) {
 			SelectedQuest = FirstFinishedQuest - 1;
 		}
-		PlaySFX(IS_TITLEMOV);
+		PlaySFX(SfxID::MenuMove);
 	}
 }
 
@@ -889,13 +899,13 @@ void QuestlogDown()
 		if (SelectedQuest == FirstFinishedQuest) {
 			SelectedQuest = 0;
 		}
-		PlaySFX(IS_TITLEMOV);
+		PlaySFX(SfxID::MenuMove);
 	}
 }
 
 void QuestlogEnter()
 {
-	PlaySFX(IS_TITLSLCT);
+	PlaySFX(SfxID::MenuSelect);
 	if (EncounteredQuestCount != 0 && SelectedQuest >= 0 && SelectedQuest < FirstFinishedQuest)
 		InitQTextMsg(Quests[EncounteredQuests[SelectedQuest]]._qmsg);
 	QuestLogIsOpen = false;

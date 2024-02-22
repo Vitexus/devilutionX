@@ -6,10 +6,11 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
+#include <vector>
 
 #include "objdat.h"
 #include "spelldat.h"
-#include "utils/stdcompat/string_view.hpp"
 
 namespace devilution {
 
@@ -70,6 +71,7 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_BOOK3,
 	IDI_BOOK4,
 	IDI_BARBARIAN = 139,
+	IDI_SHORT_BATTLE_BOW = 148,
 	IDI_RUNEOFSTONE = 165,
 	IDI_SORCERER_DIABLO,
 	IDI_ARENAPOT,
@@ -216,7 +218,7 @@ enum item_cursor_graphic : uint8_t {
 	ICURS_SHORT_WAR_BOW               = 165,
 	ICURS_COMPOSITE_STAFF             = 166,
 	ICURS_SHORT_BATTLE_BOW            = 167,
-	ICURS_GOLD                        = 168,
+	// Hellfire items:
 	ICURS_AURIC_AMULET                = 180,
 	ICURS_RUNE_BOMB                   = 187,
 	ICURS_THEODORE                    = 188,
@@ -253,7 +255,7 @@ enum class ItemType : int8_t {
 	None = -1,
 };
 
-string_view ItemTypeToString(ItemType itemType);
+std::string_view ItemTypeToString(ItemType itemType);
 
 enum unique_base_item : int8_t {
 	UITYPE_NONE,
@@ -443,8 +445,8 @@ struct ItemData {
 	enum item_cursor_graphic iCurs;
 	enum ItemType itype;
 	enum unique_base_item iItemId;
-	const char *iName;
-	const char *iSName;
+	std::string iName;
+	std::string iSName;
 	uint8_t iMinMLvl;
 	uint8_t iDurability;
 	uint8_t iMinDam;
@@ -572,7 +574,7 @@ struct ItemPower {
 };
 
 struct PLStruct {
-	const char *PLName;
+	std::string PLName;
 	ItemPower power;
 	int8_t PLMinLvl;
 	AffixItemType PLIType; // AffixItemType as bit flags
@@ -585,7 +587,7 @@ struct PLStruct {
 };
 
 struct UniqueItem {
-	const char *UIName;
+	std::string UIName;
 	enum unique_base_item UIItemId;
 	int8_t UIMinLvl;
 	uint8_t UINumPL;
@@ -593,9 +595,11 @@ struct UniqueItem {
 	ItemPower powers[6];
 };
 
-extern const ItemData AllItemsList[];
-extern const PLStruct ItemPrefixes[];
-extern const PLStruct ItemSuffixes[];
-extern const UniqueItem UniqueItems[];
+extern std::vector<ItemData> AllItemsList;
+extern std::vector<PLStruct> ItemPrefixes;
+extern std::vector<PLStruct> ItemSuffixes;
+extern std::vector<UniqueItem> UniqueItems;
+
+void LoadItemData();
 
 } // namespace devilution

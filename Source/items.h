@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine.h"
@@ -13,7 +14,6 @@
 #include "engine/point.hpp"
 #include "itemdat.h"
 #include "monster.h"
-#include "utils/stdcompat/optional.hpp"
 #include "utils/string_or_view.hpp"
 
 namespace devilution {
@@ -129,21 +129,21 @@ enum _unique_items : int8_t {
 };
 
 /*
- First 5 bits store level
- 6th bit stores onlygood flag
- 7th bit stores uper15 flag - uper means unique percent, this flag is true for unique monsters and loot from them has 15% to become unique
- 8th bit stores uper1 flag - this is loot from normal monsters, which has 1% to become unique
- 9th bit stores info if item is unique
- 10th bit stores info if item is a basic one from Griswold
- 11th bit stores info if item is a premium one from Griswold
- 12th bit stores info if item is from Wirt
- 13th bit stores info if item is from Adria
- 14th bit stores info if item is from Pepin
- 15th bit stores pregen flag
+CF_LEVEL: Item Level (6 bits; value ranges from 0-63)
+CF_ONLYGOOD: Item is not able to have affixes with PLOK set to false
+CF_UPER15: Item is from a Unique Monster and has 15% chance of being a Unique Item
+CF_UPER1: Item is from the dungeon and has a 1% chance of being a Unique Item
+CF_UNIQUE: Item is a Unique Item
+CF_SMITH: Item is from Griswold (Basic)
+CF_SMITHPREMIUM: Item is from Griswold (Premium)
+CF_BOY: Item is from Wirt
+CF_WITCH: Item is from Adria
+CF_HEALER: Item is from Pepin
+CF_PREGEN: Item is pre-generated, mostly associated with Quest items found in the dungeon or potions on the dungeon floor
 
- combining CF_UPER15 and CF_UPER1 flags (CF_USEFUL) is used to mark potions and town portal scrolls created on the ground
- CF_TOWN is combining all store flags and indicates if item has been bought from a NPC
- */
+Items that have both CF_UPER15 and CF_UPER1 are CF_USEFUL, which is used to generate Potions and Town Portal scrolls on the dungeon floor
+Items that have any of CF_SMITH, CF_SMITHPREMIUM, CF_BOY, CF_WICTH, and CF_HEALER are CF_TOWN, indicating the item is sourced from an NPC
+*/
 enum icreateinfo_flag {
 	// clang-format off
 	CF_LEVEL        = (1 << 6) - 1,
@@ -303,10 +303,6 @@ struct Item {
 	 */
 	bool isWeapon() const
 	{
-		if (this->isEmpty()) {
-			return false;
-		}
-
 		switch (this->_itype) {
 		case ItemType::Axe:
 		case ItemType::Bow:
@@ -326,10 +322,6 @@ struct Item {
 	 */
 	bool isArmor() const
 	{
-		if (this->isEmpty()) {
-			return false;
-		}
-
 		switch (this->_itype) {
 		case ItemType::HeavyArmor:
 		case ItemType::LightArmor:
@@ -342,12 +334,21 @@ struct Item {
 	}
 
 	/**
+	 * @brief Checks whether this item is gold.
+	 * @return 'True' in case the item is gold and 'False' otherwise.
+	 */
+	bool isGold() const
+	{
+		return this->_itype == ItemType::Gold;
+	}
+
+	/**
 	 * @brief Checks whether this item is a helm.
 	 * @return 'True' in case the item is a helm and 'False' otherwise.
 	 */
 	bool isHelm() const
 	{
-		return !this->isEmpty() && this->_itype == ItemType::Helm;
+		return this->_itype == ItemType::Helm;
 	}
 
 	/**
@@ -356,7 +357,7 @@ struct Item {
 	 */
 	bool isShield() const
 	{
-		return !this->isEmpty() && this->_itype == ItemType::Shield;
+		return this->_itype == ItemType::Shield;
 	}
 
 	/**
@@ -365,10 +366,6 @@ struct Item {
 	 */
 	bool isJewelry() const
 	{
-		if (this->isEmpty()) {
-			return false;
-		}
-
 		switch (this->_itype) {
 		case ItemType::Amulet:
 		case ItemType::Ring:
@@ -454,6 +451,11 @@ struct Item {
 
 	/** @brief Returns the translated item name to display (respects identified flag) */
 	StringOrView getName() const;
+
+	[[nodiscard]] Displacement getRenderingOffset(const ClxSprite sprite) const
+	{
+		return { -CalculateWidth2(sprite.width()), 0 };
+	}
 };
 
 struct ItemGetRecordStruct {
@@ -515,7 +517,7 @@ void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta);
 void CreateRndUseful(Point position, bool sendmsg);
 void CreateTypeItem(Point position, bool onlygood, ItemType itemType, int imisc, bool sendmsg, bool delta, bool spawn = false);
 void RecreateItem(const Player &player, Item &item, _item_indexes idx, uint16_t icreateinfo, uint32_t iseed, int ivalue, bool isHellfire);
-void RecreateEar(Item &item, uint16_t ic, uint32_t iseed, uint8_t bCursval, string_view heroName);
+void RecreateEar(Item &item, uint16_t ic, uint32_t iseed, uint8_t bCursval, std::string_view heroName);
 void CornerstoneSave();
 void CornerstoneLoad(Point position);
 void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int selflag, bool sendmsg);
@@ -537,7 +539,7 @@ bool DoOil(Player &player, int cii);
 void DrawUniqueInfo(const Surface &out);
 void PrintItemDetails(const Item &item);
 void PrintItemDur(const Item &item);
-void UseItem(size_t pnum, item_misc_id Mid, SpellID spellID, int spellFrom);
+void UseItem(Player &player, item_misc_id Mid, SpellID spellID, int spellFrom);
 bool UseItemOpensHive(const Item &item, Point position);
 bool UseItemOpensGrave(const Item &item, Point position);
 void SpawnSmith(int lvl);
@@ -577,6 +579,6 @@ std::string DebugSpawnUniqueItem(std::string itemName);
 extern int MaxGold;
 
 extern int8_t ItemCAnimTbl[];
-extern _sfx_id ItemInvSnds[];
+extern SfxID ItemInvSnds[];
 
 } // namespace devilution

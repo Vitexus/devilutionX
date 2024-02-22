@@ -2,7 +2,7 @@
 DevilutionX is a source port of Diablo and Hellfire that strives to make it simple to run the game while providing engine improvements, bugfixes, and some optional quality of life features.
 
 # Links
-Discord: https://discord.gg/YQKCAYQ
+Discord: https://discord.gg/devilutionx
 GitHub: https://github.com/diasurgical/devilutionX
 
 Check out the manual for what features are available and how best to take advantage of them: https://github.com/diasurgical/devilutionX/wiki
@@ -12,9 +12,9 @@ For a full list of changes see our changelog: https://github.com/diasurgical/dev
  - Extract the files in the zip
  - Copy DIABDAT.MPQ from the CD or GOG-installation (or extract it from the GoG installer) to the DevilutionX folder.
  - To run the Diablo: Hellfire expansion you will need to also copy hellfire.mpq, hfmonk.mpq, hfmusic.mpq, hfvoice.mpq.
- - For Chinese, Japanese, and Korean text support download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/fonts.mpq and add it to the game folder.
- - For the Polish voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/pl.mpq.
- - For the Russian voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/ru.mpq.
+ - For Chinese, Japanese, and Korean text support download https://github.com/diasurgical/devilutionx-assets/releases/latest/download/fonts.mpq and add it to the game folder.
+ - For the Polish voice pack download https://github.com/diasurgical/devilutionx-assets/releases/latest/download/pl.mpq.
+ - For the Russian voice pack download https://github.com/diasurgical/devilutionx-assets/releases/latest/download/ru.mpq.
  - Run devilutionx.exe
 
 # Multiplayer

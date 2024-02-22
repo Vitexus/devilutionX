@@ -11,7 +11,7 @@
 #endif
 
 #include "appfat.h"
-#include "utils/clx_write.hpp"
+#include "utils/clx_encode.hpp"
 #include "utils/endian.hpp"
 
 namespace devilution {
@@ -62,7 +62,7 @@ OwnedClxSpriteListOrSheet CelToClx(const uint8_t *data, size_t size, PointerOrVa
 			numFrames = maybeNumFrames;
 		} else {
 			numFrames = LoadLE32(data);
-			WriteLE32(&cl2Data[4 * group], cl2Data.size());
+			WriteLE32(&cl2Data[4 * group], static_cast<uint32_t>(cl2Data.size()));
 		}
 
 		// CL2 header: frame count, frame offset for each frame, file size
@@ -101,18 +101,18 @@ OwnedClxSpriteListOrSheet CelToClx(const uint8_t *data, size_t size, PointerOrVa
 						val = GetCelTransparentWidth(val);
 						transparentRunWidth += val;
 					} else {
-						AppendCl2TransparentRun(transparentRunWidth, cl2Data);
+						AppendClxTransparentRun(transparentRunWidth, cl2Data);
 						transparentRunWidth = 0;
-						AppendCl2PixelsOrFillRun(src, val, cl2Data);
+						AppendClxPixelsOrFillRun(src, val, cl2Data);
 						src += val;
 					}
 					remainingCelWidth -= val;
 				}
 				++frameHeight;
 			}
-			WriteLE16(&cl2Data[frameHeaderPos + 4], frameHeight);
+			WriteLE16(&cl2Data[frameHeaderPos + 4], static_cast<uint16_t>(frameHeight));
 			memset(&cl2Data[frameHeaderPos + 6], 0, 4);
-			AppendCl2TransparentRun(transparentRunWidth, cl2Data);
+			AppendClxTransparentRun(transparentRunWidth, cl2Data);
 		}
 
 		WriteLE32(&cl2Data[cl2DataOffset + 4 * (1 + static_cast<size_t>(numFrames))], static_cast<uint32_t>(cl2Data.size() - cl2DataOffset));

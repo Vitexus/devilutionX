@@ -60,14 +60,14 @@ OwnedClxSpriteSheet LoadMultipleCl2Sheet(tl::function_ref<const char *(size_t)> 
 		if (!handle.ok() || !handle.read(&data[accumulatedSize], size)) {
 			FailedToOpenFileError(paths[i].data(), handle.error());
 		}
-		WriteLE32(&data[i * 4], accumulatedSize);
-#ifndef UNPACKED_MPQS
-		[[maybe_unused]] const uint16_t numLists = Cl2ToClx(&data[accumulatedSize], size, frameWidth);
-		assert(numLists == 0);
-#endif
+		WriteLE32(&data[i * 4], static_cast<uint32_t>(accumulatedSize));
 		accumulatedSize += size;
 	}
+#ifdef UNPACKED_MPQS
 	return OwnedClxSpriteSheet { std::move(data), static_cast<uint16_t>(count) };
+#else
+	return Cl2ToClx(std::move(data), accumulatedSize, frameWidth).sheet();
+#endif
 }
 
 inline OwnedClxSpriteList LoadCl2(const char *pszName, uint16_t width)

@@ -377,7 +377,8 @@ msgid "Client-Server (TCP)"
 msgstr "Клиент-сервер (TCP)"
 
 #: Source/DiabloUI/selconn.cpp:15
-msgid "Loopback"
+#, fuzzy
+msgid "Offline" 
 msgstr "Петля"
 
 #: Source/DiabloUI/selconn.cpp:54 Source/DiabloUI/selgame.cpp:604
@@ -848,11 +849,11 @@ msgstr "Предыдущее меню"
 
 #: Source/DiabloUI/support_lines.cpp:8
 msgid ""
-"We maintain a chat server at Discord.gg/YQKCAYQ Follow the links to join our "
+"We maintain a chat server at Discord.gg/devilutionx Follow the links to join our "
 "community where we talk about things related to Diablo, and the Hellfire "
 "expansion."
 msgstr ""
-"Мы поддерживаем чат-сервер на Discord.gg/YQKCAYQ Перейдите по ссылкам, чтобы "
+"Мы поддерживаем чат-сервер на Discord.gg/devilutionx Перейдите по ссылкам, чтобы "
 "присоединиться к нашему сообществу, где мы говорим о вещах, связанных с "
 "Diablo и расширением Hellfire."
 
@@ -1498,7 +1499,7 @@ msgstr "{} сложность"
 msgid "In Menu"
 msgstr "В меню"
 
-#: Source/dvlnet/loopback.cpp:113
+#: Source/dvlnet/loopback.cpp:118
 msgid "loopback"
 msgstr "петля"
 

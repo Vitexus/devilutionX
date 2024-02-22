@@ -13,6 +13,7 @@
 #include "gamemenu.h"
 #include "gmenu.h"
 #include "options.h"
+#include "panels/spell_list.hpp"
 #include "qol/stash.h"
 #include "stores.h"
 
@@ -269,7 +270,7 @@ void PressControllerButton(ControllerButton button)
 			gamemenu_on();
 			return;
 		case devilution::ControllerButton_BUTTON_DPAD_DOWN:
-			DoAutoMap();
+			CycleAutomapType();
 			return;
 		case devilution::ControllerButton_BUTTON_DPAD_LEFT:
 			ProcessGameAction(GameAction { GameActionType_TOGGLE_CHARACTER_INFO });
@@ -335,7 +336,7 @@ bool IsSimulatedMouseClickBinding(ControllerButtonEvent ctrlEvent)
 		return false;
 	if (!ctrlEvent.up && ctrlEvent.button == SuppressedButton)
 		return false;
-	string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent);
+	std::string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent);
 	return IsAnyOf(actionName, "LeftMouseClick1", "LeftMouseClick2", "RightMouseClick1", "RightMouseClick2");
 }
 
@@ -375,14 +376,17 @@ bool HandleControllerButtonEvent(const SDL_Event &event, const ControllerButtonE
 		SuppressedButton = ControllerButton_NONE;
 	}
 
-	if (GetGameAction(event, ctrlEvent, &action)) {
+	if (ctrlEvent.up && sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent) != "") {
+		// Button press may have brought up a menu;
+		// don't confuse release of that button with intent to interact with the menu
+		sgOptions.Padmapper.ButtonReleased(ctrlEvent.button);
+		return true;
+	} else if (GetGameAction(event, ctrlEvent, &action)) {
 		ProcessGameAction(action);
 		return true;
 	} else if (ctrlEvent.button != ControllerButton_NONE) {
 		if (!ctrlEvent.up)
 			PressControllerButton(ctrlEvent.button);
-		else
-			sgOptions.Padmapper.ButtonReleased(ctrlEvent.button);
 		return true;
 	}
 

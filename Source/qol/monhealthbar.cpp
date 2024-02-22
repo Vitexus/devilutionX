@@ -130,17 +130,20 @@ void DrawMonsterHealthBar(const Surface &out)
 	}
 
 	UiFlags style = UiFlags::AlignCenter | UiFlags::VerticalCenter;
-	DrawString(out, monster.name(), { position + Displacement { -1, 1 }, { width, height } }, style | UiFlags::ColorBlack);
+	DrawString(out, monster.name(), { position + Displacement { -1, 1 }, { width, height } },
+	    { .flags = style | UiFlags::ColorBlack });
 	if (monster.isUnique())
 		style |= UiFlags::ColorWhitegold;
 	else if (monster.leader != Monster::NoLeader)
 		style |= UiFlags::ColorBlue;
 	else
 		style |= UiFlags::ColorWhite;
-	DrawString(out, monster.name(), { position, { width, height } }, style);
+	DrawString(out, monster.name(), { position, { width, height } },
+	    { .flags = style });
 
 	if (multiplier > 0)
-		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } }, UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter);
+		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } },
+		    { .flags = UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter });
 	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };
 		monster_resistance resists[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING };
@@ -157,14 +160,16 @@ void DrawMonsterHealthBar(const Surface &out)
 		}
 	}
 
-	int tagOffset = 5;
-	for (size_t i = 0; i < Players.size(); i++) {
-		if (((1U << i) & monster.whoHit) != 0) {
-			RenderClxSprite(out, (*playerExpTags)[i + 1], position + Displacement { tagOffset, height - 31 });
-		} else if (Players[i].plractive) {
-			RenderClxSprite(out, (*playerExpTags)[0], position + Displacement { tagOffset, height - 31 });
+	if (Players.size() > 1) {
+		int tagOffset = 5;
+		for (size_t i = 0; i < Players.size(); i++) {
+			if (((1U << i) & monster.whoHit) != 0) {
+				RenderClxSprite(out, (*playerExpTags)[i + 1], position + Displacement { tagOffset, height - 31 });
+			} else if (Players[i].plractive) {
+				RenderClxSprite(out, (*playerExpTags)[0], position + Displacement { tagOffset, height - 31 });
+			}
+			tagOffset += (*playerExpTags)[0].width();
 		}
-		tagOffset += (*playerExpTags)[0].width();
 	}
 }
 

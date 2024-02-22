@@ -5,6 +5,347 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+## DevilutionX 1.5.2
+
+### Bug Fixes
+
+#### Multiplayer
+
+- Unable to join game due to invalid player data
+
+#### Translations
+
+- Improve rendering of Chinese/Japanese/Korean texts
+
+#### Gameplay
+
+- Hellfire items not saving their identified state
+
+#### Stability / Performance / System
+
+- Amiga: Incorrect rendering of things behind transparent elements
+- Android: Game locking up when switching sound output
+- Linux: Statically link BZIP2 and libsodium on x86_64
+- Stash corrupting when converting a hero between Diablo and Hellfire
+- Xbox: Game crashing unexpectedly
+- Xbox: Improve performance
+
+## DevilutionX 1.5.1
+
+### Features
+
+#### Multiplayer
+
+- Validate player stats
+- Update the pvp arenas
+- Rename "Loopback" to "Offline"
+
+#### Stability / Performance / System
+
+- Move hp/mana display and item graphics to gameplay options
+- Validate properties when reloading items
+- Demomode: Improve replay stability
+- Update [Discord link](https://discord.gg/devilutionx)
+- Display save game confirmation
+- Reduce ram usage
+
+#### Translations
+
+- Update Simplified Chinese translation
+- Update French translation
+- Update German translation
+- Update Greek translation
+- Update Japanese translation
+- Update Korean translation
+- Update Portuguese translation
+- Update Spanish translation
+- Update Swedish translation
+- Update Ukrainian translation
+
+### Bugfixes
+
+#### Gameplay
+
+- Being able to enter Lazarus' chamber before opening the portal
+- Book requirements not updating
+- Some monsters not walking
+- Missiles not traveling the full distance at some angles
+- Diablo: Incorrect level 4 layout when the Magic Banner quest is active
+- Halls of the Blind not being completed by picking up the amulet
+- Shareware: Bucklers not dropping
+- Player animation stuttering
+
+#### Multiplayer
+
+- Potions dropped by Divine shrines not being synced
+
+#### Platforms
+
+- Linux: Add sdl-image dependency for the deb package
+- Linux: Include discord dependency
+- Xbox One: Missing assets
+
+#### Graphics / Audio
+
+- Incorrect cursor rendering
+- Incorrect outlines at the right edge of the screen
+- NPC speech continuing after starting a new game
+- Correct various font rendering issues
+- Hide the hit indicator when only one player is in the game
+- Issues with flashing lights
+- Floating number still appearing after death
+- Misaligned automap
+
+#### Controls
+
+- Inconsistencies with placing items in to the stash
+- Gamepad: Being stuck in dialogs
+- Gamepad: Unable to use some scrolls directly
+
+#### Stability / Performance / System
+
+- Unable to playback new demo files
+- Various crashes
+
+### Bugfixes for original Diablo bugs
+
+#### Gameplay
+
+- Durability overflowing when reloading items
+- Teleporting onto an occupied tile
+- Right-click during dialogs casts spells
+
+#### Graphics / Audio
+
+- Cursor jitter when interacting with the inventory
+- Broken lava tiles
+
+#### Controls
+
+- Inconsistencies with placing items in to the inventory
+
+### Bugfixes for original Hellfire bugs
+
+#### Gameplay
+
+- Warping onto a solid tile
+
+## DevilutionX 1.5.0
+
+### Features
+
+#### Gameplay
+
+- Floating damage numbers
+- Option to auto-pick up oils
+- Quest items now drop based on difficulty
+
+#### Multiplayer
+
+- All quests can now be played, enabled from settings menu
+- Add chat commands, use `/help` for options
+- Add PvP arenas that can be accessed via `/arena #`
+- Inspect other players' items using `/inspect <name>`
+- Hellfire: Disabled The Cornerstone of the World
+- Draw hostile players' names in red in the chat panel
+
+#### Platforms
+
+- Added support for the original Xbox
+- Added support for Android TV
+- Added (experimental) support for RG99
+- Provide virtual resolutions for systems with only one native resolution
+- Android: Support loading data from external storage
+- Android: Do not speed up game after suspending if playing alone
+- Windows: Digitally signed executable
+- Support demo playback on SDL1 versions
+
+#### Graphics / Audio
+
+- Option to show item graphics in stores
+- More fluid lighting updates when moving
+- Added map in town
+- Add widescreen load screens (thanks to @Chance4us)
+- Durability icon gradually changing to red
+- Provide sound cue when gold is auto-placed into the open inventory
+- Color inventory slot based on item quality
+- Show cast animation in town
+- Monsters end their invisibility on death
+- Make the ground color of small rejuvenation potions distinct
+- Add setting for choosing a different audio resampler
+- Support for recoloring heroes using trn-files
+- Indicate on which difficulty a hero has defeated Diablo
+- Use decimal separators for gold and XP
+- Improve the monster HP bar for some edge cases
+- Only display resolution height when FitToScreen is enabled
+- Various text rendering improvements
+
+#### Controls
+
+- Do not target monster when casting Heal Other and Resurrect
+- Improve logic for belt auto-refill
+- Adjust the info panel descriptions based on the input device
+- keyboard/mouse: Additional mapping options
+- keyboard/mouse: Support back button in menus
+- gamepad/touch: Improve menu navigation
+- gamepad: Controls can now be mapped
+- gamepad: Autodetect button layout
+
+#### Translations
+
+- Update French translation
+- Update Italian translation
+- Update Japanese translation
+- Update Polish translation
+- Update Spanish translation
+- Update Ukrainian translation
+- Synchronize names of existing items with the current game language
+- Xbox One/Series: Include translations
+- Add `--lang` for specifying the language
+
+#### Stability / Performance / System
+
+- Create submenus for setting groups
+- Date based screenshot names
+- Performance improvement
+- Reduce RAM usage
+- Frame skipping on low end systems
+- Setting for picking audio device
+
+### Bugfixes
+
+#### Gameplay
+
+- Attack speed not always being accurate for specific combinations of effects and actions
+- Hellfire: Books from Adria's shop morphing
+- Petrified monsters shifting position when hit after loading a save game
+- Don't consume mana when double casting Mana Shield
+- Telekinesis respects the Disable Crippling Shrines setting
+
+#### Multiplayer
+
+- Items held by cursor lost due to lag cursor
+- Items lost due to various desync issues
+- Fix multiple desync issues
+- Don't show hostile players on the map
+- Player animations sometimes not being in sync
+- Better handling of latency
+
+#### Platforms
+
+- Windows: Fix ZeroTier always failing for Unicode usernames
+- Vita: Items lost when tapping outside the inventory
+- Fix gold withdrawal on SDL1 versions
+- macOS/iOS translate system texts
+- Translation support on BE systems
+
+#### Graphics / Audio
+
+- Top of screen not being rendered at some resolutions
+- Correct alignment of lightning and inferno
+- Make item labels take UI into consideration
+- Adria's "you have nothing to recharge" being misalignment on an empty list
+- Monsters sometimes not being rendered
+- Lighting missing for some areas after loading a saved game
+- Hellfire quests being removed from the quest log when completed
+
+#### Controls
+
+- Hero sometimes not willing to drop an item even when there is still room on the ground
+- touch: Missing buttons on low end devices
+
+#### Stability / Performance / System
+
+- Allow using the built-in screenshot function during text input
+- Various crashes
+- Resolve a few bugs and edge cases with the stash
+- A rare freeze when loading hell levels
+- Various issues with cursor rendering
+- Some additional validation of items when converting saves from Hellfire to Diablo
+
+### Bugfixes for original Diablo bugs
+
+#### Gameplay
+
+- Several issues that would cause missiles to miss when they shouldn't
+- Some wall tiles not blocking missiles and vision
+- The player can spawn in an incorrect location on some levels
+- Missing the extra stats at level 50
+- Guardian not calculating its damage correctly
+- Diablo not giving the intended XP on Hell difficulty
+- Fireball/Elemental not doing damage when monster is not in line of sight
+- Lightning spell being able to pass through some walls
+- Double casting of spells
+- Low quality items on quests after using a town portal
+- Monsters on Nightmare and Hell having too little HP
+- Monsters being immune to non-player missiles
+- Stairs up to level 6 not working sometimes
+- The Deadly Hunter bow not dealing the correct damage
+- Spell remaining unavailable after using a stone shrine until reequipping the staff
+- Fast and faster hit recovery stacking
+- Incorrect calculation for max charges lost with when using the recharge skill
+- Not getting XP after damaging a monster if it dies from a trap
+- Fire Arrows causing monsters to stop healing
+
+#### Multiplayer
+
+- Trapped doors rearming themselves when returning to a level
+- Resolve some sources of dsync
+
+#### Graphics / Audio
+
+- Incorrect Armor Class in Char Panel
+- Petrified monsters turning to face the attacker
+- Petrified monster sliding after having been stone cursed
+- Show portal animation in town
+- Broken corners on some cathedral levels
+- Inconsistent lighting on quest levels
+- Light smearing when walking in certain directions
+- Unique monsters light not always following the monster
+- Unique monster light being left behind when they are removed
+- Minor rendering bugs in UI panels
+- Center 2x2 items that go in 2x3 slots
+- Player moonwalking when talking to monsters
+- Tavern Sign playing the wrong sound when dropped on the floor
+- Poisoned Water not appearing in the quest log if discovered before talking to Pepin
+- Camera shaking when loading a save game after Diablo's death
+- Add scrollbar to help window
+
+#### Controls
+
+- Unable to pick Golem spawn location when right-clicking the scroll
+- Casting spells during level transition will target the old position
+- Help panel staying open while talking to NPCs
+
+#### Stability / Performance / System
+
+- Town portal not always returning to the correct quest level
+- Items lost when triggering a portal while picking them up
+- Optic Amulet and Arkaine's Valor sometimes being misaligned
+- Minor stability issues
+
+### Bugfixes for original Hellfire bugs
+
+#### Gameplay
+
+- Prevent oil of death damage wrap around
+- Reflected damage sometimes being too low
+
+#### Multiplayer
+
+- Desync in Nest when cow quest is enabled
+- Being unable to pick up quest items if you didn't start the game
+- Quest going out of sync
+
+#### Graphics / Audio
+
+- Gillian saying the grave quest start line multiple times
+- Buggy lighting in Nest and Crypt
+- Description of jester's item saying 500% instead of 600% damage
+- Typos in subtitles
+
 ## DevilutionX 1.4.1
 
 ### Features
@@ -111,9 +452,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve Korean localization
 - Improve Portuguese localization
 - Improve Romanian localization
-- Improve Russian localization ([optional dub](https://github.com/diasurgical/devilutionx-assets/releases/download/v2/ru.mpq) by Stream)
+- Improve Russian localization ([optional dub](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/ru.mpq) by Stream)
 - Improve Spanish localization
- 
+
 #### Gameplay
 
 - Added a stash at Gillian's house
@@ -291,7 +632,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PS4: The games fail to launch without a default ini, please see https://github.com/diasurgical/devilutionX/issues/4443
 - Clicking an empty hero slot will crash the game
-- Xbo/s: Missing translation files (download and add [devilutionx.mpq](https://github.com/diasurgical/devilutionx-assets/releases/download/v2/devilutionx.mpq))
+- Xbo/s: Missing translation files (download and add [devilutionx.mpq](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/devilutionx.mpq))
 
 ## DevilutionX 1.3.0
 
@@ -318,7 +659,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added option for pickup sound
 - Shrine reveals map in a different color than your own exploration
 - Automap has drop shadow for better contrast in some levels
-- Added font with support for Extended Latin, Greek, Coptic, Cyrillic, [Chinese, Japanese, and Korean](https://github.com/diasurgical/devilutionx-assets/releases/download/v1/fonts.mpq)
+- Added font with support for Extended Latin, Greek, Coptic, Cyrillic, [Chinese, Japanese, and Korean](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/fonts.mpq)
 - Item outline color now matches rarity
 - Use gold color to indicate unique items in stores
 - Improved XP bar visuals
@@ -378,12 +719,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added French
 - Added German
 - Added Italian
-- Added Korean (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/download/v1/fonts.mpq))
-- Added Polish ([optional dub](https://github.com/diasurgical/devilutionx-assets/releases/download/v1/pl.mpq) by professional voice actors)
+- Added Korean (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/fonts.mpq))
+- Added Polish ([optional dub](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/pl.mpq) by professional voice actors)
 - Added Russian
-- Added Simplified Chinese (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/download/v1/fonts.mpq))
+- Added Simplified Chinese (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/fonts.mpq))
 - Added Spanish
-- Added Traditional Chinese (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/download/v1/fonts.mpq))
+- Added Traditional Chinese (requires the [additional fonts](https://github.com/diasurgical/devilutionx-assets/releases/latest/download/fonts.mpq))
 
 ### Bugfixes
 
@@ -438,7 +779,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix name filtering
 - Correct minor memory leaks
 - Further reduced memory usage
-- Performance improvments
+- Performance improvements
 - Windows: Only show network errors once
 
 ### Bugfixes for original Diablo bugs
@@ -1066,7 +1407,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### January 14, 2019
 
 - [50% of functions are now binary identical](https://github.com/diasurgical/devilution/milestone/3) to the 1.09b version
-- [#456](https://github.com/diasurgical/devilution/pull/456) Assets can now be loaded directly form disk (no need for MPQ-files when modding)
+- [#456](https://github.com/diasurgical/devilution/pull/456) Assets can now be loaded directly from disk (no need for MPQ-files when modding)
 - [#528](https://github.com/diasurgical/devilution/pull/528) Code ported to C (can still be compiled as C++)
 - [#111](https://github.com/diasurgical/devilution/pull/111) Rich Header no longer contains incorrect sections
 - [#182](https://github.com/diasurgical/devilution/pull/182) defined a [Code Style](https://github.com/diasurgical/devilution/wiki/Code-style-guide) with accompanying clang-format definition
