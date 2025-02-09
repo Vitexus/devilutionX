@@ -2,8 +2,8 @@
 
 #include <optional>
 #include <string_view>
-#include <unordered_map>
 
+#include <ankerl/unordered_dense.h>
 #include <sol/sol.hpp>
 
 #include <config.h>
@@ -11,8 +11,12 @@
 #include "appfat.h"
 #include "engine/assets.hpp"
 #include "lua/modules/audio.hpp"
+#include "lua/modules/i18n.hpp"
 #include "lua/modules/log.hpp"
+#include "lua/modules/player.hpp"
 #include "lua/modules/render.hpp"
+#include "lua/modules/towners.hpp"
+#include "options.h"
 #include "plrmsg.h"
 #include "utils/console.h"
 #include "utils/log.hpp"
@@ -30,7 +34,7 @@ namespace {
 struct LuaState {
 	sol::state sol = {};
 	sol::table commonPackages = {};
-	std::unordered_map<std::string, sol::bytecode> compiledScripts = {};
+	ankerl::unordered_dense::segmented_map<std::string, sol::bytecode> compiledScripts = {};
 	sol::environment sandbox = {};
 	sol::table events = {};
 };
@@ -44,10 +48,10 @@ function requireGen(env, loaded, loadFn)
       local p = loaded[packageName]
       if p == nil then
           local loader = loadFn(packageName)
-          setEnvironment(loader, env)
           if type(loader) == "string" then
             error(loader)
           end
+          setEnvironment(env, loader)
           p = loader(packageName)
           loaded[packageName] = p
       end
@@ -119,7 +123,7 @@ sol::object RunScript(std::optional<sol::environment> env, std::string_view pack
 	if (result.get_type() == sol::type::string) {
 		if (!optional)
 			app_fatal(result.as<std::string>());
-		LogError("{}", result.as<std::string>());
+		LogInfo("{}", result.as<std::string>());
 		return sol::lua_nil;
 	}
 	auto fn = result.as<sol::protected_function>();
@@ -193,6 +197,20 @@ sol::environment CreateLuaSandbox()
 	return sandbox;
 }
 
+void LuaReloadActiveMods()
+{
+	// Loaded without a sandbox.
+	CurrentLuaState->events = RunScript(/*env=*/std::nullopt, "devilutionx.events", /*optional=*/false);
+	CurrentLuaState->commonPackages["devilutionx.events"] = CurrentLuaState->events;
+
+	for (std::string_view modname : GetOptions().Mods.GetActiveModList()) {
+		std::string packageName = StrCat("mods.", modname, ".init");
+		RunScript(CreateLuaSandbox(), packageName, /*optional=*/true);
+	}
+
+	LuaEvent("LoadModsComplete");
+}
+
 void LuaInitialize()
 {
 	CurrentLuaState.emplace(LuaState { .sol = { sol::c_call<decltype(&LuaPanic), &LuaPanic> } });
@@ -212,28 +230,29 @@ void LuaInitialize()
 	// Registering devilutionx object table
 	SafeCallResult(lua.safe_script(RequireGenSrc), /*optional=*/false);
 
-	// Loaded without a sandbox.
-	CurrentLuaState->events = RunScript(/*env=*/std::nullopt, "devilutionx.events", /*optional=*/false);
-
 	CurrentLuaState->commonPackages = lua.create_table_with(
 #ifdef _DEBUG
 	    "devilutionx.dev", LuaDevModule(lua),
 #endif
 	    "devilutionx.version", PROJECT_VERSION,
+	    "devilutionx.i18n", LuaI18nModule(lua),
 	    "devilutionx.log", LuaLogModule(lua),
 	    "devilutionx.audio", LuaAudioModule(lua),
+	    "devilutionx.player", LuaPlayerModule(lua),
 	    "devilutionx.render", LuaRenderModule(lua),
+	    "devilutionx.towners", LuaTownersModule(lua),
 	    "devilutionx.message", [](std::string_view text) { EventPlrMsg(text, UiFlags::ColorRed); },
-	    // These packages are loaded without a sandbox:
-	    "devilutionx.events", CurrentLuaState->events,
+	    // This package is loaded without a sandbox:
 	    "inspect", RunScript(/*env=*/std::nullopt, "inspect", /*optional=*/false));
 
 	// Used by the custom require implementation.
 	lua["setEnvironment"] = [](const sol::environment &env, const sol::function &fn) { sol::set_environment(env, fn); };
 
-	RunScript(CreateLuaSandbox(), "user", /*optional=*/true);
+	for (OptionEntryBase *mod : GetOptions().Mods.GetEntries()) {
+		mod->SetValueChangedCallback(LuaReloadActiveMods);
+	}
 
-	LuaEvent("GameBoot");
+	LuaReloadActiveMods();
 }
 
 void LuaShutdown()

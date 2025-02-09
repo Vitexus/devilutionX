@@ -2,7 +2,7 @@ if(NOT DEFINED DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY)
   set(DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets")
 endif()
 
-set(devilutionx_langs bg cs da de el es fr hr it ja ko pl pt_BR ro ru uk sv zh_CN zh_TW)
+set(devilutionx_langs bg cs da de el es et fr hr hu it ja ko pl pt_BR ro ru uk sv tr zh_CN zh_TW)
 if(USE_GETTEXT_FROM_VCPKG)
   # vcpkg doesn't add its own tools directory to the search path
   list(APPEND Gettext_ROOT ${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/tools/gettext/bin)
@@ -41,6 +41,7 @@ if (Gettext_FOUND)
 endif()
 
 set(devilutionx_assets
+  ASSETS_VERSION
   arena/church.dun
   arena/circle_of_death.dun
   arena/hell.dun
@@ -123,6 +124,11 @@ set(devilutionx_assets
   fonts/grayui.trn
   fonts/orange.trn
   fonts/red.trn
+  fonts/tr/12-00.clx
+  fonts/tr/24-00.clx
+  fonts/tr/30-00.clx
+  fonts/tr/42-00.clx
+  fonts/tr/46-00.clx
   fonts/whitegold.trn
   fonts/white.trn
   fonts/yellow.trn
@@ -143,11 +149,15 @@ set(devilutionx_assets
   lua_internal/get_lua_function_signature.lua
   lua/devilutionx/events.lua
   lua/inspect.lua
+  lua/mods/clock/init.lua
   lua/repl_prelude.lua
   nlevels/cutl5w.clx
   nlevels/cutl6w.clx
   nlevels/l5data/cornerstone.dun
   nlevels/l5data/uberroom.dun
+  plrgfx/warrior/whu/whufm.trn
+  plrgfx/warrior/whu/whulm.trn
+  plrgfx/warrior/whu/whuqm.trn
   txtdata/Experience.tsv
   txtdata/classes/barbarian/attributes.tsv
   txtdata/classes/bard/attributes.tsv
@@ -159,9 +169,11 @@ set(devilutionx_assets
   txtdata/items/item_suffixes.tsv
   txtdata/items/itemdat.tsv
   txtdata/items/unique_itemdat.tsv
+  txtdata/missiles/misdat.tsv
   txtdata/missiles/missile_sprites.tsv
   txtdata/monsters/monstdat.tsv
   txtdata/monsters/unique_monstdat.tsv
+  txtdata/objects/objdat.tsv
   txtdata/sound/effects.tsv
   txtdata/spells/spelldat.tsv
   ui_art/diablo.pal

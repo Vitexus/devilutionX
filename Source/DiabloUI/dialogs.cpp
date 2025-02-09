@@ -14,8 +14,11 @@
 #include "engine/load_clx.hpp"
 #include "engine/load_pcx.hpp"
 #include "engine/palette.h"
+#include "headless_mode.hpp"
 #include "hwcursor.hpp"
+#include "init.h"
 #include "utils/display.h"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/log.hpp"
 
@@ -61,6 +64,9 @@ bool Init(std::string_view caption, std::string_view text, bool error, bool rend
 			if (SDL_ShowCursor(SDL_ENABLE) <= -1)
 				LogError("{}", SDL_GetError());
 		}
+	}
+	if (!IsHardwareCursor() && !ArtCursor) {
+		ArtCursor = LoadPcx("ui_art\\cursor", /*transparentColor=*/0);
 	}
 	LoadDialogButtonGraphics();
 

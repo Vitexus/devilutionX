@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 
-foreach(_policy CMP0111 CMP0126 CMP0135)
+foreach(_policy CMP0111 CMP0126 CMP0135 CMP0141)
   if(POLICY ${_policy})
     cmake_policy(SET ${_policy} NEW)
     set(CMAKE_POLICY_DEFAULT_${_policy} NEW)
@@ -47,12 +47,10 @@ include(VcPkgManifestFeatures)
 # 1. Properties such as `TARGET_SUPPORTS_SHARED_LIBS` are defined.
 # 2. Toolchain file is evaluated, required for `Platforms.cmake`,
 #    which can override the options.
-if(NOT VERSION_NUM)
-  file(STRINGS "VERSION" VERSION_STR)
-  if(NOT "${VERSION_STR}" STREQUAL "")
-    string(REGEX MATCH "([0-9]+\\.[0-9]+\\.[0-9]+)(.*)?" VERSION_PREFIX ${VERSION_STR})
-    set(VERSION_NUM ${CMAKE_MATCH_1})
-  endif()
+file(STRINGS "VERSION" VERSION_STR)
+if(NOT "${VERSION_STR}" STREQUAL "")
+  string(REGEX MATCH "([0-9]+\\.[0-9]+\\.[0-9]+).*" VERSION_PREFIX ${VERSION_STR})
+  set(VERSION_NUM ${CMAKE_MATCH_1})
 endif()
 
 if(NOT VERSION_SUFFIX)
@@ -101,6 +99,7 @@ option(ENABLE_CODECOVERAGE "Instrument code for code coverage (only enabled with
 # Packaging options
 RELEASE_OPTION(CPACK "Configure CPack")
 option(MACOSX_STANDALONE_APP_BUNDLE "Generate a portable app bundle to use on other devices (requires sudo)" OFF)
+option(WIN_NSIS "Generate an NSIS installer" OFF)
 
 # Network options
 cmake_dependent_option(DISABLE_TCP "Disable TCP multiplayer option" OFF "NOT NONET" ON)
@@ -110,6 +109,15 @@ cmake_dependent_option(DISABLE_ZERO_TIER "Disable ZeroTier multiplayer option" O
 if(NOT USE_SDL1)
   set(DEVILUTIONX_DISPLAY_TEXTURE_FORMAT "SDL_PIXELFORMAT_RGB888" CACHE STRING "Texture format for DevilutionX textures when using the GPU renderer")
   mark_as_advanced(DEVILUTIONX_DISPLAY_TEXTURE_FORMAT)
+endif()
+
+if(USE_SDL1)
+  # SDL_image in SDL1 does not support PNG, making PCX the only option.
+  set(DEVILUTIONX_SCREENSHOT_FORMAT "DEVILUTIONX_SCREENSHOT_FORMAT_PCX")
+else()
+  set(DEVILUTIONX_SCREENSHOT_FORMAT "DEVILUTIONX_SCREENSHOT_FORMAT_PNG" CACHE STRING "Screenshot format")
+  set_property(CACHE DEVILUTIONX_SCREENSHOT_FORMAT PROPERTY STRINGS "DEVILUTIONX_SCREENSHOT_FORMAT_PNG;DEVILUTIONX_SCREENSHOT_FORMAT_PCX")
+  mark_as_advanced(DEVILUTIONX_SCREENSHOT_FORMAT)
 endif()
 
 # Sound options
@@ -274,6 +282,11 @@ endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   # u8path() function is deprecated but there is no sensible alternative and it might even get un-deprecated.
   add_definitions(-D_SILENCE_CXX20_U8PATH_DEPRECATION_WARNING)
+  if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.25")
+    # This enables Edit & Continue support, see https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio#edit-and-continue-for-cmake-projects
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug>:EditAndContinue>") # Sets /ZI compiler option, see https://cmake.org/cmake/help/latest/variable/CMAKE_MSVC_DEBUG_INFORMATION_FORMAT.html
+    add_link_options("$<$<CONFIG:Debug>:/INCREMENTAL>")
+  endif()
 endif()
 
 # Not a genexp because CMake doesn't support it
@@ -327,7 +340,7 @@ endif()
 if(ANDROID)
   add_library(${BIN_TARGET} SHARED Source/main.cpp)
 elseif(UWP_LIB)
-  add_custom_target(${BIN_TARGET})  # we only need libdevilutionx
+  set(BIN_TARGET libdevilutionx)
 else()
   add_executable(${BIN_TARGET}
     WIN32
@@ -335,7 +348,6 @@ else()
     Source/main.cpp
     Packaging/windows/devilutionx.exe.manifest
     Packaging/windows/devilutionx.rc
-    Packaging/apple/AppIcon.icns
     Packaging/apple/LaunchScreen.storyboard)
 
     if(CMAKE_STRIP AND NOT DEVILUTIONX_DISABLE_STRIP)
@@ -348,7 +360,7 @@ else()
 endif()
 
 if(NOT UWP_LIB)
-  target_link_libraries(${BIN_TARGET} PRIVATE libdevilutionx)
+  target_link_dependencies(${BIN_TARGET} PRIVATE libdevilutionx)
 endif()
 
 if(GPERF)
@@ -374,7 +386,6 @@ include(functions/set_relative_file_macro)
 set_relative_file_macro(${BIN_TARGET})
 
 if(APPLE)
-  set_source_files_properties("./Packaging/apple/AppIcon.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
   set(MACOSX_BUNDLE_GUI_IDENTIFIER com.diasurgical.devilutionx)
   set(MACOSX_BUNDLE_COPYRIGHT Unlicense)
   set(MACOSX_BUNDLE_BUNDLE_NAME devilutionx)
@@ -387,11 +398,19 @@ if(APPLE)
     set(MACOSX_BUNDLE_REQUIRED_PLATFORM IPhoneOS)
     set_target_properties(${BIN_TARGET} PROPERTIES XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "9.0")
-  else()
+  elseif(DARWIN_MAJOR_VERSION GREATER_EQUAL 17)
     set(MACOSX_BUNDLE_REQUIRED_PLATFORM Carbon)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12.0")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13.0")
   endif()
-  set_target_properties(${BIN_TARGET} PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
+  if(DARWIN_MAJOR_VERSION VERSION_LESS 9)
+    # Finder on OSX Tiger can only handle icns files with up to 128x128 icons.
+    set(_icon_file AppIcon_128)
+  else()
+    set(_icon_file AppIcon)
+  endif()
+  target_sources(${BIN_TARGET} PRIVATE "Packaging/apple/${_icon_file}.icns")
+  set_source_files_properties("./Packaging/apple/${_icon_file}.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  set_target_properties(${BIN_TARGET} PROPERTIES MACOSX_BUNDLE_ICON_FILE "${_icon_file}.icns")
   set_target_properties(${BIN_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/apple/Info.plist")
 
   install (TARGETS ${BIN_TARGET} DESTINATION ./)
@@ -492,10 +511,6 @@ if(NINTENDO_3DS)
   add_cia_target(${BIN_TARGET} ${APP_RSF} ${APP_BANNER} ${APP_AUDIO})
 endif()
 
-if(UWP_LIB)
-  target_compile_definitions(libdevilutionx PRIVATE __UWP__=1)
-endif()
-
 if(NXDK)
   target_link_libraries(${BIN_TARGET} PRIVATE "${NXDK_DIR}/lib/libnxdk_automount_d.lib")
   target_link_options(${BIN_TARGET} PRIVATE "-include:_automount_d_drive")
@@ -528,9 +543,21 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
       "${SDL2_WIN32_LICENSES_DIR}/LICENSE*.txt"
       "${SDL2_WIN32_LICENSES_DIR}/README*.txt")
 
-    set(CPACK_PACKAGE_FILE_NAME "devilutionx")
     set(CPACK_PACKAGE_NAME ${project_name})
-    set(CPACK_GENERATOR "ZIP")
+    if(WIN_NSIS)
+      set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}_${PROJECT_VERSION}_Installer")
+      set(CPACK_GENERATOR "NSIS")
+      set(CPACK_PACKAGE_INSTALL_DIRECTORY "${PROJECT_NAME}")
+      set(CPACK_NSIS_MUI_ICON "${PROJECT_SOURCE_DIR}/Packaging/windows/icon.ico")
+      set(CPACK_NSIS_MUI_UNIICON "${PROJECT_SOURCE_DIR}/Packaging/windows/icon.ico")
+      set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE.md")
+      set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+      set(CPACK_PACKAGE_EXECUTABLES "devilutionx" "DevilutionX")
+      set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${BIN_TARGET}")
+    else()
+      set(CPACK_PACKAGE_FILE_NAME "devilutionx")
+      set(CPACK_GENERATOR "ZIP")
+    endif()
     set(CPACK_STRIP_FILES TRUE)
     install(TARGETS ${BIN_TARGET} DESTINATION .)
     install(FILES "${PROJECT_SOURCE_DIR}/Packaging/windows/README.txt"
@@ -642,4 +669,10 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
   set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
   set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
   include(CPack)
+endif()
+
+resolve_target_link_dependencies()
+if(UWP_LIB)
+  get_target_property(_linked_objects libdevilutionx LINKED_OBJECTS)
+  target_sources(libdevilutionx PRIVATE ${_linked_objects})
 endif()

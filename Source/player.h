@@ -12,20 +12,24 @@
 #include <array>
 
 #include "diablo.h"
-#include "engine.h"
 #include "engine/actor_position.hpp"
 #include "engine/animationinfo.h"
 #include "engine/clx_sprite.hpp"
+#include "engine/displacement.hpp"
 #include "engine/path.h"
 #include "engine/point.hpp"
+#include "game_mode.hpp"
 #include "interfac.h"
 #include "items.h"
+#include "items/validation.h"
+#include "levels/dun_tile.hpp"
 #include "levels/gendung.h"
 #include "multi.h"
 #include "playerdat.hpp"
 #include "spelldat.h"
 #include "utils/attributes.h"
 #include "utils/enum_traits.h"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -155,7 +159,7 @@ enum class DeathReason {
 	MonsterOrTrap,
 	/* @brief Other player or selfkill (for example firewall) */
 	Player,
-	/* @brief HP is zero but we don't know when or where this happend */
+	/* @brief HP is zero but we don't know when or where this happened */
 	Unknown,
 };
 
@@ -261,7 +265,7 @@ struct Player {
 	int _pILMaxDam;
 	uint32_t _pExperience;
 	PLR_MODE _pmode;
-	int8_t walkpath[MaxPathLength];
+	int8_t walkpath[MaxPathLengthPlayer];
 	bool plractive;
 	action_id destAction;
 	int destParam1;
@@ -398,12 +402,7 @@ public:
 
 	void CalcScrolls();
 
-	bool CanUseItem(const Item &item) const
-	{
-		return _pStrength >= item._iMinStr
-		    && _pMagic >= item._iMinMag
-		    && _pDexterity >= item._iMinDex;
-	}
+	bool CanUseItem(const Item &item) const;
 
 	bool CanCleave()
 	{
@@ -520,9 +519,9 @@ public:
 	Point GetTargetPosition() const;
 
 	/**
-	 * @brief Check if position is in player's path.
+	 * @brief Returns the index of the given position in `walkpath`, or -1 if not found.
 	 */
-	bool IsPositionInPath(Point position);
+	int GetPositionPathIndex(Point position);
 
 	/**
 	 * @brief Says a speech line.
@@ -689,7 +688,7 @@ public:
 			// Maximum achievable HP is approximately 1200. Diablo uses fixed point integers where the last 6 bits are
 			// fractional values. This means that we will never overflow HP values normally by doing this multiplication
 			// as the max value is representable in 17 bits and the multiplication result will be at most 23 bits
-			_pHPPer = std::clamp(_pHitPoints * 80 / _pMaxHP, 0, 80); // hp should never be greater than maxHP but just in case
+			_pHPPer = std::clamp(_pHitPoints * 81 / _pMaxHP, 0, 81); // hp should never be greater than maxHP but just in case
 		}
 
 		return _pHPPer;
@@ -700,7 +699,7 @@ public:
 		if (_pMaxMana <= 0) {
 			_pManaPer = 0;
 		} else {
-			_pManaPer = std::clamp(_pMana * 80 / _pMaxMana, 0, 80);
+			_pManaPer = std::clamp(_pMana * 81 / _pMaxMana, 0, 81);
 		}
 
 		return _pManaPer;
@@ -786,7 +785,7 @@ public:
 	}
 	[[nodiscard]] Displacement getRenderingOffset(const ClxSprite sprite) const
 	{
-		Displacement offset = { -CalculateWidth2(sprite.width()), 0 };
+		Displacement offset = { -CalculateSpriteTileCenterX(sprite.width()), 0 };
 		if (isWalking())
 			offset += GetOffsetForWalking(AnimInfo, _pdir);
 		return offset;
@@ -894,6 +893,15 @@ public:
 
 	/** @brief Checks if the player level is owned by local client. */
 	bool isLevelOwnedByLocalClient() const;
+
+	/** @brief Checks if the player is holding an item of the provided type, and is usable. */
+	bool isHoldingItem(const ItemType type) const
+	{
+		const Item &leftHandItem = InvBody[INVLOC_HAND_LEFT];
+		const Item &rightHandItem = InvBody[INVLOC_HAND_RIGHT];
+
+		return (type == leftHandItem._itype && leftHandItem._iStatFlag) || (type == rightHandItem._itype && rightHandItem._iStatFlag);
+	}
 };
 
 extern DVL_API_FOR_TEST uint8_t MyPlayerId;

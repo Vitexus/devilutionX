@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 
+#include <expected.hpp>
 #include <fmt/format.h>
 #include <function_ref.hpp>
 
@@ -17,8 +18,10 @@
 #include "playerdat.hpp"
 #include "utils/algorithm/container.hpp"
 #include "utils/display.h"
+#include "utils/enum_traits.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
+#include "utils/status_macros.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/surface_to_clx.hpp"
 
@@ -74,6 +77,8 @@ UiFlags GetValueColor(int value, bool flip = false)
 
 UiFlags GetMaxManaColor()
 {
+	if (HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana))
+		return UiFlags::ColorRed;
 	return InspectPlayer->_pMaxMana > InspectPlayer->_pMaxManaBase ? UiFlags::ColorBlue : UiFlags::ColorWhite;
 }
 
@@ -184,9 +189,9 @@ PanelEntry panelEntries[] = {
 	{ "", { 135, 284 }, 45, 0,
 	    []() { return StyledText { (InspectPlayer->_pHitPoints != InspectPlayer->_pMaxHP ? UiFlags::ColorRed : GetMaxHealthColor()), StrCat(InspectPlayer->_pHitPoints >> 6) }; } },
 	{ N_("Mana"), { LeftColumnLabelX, 312 }, 45, LeftColumnLabelWidth,
-	    []() { return StyledText { GetMaxManaColor(), StrCat(InspectPlayer->_pMaxMana >> 6) }; } },
+	    []() { return StyledText { GetMaxManaColor(), StrCat(HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) ? 0 : InspectPlayer->_pMaxMana >> 6) }; } },
 	{ "", { 135, 312 }, 45, 0,
-	    []() { return StyledText { (InspectPlayer->_pMana != InspectPlayer->_pMaxMana ? UiFlags::ColorRed : GetMaxManaColor()), StrCat(InspectPlayer->_pMana >> 6) }; } },
+	    []() { return StyledText { (InspectPlayer->_pMana != InspectPlayer->_pMaxMana ? UiFlags::ColorRed : GetMaxManaColor()), StrCat((HasAnyOf(InspectPlayer->_pIFlags, ItemSpecialEffect::NoMana) || (InspectPlayer->_pMana >> 6) <= 0) ? 0 : InspectPlayer->_pMana >> 6) }; } },
 
 	{ N_("Resist magic"), { RightColumnLabelX, 256 }, 57, RightColumnLabelWidth,
 	    []() { return GetResistInfo(InspectPlayer->_pMagResist); } },
@@ -255,29 +260,29 @@ void DrawStatButtons(const Surface &out)
 {
 	if (InspectPlayer->_pStatPts > 0 && !IsInspectingPlayer()) {
 		if (InspectPlayer->_pBaseStr < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Strength))
-			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 157 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Strength)] ? 2 : 1]);
+			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 157 }), (*pChrButtons)[CharPanelButton[static_cast<size_t>(CharacterAttribute::Strength)] ? 2 : 1]);
 		if (InspectPlayer->_pBaseMag < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Magic))
-			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 185 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Magic)] ? 4 : 3]);
+			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 185 }), (*pChrButtons)[CharPanelButton[static_cast<size_t>(CharacterAttribute::Magic)] ? 4 : 3]);
 		if (InspectPlayer->_pBaseDex < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Dexterity))
-			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 214 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Dexterity)] ? 6 : 5]);
+			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 214 }), (*pChrButtons)[CharPanelButton[static_cast<size_t>(CharacterAttribute::Dexterity)] ? 6 : 5]);
 		if (InspectPlayer->_pBaseVit < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Vitality))
-			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 242 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Vitality)] ? 8 : 7]);
+			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 242 }), (*pChrButtons)[CharPanelButton[static_cast<size_t>(CharacterAttribute::Vitality)] ? 8 : 7]);
 	}
 }
 
 } // namespace
 
-void LoadCharPanel()
+tl::expected<void, std::string> LoadCharPanel()
 {
-	OptionalOwnedClxSpriteList background = LoadClx("data\\charbg.clx");
+	ASSIGN_OR_RETURN(OptionalOwnedClxSpriteList background, LoadClxWithStatus("data\\charbg.clx"));
 	OwnedSurface out((*background)[0].width(), (*background)[0].height());
 	RenderClxSprite(out, (*background)[0], { 0, 0 });
 	background = std::nullopt;
 
 	{
-		OwnedClxSpriteList boxLeft = LoadClx("data\\boxleftend.clx");
-		OwnedClxSpriteList boxMiddle = LoadClx("data\\boxmiddle.clx");
-		OwnedClxSpriteList boxRight = LoadClx("data\\boxrightend.clx");
+		ASSIGN_OR_RETURN(OwnedClxSpriteList boxLeft, LoadClxWithStatus("data\\boxleftend.clx"));
+		ASSIGN_OR_RETURN(OwnedClxSpriteList boxMiddle, LoadClxWithStatus("data\\boxmiddle.clx"));
+		ASSIGN_OR_RETURN(OwnedClxSpriteList boxRight, LoadClxWithStatus("data\\boxrightend.clx"));
 
 		const bool isSmallFontTall = IsSmallFontTall();
 		const int attributeHeadersY = isSmallFontTall ? 112 : 114;
@@ -295,6 +300,7 @@ void LoadCharPanel()
 	}
 
 	Panel = SurfaceToClx(out);
+	return {};
 }
 
 void FreeCharPanel()

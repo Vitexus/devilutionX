@@ -8,16 +8,22 @@
 #include "cursor.h"
 #include "diablo_msg.hpp"
 #include "engine/backbuffer_state.hpp"
+#include "engine/demomode.h"
 #include "engine/events.hpp"
 #include "engine/sound.h"
 #include "engine/sound_defs.hpp"
 #include "gmenu.h"
-#include "init.h"
+#include "headless_mode.hpp"
 #include "loadsave.h"
+#include "multi.h"
 #include "options.h"
 #include "pfile.h"
 #include "qol/floatingnumbers.h"
 #include "utils/language.h"
+
+#ifndef USE_SDL1
+#include "controls/touch/renderers.h"
+#endif
 
 namespace devilution {
 
@@ -32,7 +38,7 @@ void GamemenuRestartTown(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuMusicVolume(bool bActivate);
 void GamemenuSoundVolume(bool bActivate);
-void GamemenuGamma(bool bActivate);
+void GamemenuBrightness(bool bActivate);
 void GamemenuSpeed(bool bActivate);
 
 /** Contains the game menu items of the single player menu. */
@@ -63,7 +69,7 @@ TMenuItem sgOptionsMenu[] = {
 	// dwFlags,                     pszStr,              fnMenu
 	{ GMENU_ENABLED | GMENU_SLIDER, nullptr,             &GamemenuMusicVolume  },
 	{ GMENU_ENABLED | GMENU_SLIDER, nullptr,             &GamemenuSoundVolume  },
-	{ GMENU_ENABLED | GMENU_SLIDER, N_("Gamma"),         &GamemenuGamma        },
+	{ GMENU_ENABLED | GMENU_SLIDER, N_("Gamma"),         &GamemenuBrightness   },
 	{ GMENU_ENABLED | GMENU_SLIDER, N_("Speed"),         &GamemenuSpeed        },
 	{ GMENU_ENABLED               , N_("Previous Menu"), &GamemenuPrevious     },
 	{ GMENU_ENABLED               , nullptr,             nullptr               },
@@ -150,10 +156,10 @@ void GamemenuGetSound()
 	GamemenuSoundMusicToggle(SoundToggleNames, &sgOptionsMenu[1], sound_get_or_set_sound_volume(1));
 }
 
-void GamemenuGetGamma()
+void GamemenuGetBrightness()
 {
-	gmenu_slider_steps(&sgOptionsMenu[2], 15);
-	gmenu_slider_set(&sgOptionsMenu[2], 30, 100, UpdateGamma(0));
+	gmenu_slider_steps(&sgOptionsMenu[2], 21);
+	gmenu_slider_set(&sgOptionsMenu[2], 0, 100, UpdateBrightness(-1));
 }
 
 void GamemenuGetSpeed()
@@ -178,16 +184,16 @@ void GamemenuGetSpeed()
 	gmenu_slider_set(&sgOptionsMenu[3], 20, 50, sgGameInitInfo.nTickRate);
 }
 
-int GamemenuSliderGamma()
+int GamemenuSliderBrightness()
 {
-	return gmenu_slider_get(&sgOptionsMenu[2], 30, 100);
+	return gmenu_slider_get(&sgOptionsMenu[2], 0, 100);
 }
 
 void GamemenuOptions(bool /*bActivate*/)
 {
 	GamemenuGetMusic();
 	GamemenuGetSound();
-	GamemenuGetGamma();
+	GamemenuGetBrightness();
 	GamemenuGetSpeed();
 	gmenu_set_items(sgOptionsMenu, nullptr);
 }
@@ -248,21 +254,18 @@ void GamemenuSoundVolume(bool bActivate)
 	GamemenuGetSound();
 }
 
-void GamemenuGamma(bool bActivate)
+void GamemenuBrightness(bool bActivate)
 {
-	int gamma;
+	int brightness;
 	if (bActivate) {
-		gamma = UpdateGamma(0);
-		if (gamma == 30)
-			gamma = 100;
-		else
-			gamma = 30;
+		brightness = UpdateBrightness(-1);
+		brightness = (brightness == 0) ? 100 : 0;
 	} else {
-		gamma = GamemenuSliderGamma();
+		brightness = GamemenuSliderBrightness();
 	}
 
-	UpdateGamma(gamma);
-	GamemenuGetGamma();
+	UpdateBrightness(brightness);
+	GamemenuGetBrightness();
 }
 
 void GamemenuSpeed(bool bActivate)
@@ -277,7 +280,7 @@ void GamemenuSpeed(bool bActivate)
 		sgGameInitInfo.nTickRate = gmenu_slider_get(&sgOptionsMenu[3], 20, 50);
 	}
 
-	sgOptions.Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
+	GetOptions().Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
 	gnTickDelay = 1000 / sgGameInitInfo.nTickRate;
 }
 
@@ -302,7 +305,19 @@ void gamemenu_load_game(bool /*bActivate*/)
 	InitDiabloMsg(EMSG_LOADING);
 	RedrawEverything();
 	DrawAndBlit();
-	LoadGame(false);
+#ifndef USE_SDL1
+	DeactivateVirtualGamepad();
+	FreeVirtualGamepadTextures();
+#endif
+	if (tl::expected<void, std::string> result = LoadGame(false); !result.has_value()) {
+		app_fatal(result.error());
+	}
+#if !defined(USE_SDL1) && !defined(__vita__)
+	if (renderer != nullptr) {
+		InitVirtualGamepadTextures(*renderer);
+	}
+#endif
+	NewCursor(CURSOR_HAND);
 	ClrDiabloMsg();
 	CornerStone.activated = false;
 	PaletteFadeOut(8);
@@ -341,7 +356,7 @@ void gamemenu_save_game(bool /*bActivate*/)
 	NewCursor(CURSOR_HAND);
 	if (CornerStone.activated) {
 		CornerstoneSave();
-		SaveOptions();
+		if (!demo::IsRunning()) SaveOptions();
 	}
 	interface_msg_pump();
 	SetEventHandler(saveProc);

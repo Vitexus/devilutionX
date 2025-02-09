@@ -7,15 +7,15 @@ if (buildAsApplication) {
 }
 
 android {
-	ndkVersion '26.1.10909125'
-	compileSdk 33
+	ndkVersion '27.2.12479018'
+	compileSdk 35
 	defaultConfig {
 		if (buildAsApplication) {
 			applicationId "org.diasurgical.devilutionx"
 		}
 		minSdkVersion 21
-		targetSdkVersion 33
-		versionCode 28
+		targetSdkVersion 35
+		versionCode 29
 		versionName project.file('../../VERSION').text.trim()
 		externalNativeBuild {
 			cmake {
@@ -25,6 +25,9 @@ android {
 		}
 	}
 	buildTypes {
+		debug {
+			applicationIdSuffix ".dev"
+		}
 		release {
 			minifyEnabled false
 			proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -45,7 +48,7 @@ android {
 		externalNativeBuild {
 			cmake {
 				path '../../CMakeLists.txt'
-				version "3.22.1+"
+				version "3.31.0+"
 				buildStagingDirectory System.env.DevilutionX_Android_StagingDirectory
 			}
 		}

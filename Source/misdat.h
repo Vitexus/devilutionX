@@ -10,6 +10,8 @@
 #include <string>
 #include <type_traits>
 
+#include <expected.hpp>
+
 #include "effects.h"
 #include "engine/clx_sprite.hpp"
 #include "spelldat.h"
@@ -103,11 +105,11 @@ enum class MissileMovementDistribution : uint8_t {
 	 */
 	Disabled,
 	/**
-	 * @brief The missile moves and if it hits a enemey it stops (for example firebolt)
+	 * @brief The missile moves and if it hits an enemy it stops (for example firebolt)
 	 */
 	Blockable,
 	/**
-	 * @brief The missile moves and even it hits a enemy it keeps moving (for example flame wave)
+	 * @brief The missile moves and even it hits an enemy it keeps moving (for example flame wave)
 	 */
 	Unblockable,
 };
@@ -128,17 +130,21 @@ enum class MissileDataFlags : uint8_t {
 use_enum_as_flags(MissileDataFlags);
 
 struct MissileData {
-	void (*mAddProc)(Missile &, AddMissileParameter &);
-	void (*mProc)(Missile &);
+	using AddFn = void (*)(Missile &, AddMissileParameter &);
+	using ProcessFn = void (*)(Missile &);
+
+	AddFn addFn;
+	ProcessFn processFn;
+
 	/**
 	 * @brief Sound emitted when cast.
 	 */
-	SfxID mlSFX;
+	SfxID castSound;
 	/**
 	 * @brief Sound emitted on impact.
 	 */
-	SfxID miSFX;
-	MissileGraphicID mFileNum;
+	SfxID hitSound;
+	MissileGraphicID graphic;
 	MissileDataFlags flags;
 	MissileMovementDistribution movementDistribution;
 
@@ -179,7 +185,7 @@ struct MissileFileData {
 	[[nodiscard]] uint8_t animDelay(uint8_t dir) const;
 	[[nodiscard]] uint8_t animLen(uint8_t dir) const;
 
-	void LoadGFX();
+	tl::expected<void, std::string> LoadGFX();
 
 	void FreeGFX()
 	{
@@ -200,18 +206,12 @@ struct MissileFileData {
 	}
 };
 
-extern const MissileData MissilesData[];
-
-inline const MissileData &GetMissileData(MissileID missileId)
-{
-	return MissilesData[static_cast<std::underlying_type_t<MissileID>>(missileId)];
-}
-
+const MissileData &GetMissileData(MissileID missileId);
 MissileFileData &GetMissileSpriteData(MissileGraphicID graphicId);
 
 void LoadMissileData();
 
-void InitMissileGFX(bool loadHellfireGraphics = false);
+tl::expected<void, std::string> InitMissileGFX(bool loadHellfireGraphics = false);
 void FreeMissileGFX();
 
 } // namespace devilution

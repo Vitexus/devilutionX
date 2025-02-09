@@ -9,6 +9,7 @@
 #include <picosha2.h>
 
 #include "cursor.h"
+#include "game_mode.hpp"
 #include "init.h"
 #include "loadsave.h"
 #include "pack.h"
@@ -302,7 +303,7 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player.pDamAcFlags, ItemSpecialEffectHf::None);
 
 	ASSERT_EQ(player._pmode, 0);
-	ASSERT_EQ(Count8(player.walkpath, MaxPathLength), 25);
+	ASSERT_EQ(Count8(player.walkpath, MaxPathLengthPlayer), MaxPathLengthPlayer);
 	ASSERT_EQ(player._pgfxnum, 36);
 	ASSERT_EQ(player.AnimInfo.ticksPerFrame, 4);
 	ASSERT_EQ(player.AnimInfo.tickCounterOfCurrentFrame, 1);
@@ -369,8 +370,9 @@ TEST(Writehero, pfile_write_hero)
 	// Please provide them so that the tests can run successfully
 	ASSERT_TRUE(HaveSpawn() || HaveDiabdat());
 
-	paths::SetPrefPath(".");
-	std::remove("multi_0.sv");
+	const std::string savePath = paths::BasePath() + "multi_0.sv";
+	paths::SetPrefPath(paths::BasePath());
+	RemoveFile(savePath.c_str());
 
 	gbVanilla = true;
 	gbIsHellfire = false;
@@ -384,9 +386,9 @@ TEST(Writehero, pfile_write_hero)
 	MyPlayerId = 0;
 	MyPlayer = &Players[MyPlayerId];
 
-	InitCursor();
 	LoadSpellData();
 	LoadPlayerDataFiles();
+	LoadMonsterData();
 	LoadItemData();
 	_uiheroinfo info {};
 	info.heroclass = HeroClass::Rogue;
@@ -397,11 +399,10 @@ TEST(Writehero, pfile_write_hero)
 	AssertPlayer(Players[0]);
 	pfile_write_hero();
 
-	const char *path = "multi_0.sv";
 	uintmax_t fileSize;
-	ASSERT_TRUE(GetFileSize(path, &fileSize));
+	ASSERT_TRUE(GetFileSize(savePath.c_str(), &fileSize));
 	size_t size = static_cast<size_t>(fileSize);
-	FILE *f = std::fopen(path, "rb");
+	FILE *f = OpenFile(savePath.c_str(), "rb");
 	ASSERT_TRUE(f != nullptr);
 	std::unique_ptr<char[]> data { new char[size] };
 	ASSERT_EQ(std::fread(data.get(), size, 1, f), 1);

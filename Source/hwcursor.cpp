@@ -46,11 +46,11 @@ Size ScaledSize(Size size)
 
 bool IsCursorSizeAllowed(Size size)
 {
-	if (*sgOptions.Graphics.hardwareCursorMaxSize <= 0)
+	if (*GetOptions().Graphics.hardwareCursorMaxSize <= 0)
 		return true;
 	size = ScaledSize(size);
-	return size.width <= *sgOptions.Graphics.hardwareCursorMaxSize
-	    && size.height <= *sgOptions.Graphics.hardwareCursorMaxSize;
+	return size.width <= *GetOptions().Graphics.hardwareCursorMaxSize
+	    && size.height <= *GetOptions().Graphics.hardwareCursorMaxSize;
 }
 
 Point GetHotpointPosition(const SDL_Surface &surface, HotpointPosition position)
@@ -66,7 +66,7 @@ Point GetHotpointPosition(const SDL_Surface &surface, HotpointPosition position)
 
 bool ShouldUseBilinearScaling()
 {
-	return *sgOptions.Graphics.scaleQuality != ScalingQuality::NearestPixel;
+	return *GetOptions().Graphics.scaleQuality != ScalingQuality::NearestPixel;
 }
 
 bool SetHardwareCursorFromSurface(SDL_Surface *surface, HotpointPosition hotpointPosition)
@@ -124,7 +124,7 @@ bool SetHardwareCursorFromClxSprite(ClxSprite sprite, HotpointPosition hotpointP
 bool SetHardwareCursorFromSprite(int pcurs)
 {
 	const bool isItem = !MyPlayer->HoldItem.isEmpty();
-	if (isItem && !*sgOptions.Graphics.hardwareCursorForItems)
+	if (isItem && !*GetOptions().Graphics.hardwareCursorForItems)
 		return false;
 
 	const int outlineWidth = isItem ? 1 : 0;
@@ -144,7 +144,7 @@ bool SetHardwareCursorFromSprite(int pcurs)
 	constexpr std::uint8_t TransparentColor = 1;
 	SDL_FillRect(out.surface, nullptr, TransparentColor);
 	SDL_SetColorKey(out.surface, 1, TransparentColor);
-	DrawSoftwareCursor(out, { outlineWidth, size.height - outlineWidth }, pcurs);
+	DrawSoftwareCursor(out, { outlineWidth, size.height - outlineWidth - 1 }, pcurs);
 
 	const bool result = SetHardwareCursorFromSurface(
 	    out.surface, isItem ? HotpointPosition::Center : HotpointPosition::TopLeft);

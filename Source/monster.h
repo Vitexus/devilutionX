@@ -10,17 +10,19 @@
 
 #include <array>
 #include <functional>
+#include <string>
 
+#include <expected.hpp>
 #include <function_ref.hpp>
 
-#include "engine.h"
 #include "engine/actor_position.hpp"
 #include "engine/animationinfo.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
 #include "engine/sound.h"
 #include "engine/world_tile.hpp"
-#include "init.h"
+#include "game_mode.hpp"
+#include "levels/dun_tile.hpp"
 #include "misdat.h"
 #include "monstdat.h"
 #include "spelldat.h"
@@ -220,7 +222,7 @@ struct Monster { // note: missing field _mAFNum
 	uint32_t rndItemSeed;
 	/** Seed used to determine AI behaviour/sync sounds in multiplayer games? */
 	uint32_t aiSeed;
-	uint16_t toHit;
+	uint16_t golemToHit;
 	uint16_t resistance;
 	_speech_id talkMsg;
 
@@ -363,6 +365,14 @@ struct Monster { // note: missing field _mAFNum
 	}
 
 	/**
+	 * @brief Calculates monster's chance to hit with normal attack.
+	 * Fetches base value from @p MonstersData array or @p UniqueMonstersData.
+	 * @param difficulty - difficulty on which calculation is performed
+	 * @return Monster's chance to hit with normal attack, including bonuses from difficulty and monster being unique
+	 */
+	unsigned int toHit(_difficulty difficulty) const;
+
+	/**
 	 * @brief Calculates monster's chance to hit with special attack.
 	 * Fetches base value from @p MonstersData array or @p UniqueMonstersData.
 	 * @param difficulty - difficulty on which calculation is performed
@@ -458,7 +468,7 @@ struct Monster { // note: missing field _mAFNum
 
 	[[nodiscard]] Displacement getRenderingOffset(const ClxSprite sprite) const
 	{
-		Displacement offset = { -CalculateWidth2(sprite.width()), 0 };
+		Displacement offset = { -CalculateSpriteTileCenterX(sprite.width()), 0 };
 		if (isWalking())
 			offset += GetOffsetForWalking(animInfo, direction);
 		return offset;
@@ -479,21 +489,21 @@ extern size_t ActiveMonsterCount;
 extern int MonsterKillCounts[NUM_MTYPES];
 extern bool sgbSaveSoundOn;
 
-void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
+tl::expected<void, std::string> PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t miniontype, int bosspacksize, const UniqueMonsterData &uniqueMonsterData);
 void InitLevelMonsters();
-void GetLevelMTypes();
-size_t AddMonsterType(_monster_id type, placeflag placeflag);
-inline size_t AddMonsterType(UniqueMonsterType uniqueType, placeflag placeflag)
+tl::expected<void, std::string> GetLevelMTypes();
+tl::expected<size_t, std::string> AddMonsterType(_monster_id type, placeflag placeflag);
+inline tl::expected<size_t, std::string> AddMonsterType(UniqueMonsterType uniqueType, placeflag placeflag)
 {
 	return AddMonsterType(UniqueMonstersData[static_cast<size_t>(uniqueType)].mtype, placeflag);
 }
-void InitMonsterSND(CMonster &monsterType);
-void InitMonsterGFX(CMonster &monsterType, MonsterSpritesData &&spritesData = {});
-void InitAllMonsterGFX();
+tl::expected<void, std::string> InitMonsterSND(CMonster &monsterType);
+tl::expected<void, std::string> InitMonsterGFX(CMonster &monsterType, MonsterSpritesData &&spritesData = {});
+tl::expected<void, std::string> InitAllMonsterGFX();
 void WeakenNaKrul();
 void InitGolems();
-void InitMonsters();
-void SetMapMonsters(const uint16_t *dunData, Point startPosition);
+tl::expected<void, std::string> InitMonsters();
+tl::expected<void, std::string> SetMapMonsters(const uint16_t *dunData, Point startPosition);
 Monster *AddMonster(Point position, Direction dir, size_t mtype, bool inMap);
 /**
  * @brief Spawns a new monsters (dynamically/not on level load).
@@ -514,7 +524,7 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage);
 bool M_Talker(const Monster &monster);
 void M_StartStand(Monster &monster, Direction md);
 void M_ClearSquares(const Monster &monster);
-void M_GetKnockback(Monster &monster);
+void M_GetKnockback(Monster &monster, WorldTilePosition attackerStartPos);
 void M_StartHit(Monster &monster, int dam);
 void M_StartHit(Monster &monster, const Player &player, int dam);
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg);
@@ -534,7 +544,7 @@ bool DirOK(const Monster &monster, Direction mdir);
 bool PosOkMissile(Point position);
 bool LineClearMissile(Point startPoint, Point endPoint);
 bool LineClear(tl::function_ref<bool(Point)> clear, Point startPoint, Point endPoint);
-void SyncMonsterAnim(Monster &monster);
+tl::expected<void, std::string> SyncMonsterAnim(Monster &monster);
 void M_FallenFear(Point position);
 void PrintMonstHistory(int mt);
 void PrintUniqueHistory();

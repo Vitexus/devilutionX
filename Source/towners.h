@@ -11,7 +11,9 @@
 #include <span>
 #include <string_view>
 
+#include "engine/clx_sprite.hpp"
 #include "items.h"
+#include "levels/dun_tile.hpp"
 #include "player.h"
 #include "quests.h"
 
@@ -35,6 +37,8 @@ enum _talker_id : uint8_t {
 	TOWN_COWFARM,
 	NUM_TOWNER_TYPES,
 };
+
+extern const char *const TownerLongNames[NUM_TOWNER_TYPES];
 
 struct Towner {
 	OptionalOwnedClxSpriteList ownedAnim;
@@ -67,11 +71,12 @@ struct Towner {
 	}
 	[[nodiscard]] Displacement getRenderingOffset() const
 	{
-		return { -CalculateWidth2(_tAnimWidth), 0 };
+		return { -CalculateSpriteTileCenterX(_tAnimWidth), 0 };
 	}
 };
 
 extern Towner Towners[NUM_TOWNERS];
+bool IsTownerPresent(_talker_id npc);
 /**
  * @brief Maps from a _talker_id value to a pointer to the Towner object, if they have been initialised
  * @param type enum constant identifying the towner

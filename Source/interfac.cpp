@@ -6,32 +6,58 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 
 #include <SDL.h>
+#include <expected.hpp>
 
 #include "control.h"
-#include "engine.h"
 #include "engine/clx_sprite.hpp"
-#include "engine/demomode.h"
 #include "engine/dx.h"
 #include "engine/events.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/load_clx.hpp"
-#include "engine/load_pcx.hpp"
 #include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
+#include "game_mode.hpp"
+#include "headless_mode.hpp"
 #include "hwcursor.hpp"
-#include "init.h"
 #include "loadsave.h"
+#include "multi.h"
 #include "pfile.h"
 #include "plrmsg.h"
+#include "utils/log.hpp"
 #include "utils/sdl_geometry.h"
+#include "utils/sdl_thread.h"
+
+#ifndef USE_SDL1
+#include "controls/touch/renderers.h"
+#endif
 
 namespace devilution {
 
 namespace {
 
+#if defined(__APPLE__) && defined(USE_SDL1)
+// On Tiger PPC, SDL_PushEvent from a background thread appears to do nothing.
+#define SDL_PUSH_EVENT_BG_THREAD_WORKS 0
+#else
+#define SDL_PUSH_EVENT_BG_THREAD_WORKS 1
+#endif
+
+#if !SDL_PUSH_EVENT_BG_THREAD_WORKS
+// This workaround is not completely thread-safe but the worst
+// that can happen is we miss some WM_PROGRESS events,
+// which is not a problem.
+struct {
+	std::atomic<int> type;
+	std::string error;
+} NextCustomEvent;
+#endif
+
 constexpr uint32_t MaxProgress = 534;
+constexpr uint32_t ProgressStepSize = 23;
 
 OptionalOwnedClxSpriteList sgpBackCel;
 
@@ -225,6 +251,306 @@ void DrawCutsceneForeground()
 	RenderPresent();
 }
 
+void DoLoad(interface_mode uMsg)
+{
+	IncProgress();
+	sound_init();
+	IncProgress();
+
+	Player &myPlayer = *MyPlayer;
+	tl::expected<void, std::string> loadResult;
+	switch (uMsg) {
+	case WM_DIABLOADGAME:
+		IncProgress(2);
+		loadResult = LoadGame(true);
+		if (loadResult.has_value()) IncProgress(2);
+		break;
+	case WM_DIABNEWGAME:
+		myPlayer.pOriginalCathedral = !gbIsHellfire;
+		IncProgress();
+		FreeGameMem();
+		IncProgress();
+		pfile_remove_temp_files();
+		IncProgress();
+		loadResult = LoadGameLevel(true, ENTRY_MAIN);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABNEXTLVL:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		setlevel = false;
+		currlevel = myPlayer.plrlevel;
+		leveltype = GetLevelType(currlevel);
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_MAIN);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABPREVLVL:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		currlevel--;
+		leveltype = GetLevelType(currlevel);
+		assert(myPlayer.isOnActiveLevel());
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_PREV);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABSETLVL:
+		// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
+		ReturnLevel = GetMapReturnLevel();
+		ReturnLevelType = GetLevelType(ReturnLevel);
+		ReturnLvlPosition = GetMapReturnPosition();
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		setlevel = true;
+		leveltype = setlvltype;
+		currlevel = static_cast<uint8_t>(setlvlnum);
+		FreeGameMem();
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_SETLVL);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABRTNLVL:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		setlevel = false;
+		FreeGameMem();
+		IncProgress();
+		currlevel = GetMapReturnLevel();
+		leveltype = GetLevelType(currlevel);
+		loadResult = LoadGameLevel(false, ENTRY_RTNLVL);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABWARPLVL:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		GetPortalLevel();
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_WARPLVL);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABTOWNWARP:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		setlevel = false;
+		currlevel = myPlayer.plrlevel;
+		leveltype = GetLevelType(currlevel);
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_TWARPDN);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABTWARPUP:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		currlevel = myPlayer.plrlevel;
+		leveltype = GetLevelType(currlevel);
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_TWARPUP);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	case WM_DIABRETOWN:
+		IncProgress();
+		if (!gbIsMultiplayer) {
+			pfile_save_level();
+		} else {
+			DeltaSaveLevel();
+		}
+		IncProgress();
+		FreeGameMem();
+		setlevel = false;
+		currlevel = myPlayer.plrlevel;
+		leveltype = GetLevelType(currlevel);
+		IncProgress();
+		loadResult = LoadGameLevel(false, ENTRY_MAIN);
+		if (loadResult.has_value()) IncProgress();
+		break;
+	default:
+		loadResult = tl::make_unexpected<std::string>("Unknown progress mode");
+		break;
+	}
+
+	if (!loadResult.has_value()) {
+#if SDL_PUSH_EVENT_BG_THREAD_WORKS
+		SDL_Event event;
+		event.type = CustomEventToSdlEvent(WM_ERROR);
+		event.user.data1 = new std::string(std::move(loadResult).error());
+		if (SDL_PushEvent(&event) < 0) {
+			LogError("Failed to send WM_ERROR {}", SDL_GetError());
+			SDL_ClearError();
+		}
+#else
+		NextCustomEvent.error = std::move(loadResult).error();
+		NextCustomEvent.type = static_cast<int>(WM_ERROR);
+#endif
+		return;
+	}
+
+#if SDL_PUSH_EVENT_BG_THREAD_WORKS
+	SDL_Event event;
+	event.type = CustomEventToSdlEvent(WM_DONE);
+	if (SDL_PushEvent(&event) < 0) {
+		LogError("Failed to send WM_DONE {}", SDL_GetError());
+		SDL_ClearError();
+	}
+#else
+	NextCustomEvent.type = static_cast<int>(WM_DONE);
+#endif
+}
+
+struct {
+	uint32_t loadStartedAt;
+	EventHandler prevHandler;
+	bool skipRendering;
+	bool done;
+	uint32_t drawnProgress;
+	std::array<SDL_Color, 256> palette;
+} ProgressEventHandlerState;
+
+void InitRendering()
+{
+	// Blit the background once and then free it.
+	DrawCutsceneBackground();
+	if (RenderDirectlyToOutputSurface && PalSurface != nullptr) {
+		// Render into all the backbuffers if there are multiple.
+		const void *initialPixels = PalSurface->pixels;
+		if (DiabloUiSurface() == PalSurface)
+			BltFast(nullptr, nullptr);
+		RenderPresent();
+		while (PalSurface->pixels != initialPixels) {
+			DrawCutsceneBackground();
+			if (DiabloUiSurface() == PalSurface)
+				BltFast(nullptr, nullptr);
+			RenderPresent();
+		}
+	}
+	FreeCutsceneBackground();
+
+	// The loading thread sets `orig_palette`, so we make sure to use
+	// our own palette for the fade-in.
+	PaletteFadeIn(8, ProgressEventHandlerState.palette);
+}
+
+void CheckShouldSkipRendering()
+{
+	if (!ProgressEventHandlerState.skipRendering) return;
+	const bool shouldSkip = ProgressEventHandlerState.loadStartedAt + *GetOptions().Gameplay.skipLoadingScreenThresholdMs > SDL_GetTicks();
+	if (shouldSkip) return;
+	ProgressEventHandlerState.skipRendering = false;
+	if (!HeadlessMode) InitRendering();
+}
+
+void ProgressEventHandler(const SDL_Event &event, uint16_t modState)
+{
+	DisableInputEventHandler(event, modState);
+	if (!IsCustomEvent(event.type)) return;
+
+	const interface_mode customEvent = GetCustomEvent(event.type);
+	switch (customEvent) {
+	case WM_PROGRESS:
+		if (!HeadlessMode && ProgressEventHandlerState.drawnProgress != sgdwProgress && !ProgressEventHandlerState.skipRendering) {
+			DrawCutsceneForeground();
+			ProgressEventHandlerState.drawnProgress = sgdwProgress;
+		}
+		break;
+	case WM_ERROR:
+		app_fatal(*static_cast<std::string *>(event.user.data1));
+		break;
+	case WM_DONE: {
+		if (!ProgressEventHandlerState.skipRendering) {
+			NewCursor(CURSOR_HAND);
+
+			if (!HeadlessMode) {
+				assert(ghMainWnd);
+
+				if (RenderDirectlyToOutputSurface && PalSurface != nullptr) {
+					// The loading thread sets `orig_palette`, so we make sure to use
+					// our own palette for drawing the foreground.
+					ApplyToneMapping(logical_palette, ProgressEventHandlerState.palette, 256);
+
+					// Ensure that all back buffers have the full progress bar.
+					const void *initialPixels = PalSurface->pixels;
+					do {
+						DrawCutsceneForeground();
+						if (DiabloUiSurface() == PalSurface)
+							BltFast(nullptr, nullptr);
+						RenderPresent();
+					} while (PalSurface->pixels != initialPixels);
+				}
+
+				// The loading thread sets `orig_palette`, so we make sure to use
+				// our own palette for the fade-out.
+				PaletteFadeOut(8, ProgressEventHandlerState.palette);
+			}
+		}
+
+		[[maybe_unused]] EventHandler prevHandler = SetEventHandler(ProgressEventHandlerState.prevHandler);
+		assert(prevHandler == ProgressEventHandler);
+		ProgressEventHandlerState.prevHandler = nullptr;
+		IsProgress = false;
+
+		Player &myPlayer = *MyPlayer;
+		NetSendCmdLocParam2(true, CMD_PLAYER_JOINLEVEL, myPlayer.position.tile, myPlayer.plrlevel, myPlayer.plrIsOnSetLevel ? 1 : 0);
+		DelayPlrMessages(SDL_GetTicks() - ProgressEventHandlerState.loadStartedAt);
+
+		if (gbSomebodyWonGameKludge && myPlayer.isOnLevel(16)) {
+			PrepDoEnding();
+		}
+
+		gbSomebodyWonGameKludge = false;
+		ProgressEventHandlerState.done = true;
+
+#if !defined(USE_SDL1) && !defined(__vita__)
+		if (renderer != nullptr) {
+			InitVirtualGamepadTextures(*renderer);
+		}
+#endif
+	} break;
+	default:
+		app_fatal("Unknown progress mode");
+		break;
+	}
+}
+
 } // namespace
 
 void RegisterCustomEvents()
@@ -260,17 +586,26 @@ void interface_msg_pump()
 	}
 }
 
-void IncProgress()
+void IncProgress(uint32_t steps)
 {
-	if (!HeadlessMode && !demo::IsRunning())
-		interface_msg_pump();
 	if (!IsProgress)
 		return;
-	sgdwProgress += 23;
+	const uint32_t prevProgress = sgdwProgress;
+	sgdwProgress += ProgressStepSize * steps;
 	if (sgdwProgress > MaxProgress)
 		sgdwProgress = MaxProgress;
-	if (!HeadlessMode && !demo::IsRunning())
-		DrawCutsceneForeground();
+	if (!HeadlessMode && sgdwProgress != prevProgress) {
+#if SDL_PUSH_EVENT_BG_THREAD_WORKS
+		SDL_Event event;
+		event.type = CustomEventToSdlEvent(WM_PROGRESS);
+		if (SDL_PushEvent(&event) < 0) {
+			LogError("Failed to send WM_PROGRESS {}", SDL_GetError());
+			SDL_ClearError();
+		}
+#else
+		NextCustomEvent.type = static_cast<int>(WM_PROGRESS);
+#endif
+	}
 }
 
 void CompleteProgress()
@@ -279,18 +614,30 @@ void CompleteProgress()
 		return;
 	if (!IsProgress)
 		return;
-	while (sgdwProgress < MaxProgress)
-		IncProgress();
+	if (sgdwProgress < MaxProgress) {
+		IncProgress((MaxProgress - sgdwProgress) / ProgressStepSize);
+	}
 }
 
 void ShowProgress(interface_mode uMsg)
 {
 	IsProgress = true;
-
 	gbSomebodyWonGameKludge = false;
-	uint32_t delayStart = SDL_GetTicks();
 
-	EventHandler previousHandler = SetEventHandler(DisableInputEventHandler);
+	ProgressEventHandlerState.loadStartedAt = SDL_GetTicks();
+	ProgressEventHandlerState.prevHandler = SetEventHandler(ProgressEventHandler);
+	ProgressEventHandlerState.skipRendering = true;
+	ProgressEventHandlerState.done = false;
+	ProgressEventHandlerState.drawnProgress = 0;
+
+#if !SDL_PUSH_EVENT_BG_THREAD_WORKS
+	NextCustomEvent.type = -1;
+#endif
+
+#ifndef USE_SDL1
+	DeactivateVirtualGamepad();
+	FreeVirtualGamepadTextures();
+#endif
 
 	if (!HeadlessMode) {
 		assert(ghMainWnd);
@@ -304,210 +651,53 @@ void ShowProgress(interface_mode uMsg)
 
 		BlackPalette();
 
-		// Blit the background once and then free it.
+		// Always load the background (even if we end up skipping rendering it).
+		// This is because the MPQ archive can only be read by a single thread at a time.
 		LoadCutsceneBackground(uMsg);
-		DrawCutsceneBackground();
-		if (RenderDirectlyToOutputSurface && PalSurface != nullptr) {
-			// Render into all the backbuffers if there are multiple.
-			const void *initialPixels = PalSurface->pixels;
-			if (DiabloUiSurface() == PalSurface)
-				BltFast(nullptr, nullptr);
-			RenderPresent();
-			while (PalSurface->pixels != initialPixels) {
-				DrawCutsceneBackground();
-				if (DiabloUiSurface() == PalSurface)
-					BltFast(nullptr, nullptr);
-				RenderPresent();
+
+		// Save the palette at this point because the loading process may replace it.
+		ProgressEventHandlerState.palette = orig_palette;
+	}
+
+	// Begin loading
+	static interface_mode loadTarget;
+	loadTarget = uMsg;
+	SdlThread loadThread = SdlThread([]() {
+		const uint32_t start = SDL_GetTicks();
+		DoLoad(loadTarget);
+		LogVerbose("Load thread finished in {}ms", SDL_GetTicks() - start);
+	});
+
+	const auto processEvent = [&](const SDL_Event &event) {
+		CheckShouldSkipRendering();
+		if (event.type != SDL_QUIT) {
+			HandleMessage(event, SDL_GetModState());
+		}
+		if (ProgressEventHandlerState.done) {
+			loadThread.join();
+			return false;
+		}
+		return true;
+	};
+
+	while (true) {
+		CheckShouldSkipRendering();
+		SDL_Event event;
+		// We use the real `SDL_PollEvent` here instead of `FetchEvent`
+		// to process real events rather than the recorded ones in demo mode.
+		while (SDL_PollEvent(&event)) {
+			if (!processEvent(event)) return;
+		}
+#if !SDL_PUSH_EVENT_BG_THREAD_WORKS
+		if (const int customEventType = NextCustomEvent.type.exchange(-1); customEventType != -1) {
+			event.type = CustomEventToSdlEvent(static_cast<interface_mode>(customEventType));
+			if (static_cast<interface_mode>(customEventType) == static_cast<int>(WM_ERROR)) {
+				event.user.data1 = &NextCustomEvent.error;
 			}
+			if (!processEvent(event)) return;
 		}
-		FreeCutsceneBackground();
-
-		PaletteFadeIn(8);
-		IncProgress();
-		sound_init();
-		IncProgress();
+#endif
 	}
-
-	Player &myPlayer = *MyPlayer;
-
-	switch (uMsg) {
-	case WM_DIABLOADGAME:
-		IncProgress();
-		IncProgress();
-		LoadGame(true);
-		IncProgress();
-		IncProgress();
-		break;
-	case WM_DIABNEWGAME:
-		myPlayer.pOriginalCathedral = !gbIsHellfire;
-		IncProgress();
-		FreeGameMem();
-		IncProgress();
-		pfile_remove_temp_files();
-		IncProgress();
-		LoadGameLevel(true, ENTRY_MAIN);
-		IncProgress();
-		break;
-	case WM_DIABNEXTLVL:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		setlevel = false;
-		currlevel = myPlayer.plrlevel;
-		leveltype = GetLevelType(currlevel);
-		IncProgress();
-		LoadGameLevel(false, ENTRY_MAIN);
-		IncProgress();
-		break;
-	case WM_DIABPREVLVL:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		currlevel--;
-		leveltype = GetLevelType(currlevel);
-		assert(myPlayer.isOnActiveLevel());
-		IncProgress();
-		LoadGameLevel(false, ENTRY_PREV);
-		IncProgress();
-		break;
-	case WM_DIABSETLVL:
-		// Note: ReturnLevel, ReturnLevelType and ReturnLvlPosition is only set to ensure vanilla compatibility
-		ReturnLevel = GetMapReturnLevel();
-		ReturnLevelType = GetLevelType(ReturnLevel);
-		ReturnLvlPosition = GetMapReturnPosition();
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		setlevel = true;
-		leveltype = setlvltype;
-		currlevel = static_cast<uint8_t>(setlvlnum);
-		FreeGameMem();
-		IncProgress();
-		LoadGameLevel(false, ENTRY_SETLVL);
-		IncProgress();
-		break;
-	case WM_DIABRTNLVL:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		setlevel = false;
-		FreeGameMem();
-		IncProgress();
-		currlevel = GetMapReturnLevel();
-		leveltype = GetLevelType(currlevel);
-		LoadGameLevel(false, ENTRY_RTNLVL);
-		IncProgress();
-		break;
-	case WM_DIABWARPLVL:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		GetPortalLevel();
-		IncProgress();
-		LoadGameLevel(false, ENTRY_WARPLVL);
-		IncProgress();
-		break;
-	case WM_DIABTOWNWARP:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		setlevel = false;
-		currlevel = myPlayer.plrlevel;
-		leveltype = GetLevelType(currlevel);
-		IncProgress();
-		LoadGameLevel(false, ENTRY_TWARPDN);
-		IncProgress();
-		break;
-	case WM_DIABTWARPUP:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		currlevel = myPlayer.plrlevel;
-		leveltype = GetLevelType(currlevel);
-		IncProgress();
-		LoadGameLevel(false, ENTRY_TWARPUP);
-		IncProgress();
-		break;
-	case WM_DIABRETOWN:
-		IncProgress();
-		if (!gbIsMultiplayer) {
-			pfile_save_level();
-		} else {
-			DeltaSaveLevel();
-		}
-		IncProgress();
-		FreeGameMem();
-		setlevel = false;
-		currlevel = myPlayer.plrlevel;
-		leveltype = GetLevelType(currlevel);
-		IncProgress();
-		LoadGameLevel(false, ENTRY_MAIN);
-		IncProgress();
-		break;
-	}
-
-	if (!HeadlessMode) {
-		assert(ghMainWnd);
-
-		if (RenderDirectlyToOutputSurface && PalSurface != nullptr) {
-			// Ensure that all back buffers have the full progress bar.
-			const void *initialPixels = PalSurface->pixels;
-			do {
-				DrawCutsceneForeground();
-				if (DiabloUiSurface() == PalSurface)
-					BltFast(nullptr, nullptr);
-				RenderPresent();
-			} while (PalSurface->pixels != initialPixels);
-		}
-
-		PaletteFadeOut(8);
-	}
-
-	previousHandler = SetEventHandler(previousHandler);
-	assert(previousHandler == DisableInputEventHandler);
-	IsProgress = false;
-
-	NetSendCmdLocParam2(true, CMD_PLAYER_JOINLEVEL, myPlayer.position.tile, myPlayer.plrlevel, myPlayer.plrIsOnSetLevel ? 1 : 0);
-	DelayPlrMessages(SDL_GetTicks() - delayStart);
-
-	if (gbSomebodyWonGameKludge && myPlayer.isOnLevel(16)) {
-		PrepDoEnding();
-	}
-
-	gbSomebodyWonGameKludge = false;
 }
 
 } // namespace devilution

@@ -13,6 +13,8 @@
 #include "monster.h"
 #include "multi.h"
 #include "objdat.h"
+#include "player.h"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -1138,11 +1140,15 @@ bool PlaceStairs(lvl_entry entry)
 
 void GenerateLevel(lvl_entry entry)
 {
+	if (LevelSeeds[currlevel])
+		SetRndSeed(*LevelSeeds[currlevel]);
+
 	while (true) {
 		DRLG_InitTrans();
 
 		constexpr size_t Minarea = 692;
 		do {
+			LevelSeeds[currlevel] = GetLCGEngineState();
 			InitDungeonFlags();
 			FirstRoom();
 			CloseOuterBorders();

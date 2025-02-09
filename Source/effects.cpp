@@ -17,8 +17,9 @@
 #include "engine/sound.h"
 #include "engine/sound_defs.hpp"
 #include "engine/sound_position.hpp"
-#include "init.h"
+#include "game_mode.hpp"
 #include "player.h"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -147,6 +148,8 @@ void LoadEffectsData()
 		reader.readString("path", item.pszName);
 	}
 	sgSFX.shrink_to_fit();
+	// We're not actually parsing the IDs yet, thus this sanity check here.
+	assert(static_cast<size_t>(SfxID::LAST) + 1 == sgSFX.size());
 }
 
 void PrivSoundInit(uint8_t bLoadMask)

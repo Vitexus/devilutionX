@@ -7,9 +7,11 @@
 #include <cmath>
 #include <cstdint>
 #include <ctime>
+#include <string>
 
 #include <algorithm>
 
+#include <expected.hpp>
 #include <fmt/core.h>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -24,27 +26,29 @@
 #include "engine/load_file.hpp"
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
-#include "init.h"
+#include "headless_mode.hpp"
 #include "inv.h"
 #include "inv_iterators.hpp"
 #include "levels/crypt.h"
 #include "levels/drlg_l4.h"
 #include "levels/setmaps.h"
 #include "levels/themes.h"
+#include "levels/tile_properties.hpp"
 #include "lighting.h"
 #include "minitext.h"
 #include "missiles.h"
 #include "monster.h"
+#include "objdat.h"
 #include "options.h"
 #include "qol/stash.h"
 #include "stores.h"
 #include "towners.h"
 #include "track.h"
 #include "utils/algorithm/container.hpp"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
-#include "utils/utf8.hpp"
 
 namespace devilution {
 
@@ -241,7 +245,7 @@ bool RndLocOk(Point p)
 		return false;
 	if (TileContainsSetPiece(p))
 		return false;
-	if (TileHasAny(dPiece[p.x][p.y], TileProperties::Solid))
+	if (TileHasAny(p, TileProperties::Solid))
 		return false;
 	return IsNoneOf(leveltype, DTYPE_CATHEDRAL, DTYPE_CRYPT) || dPiece[p.x][p.y] <= 125 || dPiece[p.x][p.y] >= 143;
 }
@@ -251,14 +255,14 @@ bool IsAreaOk(Rectangle rect)
 	return c_all_of(PointsInRectangle(rect), &RndLocOk);
 }
 
-bool CanPlaceWallTrap(int xp, int yp)
+bool CanPlaceWallTrap(Point pos)
 {
-	if (dObject[xp][yp] != 0)
+	if (dObject[pos.x][pos.y] != 0)
 		return false;
-	if (TileContainsSetPiece({ xp, yp }))
+	if (TileContainsSetPiece(pos))
 		return false;
 
-	return TileHasAny(dPiece[xp][yp], TileProperties::Trap);
+	return TileHasAny(pos, TileProperties::Trap);
 }
 
 void InitRndLocObj(int min, int max, _object_id objtype)
@@ -498,7 +502,7 @@ void AddObjTraps()
 				while (IsTileNotSolid({ xp, j }))
 					xp--;
 
-				if (!CanPlaceWallTrap(xp, j) || i - xp <= 1)
+				if (!CanPlaceWallTrap({ xp, j }) || i - xp <= 1)
 					continue;
 
 				trapObject = AddObject(OBJ_TRAPL, { xp, j });
@@ -507,7 +511,7 @@ void AddObjTraps()
 				while (IsTileNotSolid({ i, yp }))
 					yp--;
 
-				if (!CanPlaceWallTrap(i, yp) || j - yp <= 1)
+				if (!CanPlaceWallTrap({ i, yp }) || j - yp <= 1)
 					continue;
 
 				trapObject = AddObject(OBJ_TRAPR, { i, yp });
@@ -708,7 +712,7 @@ void SetupObject(Object &object, Point position, _object_id ot)
 	object.applyLighting = objectData.applyLighting();
 	object._oDelFlag = false;
 	object._oBreak = objectData.isBreakable() ? 1 : 0;
-	object._oSelFlag = objectData.selFlag;
+	object.selectionRegion = objectData.selectionRegion;
 	object._oPreFlag = false;
 	object._oTrapFlag = false;
 	object._oDoorFlag = false;
@@ -1046,7 +1050,7 @@ void SetDoorStateOpen(Object &door)
 	door._oVar4 = DOOR_OPEN;
 	door._oPreFlag = true;
 	door._oMissFlag = true;
-	door._oSelFlag = 2;
+	door.selectionRegion = SelectionRegion::Middle;
 
 	switch (door._otype) {
 	case OBJ_L1LDOOR:
@@ -1094,7 +1098,7 @@ void SetDoorStateClosed(Object &door)
 	door._oVar4 = DOOR_CLOSED;
 	door._oPreFlag = false;
 	door._oMissFlag = false;
-	door._oSelFlag = 3;
+	door.selectionRegion = SelectionRegion::Bottom | SelectionRegion::Middle;
 
 	switch (door._otype) {
 	case OBJ_L1LDOOR: {
@@ -1288,27 +1292,33 @@ void AddBarrel(Object &barrel)
 void AddShrine(Object &shrine)
 {
 	shrine._oRndSeed = AdvanceRndSeed();
-	bool slist[NumberOfShrineTypes];
-
 	shrine._oPreFlag = true;
 
-	int shrines = gbIsHellfire ? NumberOfShrineTypes : 26;
+	int shrineCount = gbIsHellfire ? NumberOfShrineTypes : 26;
+	bool slist[NumberOfShrineTypes] = {};
 
-	for (int j = 0; j < shrines; j++) {
-		slist[j] = j != ShrineEnchanted || IsAnyOf(leveltype, DTYPE_CATHEDRAL, DTYPE_CATACOMBS);
-		if (gbIsMultiplayer && shrineavail[j] == ShrineTypeSingle) {
-			slist[j] = false;
-		} else if (!gbIsMultiplayer && shrineavail[j] == ShrineTypeMulti) {
-			slist[j] = false;
+	for (int i = 0; i < shrineCount; i++) {
+		bool isShrineAvailable = true;
+
+		if (gbIsMultiplayer) {
+			isShrineAvailable = (shrineavail[i] != ShrineTypeSingle);
+		} else {
+			isShrineAvailable = (shrineavail[i] != ShrineTypeMulti);
 		}
+
+		bool isEnchantedShrine = (i == ShrineEnchanted);
+		bool isCorrectLevelType = IsAnyOf(leveltype, DTYPE_CATHEDRAL, DTYPE_CATACOMBS);
+
+		slist[i] = isShrineAvailable && (!isEnchantedShrine || isCorrectLevelType);
 	}
 
-	int val;
+	int selectedIndex;
 	do {
-		val = GenerateRnd(shrines);
-	} while (!slist[val]);
+		selectedIndex = GenerateRnd(shrineCount);
+	} while (!slist[selectedIndex]);
 
-	shrine._oVar1 = val;
+	shrine._oVar1 = selectedIndex;
+
 	if (!FlipCoin()) {
 		shrine._oAnimFrame = 12;
 		shrine._oAnimLen = 22;
@@ -1336,7 +1346,7 @@ void AddArmorStand(Object &armorStand)
 {
 	if (!armorFlag) {
 		armorStand._oAnimFlag = true;
-		armorStand._oSelFlag = 0;
+		armorStand.selectionRegion = SelectionRegion::None;
 	}
 
 	armorStand._oRndSeed = AdvanceRndSeed();
@@ -1375,7 +1385,7 @@ void AddPedestalOfBlood(Object &pedestalOfBlood)
 
 void AddStoryBook(Object &storyBook)
 {
-	storyBook._oVar1 = (glSeedTbl[16] >> 16) % 3;
+	storyBook._oVar1 = (DungeonSeeds[16] >> 16) % 3;
 	if (currlevel == 4)
 		storyBook._oVar2 = StoryText[storyBook._oVar1][0];
 	else if (currlevel == 8)
@@ -1391,7 +1401,7 @@ void AddWeaponRack(Object &weaponRack)
 {
 	if (!weaponFlag) {
 		weaponRack._oAnimFlag = true;
-		weaponRack._oSelFlag = 0;
+		weaponRack.selectionRegion = SelectionRegion::None;
 	}
 	weaponRack._oRndSeed = AdvanceRndSeed();
 }
@@ -1774,7 +1784,7 @@ bool AreAllLeversActivated(int leverId)
 		Object &lever = Objects[ActiveObjects[j]];
 		if (lever._otype == OBJ_SWITCHSKL
 		    && lever._oVar8 == leverId
-		    && lever._oSelFlag != 0) {
+		    && lever.canInteractWith()) {
 			return false;
 		}
 	}
@@ -1783,11 +1793,11 @@ bool AreAllLeversActivated(int leverId)
 
 void UpdateLeverState(Object &object)
 {
-	if (object._oSelFlag == 0) {
+	if (!object.canInteractWith()) {
 		return;
 	}
 
-	object._oSelFlag = 0;
+	object.selectionRegion = SelectionRegion::None;
 	object._oAnimFrame++;
 
 	if (currlevel == 16 && !AreAllLeversActivated(object._oVar8))
@@ -1807,7 +1817,7 @@ void UpdateLeverState(Object &object)
 
 void OperateLever(Object &object, bool sendmsg)
 {
-	if (object._oSelFlag == 0) {
+	if (!object.canInteractWith()) {
 		return;
 	}
 
@@ -1827,7 +1837,7 @@ void OperateLever(Object &object, bool sendmsg)
 
 void OperateBook(Player &player, Object &book, bool sendmsg)
 {
-	if (book._oSelFlag == 0) {
+	if (!book.canInteractWith()) {
 		return;
 	}
 
@@ -1844,7 +1854,7 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 		Object &circle = ObjectAtPosition(book.position + Direction::SouthWest);
 		assert(circle._otype == OBJ_MCIRCLE2);
 
-		// Only verfiy that the player stands on the circle when it's the local player (sendmsg), cause for remote players the position could be desynced
+		// Only verify that the player stands on the circle when it's the local player (sendmsg), because for remote players the position could be desynced
 		if (sendmsg && circle.position != player.position.tile) {
 			return;
 		}
@@ -1854,7 +1864,7 @@ void OperateBook(Player &player, Object &book, bool sendmsg)
 		AddMissile(player.position.tile, target, Direction::South, MissileID::Phasing, TARGET_BOTH, player, 0, 0);
 	}
 
-	book._oSelFlag = 0;
+	book.selectionRegion = SelectionRegion::None;
 	book._oAnimFrame++;
 
 	if (sendmsg)
@@ -1912,7 +1922,7 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 	if (ActiveItemCount >= MAXITEMS) {
 		return;
 	}
-	if (questBook._oSelFlag != 0 && !qtextflag) {
+	if (questBook.canInteractWith() && !qtextflag) {
 		if (questBook._otype == OBJ_BLINDBOOK && Quests[Q_BLIND]._qvar1 == 0) {
 			Quests[Q_BLIND]._qactive = QUEST_ACTIVE;
 			Quests[Q_BLIND]._qlog = true;
@@ -1925,7 +1935,7 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 			Quests[Q_BLOOD]._qvar1 = 1;
 			NetSendCmdQuest(true, Quests[Q_BLOOD]);
 			if (sendmsg)
-				SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 9, 17 }, 0, 1, true);
+				SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 9, 17 }, 0, SelectionRegion::Bottom, true);
 		}
 		if (questBook._otype == OBJ_STEELTOME && Quests[Q_WARLORD]._qvar1 == QS_WARLORD_INIT) {
 			Quests[Q_WARLORD]._qactive = QUEST_ACTIVE;
@@ -1954,7 +1964,7 @@ void OperateBookLever(Object &questBook, bool sendmsg)
 
 void OperateChamberOfBoneBook(Object &questBook, bool sendmsg)
 {
-	if (questBook._oSelFlag == 0 || qtextflag) {
+	if (!questBook.canInteractWith() || qtextflag) {
 		return;
 	}
 
@@ -2001,12 +2011,12 @@ void OperateChamberOfBoneBook(Object &questBook, bool sendmsg)
 
 void OperateChest(const Player &player, Object &chest, bool sendLootMsg)
 {
-	if (chest._oSelFlag == 0) {
+	if (!chest.canInteractWith()) {
 		return;
 	}
 
 	PlaySfxLoc(SfxID::ChestOpen, chest.position);
-	chest._oSelFlag = 0;
+	chest.selectionRegion = SelectionRegion::None;
 	chest._oAnimFrame += 2;
 	SetRndSeed(chest._oRndSeed);
 	if (setlevel) {
@@ -2067,18 +2077,18 @@ void OperateMushroomPatch(const Player &player, Object &mushroomPatch)
 		return;
 	}
 
-	if (mushroomPatch._oSelFlag == 0) {
+	if (!mushroomPatch.canInteractWith()) {
 		return;
 	}
 
-	mushroomPatch._oSelFlag = 0;
+	mushroomPatch.selectionRegion = SelectionRegion::None;
 	mushroomPatch._oAnimFrame++;
 
 	PlaySfxLoc(SfxID::ChestOpen, mushroomPatch.position);
 	Point pos = GetSuperItemLoc(mushroomPatch.position);
 
 	if (&player == MyPlayer) {
-		SpawnQuestItem(IDI_MUSHROOM, pos, 0, 0, true);
+		SpawnQuestItem(IDI_MUSHROOM, pos, 0, SelectionRegion::None, true);
 		Quests[Q_MUSHROOM]._qvar1 = QS_MUSHSPAWNED;
 		NetSendCmdQuest(true, Quests[Q_MUSHROOM]);
 		NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, mushroomPatch.position);
@@ -2098,28 +2108,28 @@ void OperateInnSignChest(const Player &player, Object &questContainer, bool send
 		return;
 	}
 
-	if (questContainer._oSelFlag == 0) {
+	if (!questContainer.canInteractWith()) {
 		return;
 	}
 
-	questContainer._oSelFlag = 0;
+	questContainer.selectionRegion = SelectionRegion::None;
 	questContainer._oAnimFrame += 2;
 
 	PlaySfxLoc(SfxID::ChestOpen, questContainer.position);
 
 	if (sendmsg) {
 		Point pos = GetSuperItemLoc(questContainer.position);
-		SpawnQuestItem(IDI_BANNER, pos, 0, 0, true);
+		SpawnQuestItem(IDI_BANNER, pos, 0, SelectionRegion::None, true);
 		NetSendCmdLoc(MyPlayerId, true, CMD_OPERATEOBJ, questContainer.position);
 	}
 }
 
 void OperateSlainHero(const Player &player, Object &corpse, bool sendmsg)
 {
-	if (corpse._oSelFlag == 0) {
+	if (!corpse.canInteractWith()) {
 		return;
 	}
-	corpse._oSelFlag = 0;
+	corpse.selectionRegion = SelectionRegion::None;
 
 	SetRndSeed(corpse._oRndSeed);
 
@@ -2171,12 +2181,12 @@ void OperateTrapLever(Object &flameLever)
 
 void OperateSarcophagus(Object &sarcophagus, bool sendMsg, bool sendLootMsg)
 {
-	if (sarcophagus._oSelFlag == 0) {
+	if (!sarcophagus.canInteractWith()) {
 		return;
 	}
 
 	PlaySfxLoc(SfxID::Sarcophagus, sarcophagus.position);
-	sarcophagus._oSelFlag = 0;
+	sarcophagus.selectionRegion = SelectionRegion::None;
 	sarcophagus._oAnimFlag = true;
 	sarcophagus._oAnimDelay = 3;
 	SetRndSeed(sarcophagus._oRndSeed);
@@ -2201,7 +2211,7 @@ void OperatePedestal(Player &player, Object &pedestal, bool sendmsg)
 	if (sendmsg) {
 		NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, pedestal.position);
 		if (gbIsMultiplayer) {
-			// Store added stones to pedestal in qvar2, cause we get only one CMD_OPERATEOBJ from DeltaLoadLevel even if we add multiple stones
+			// Store added stones to pedestal in qvar2, because we get only one CMD_OPERATEOBJ from DeltaLoadLevel even if we add multiple stones
 			Quests[Q_BLOOD]._qvar2++;
 			NetSendCmdQuest(true, Quests[Q_BLOOD]);
 		}
@@ -2213,13 +2223,13 @@ void OperatePedestal(Player &player, Object &pedestal, bool sendmsg)
 		PlaySfxLoc(SfxID::SpellPuddle, pedestal.position);
 		ObjChangeMap(SetPiece.position.x, SetPiece.position.y + 3, SetPiece.position.x + 2, SetPiece.position.y + 7);
 		if (sendmsg)
-			SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 3, 10 }, 0, 1, true);
+			SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 3, 10 }, 0, SelectionRegion::Bottom, true);
 	}
 	if (pedestal._oVar6 == 2) {
 		PlaySfxLoc(SfxID::SpellPuddle, pedestal.position);
 		ObjChangeMap(SetPiece.position.x + 6, SetPiece.position.y + 3, SetPiece.position.x + SetPiece.size.width, SetPiece.position.y + 7);
 		if (sendmsg)
-			SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 15, 10 }, 0, 1, true);
+			SpawnQuestItem(IDI_BLDSTONE, SetPiece.position.megaToWorld() + Displacement { 15, 10 }, 0, SelectionRegion::Bottom, true);
 	}
 	if (pedestal._oVar6 == 3) {
 		PlaySfxLoc(SfxID::SpellBloodStar, pedestal.position);
@@ -2227,7 +2237,7 @@ void OperatePedestal(Player &player, Object &pedestal, bool sendmsg)
 		LoadMapObjects("levels\\l2data\\blood2.dun", SetPiece.position.megaToWorld());
 		if (sendmsg)
 			SpawnUnique(UITEM_ARMOFVAL, SetPiece.position.megaToWorld() + Displacement { 9, 3 }, std::nullopt, true, true);
-		pedestal._oSelFlag = 0;
+		pedestal.selectionRegion = SelectionRegion::None;
 	}
 }
 
@@ -2473,9 +2483,9 @@ void OperateShrineThaumaturgic(DiabloGenerator &rng, const Player &player)
 {
 	for (int j = 0; j < ActiveObjectCount; j++) {
 		Object &object = Objects[ActiveObjects[j]];
-		if (object.IsChest() && object._oSelFlag == 0) {
+		if (object.IsChest() && !object.canInteractWith()) {
 			object._oRndSeed = rng.advanceRndSeed();
-			object._oSelFlag = 1;
+			object.selectionRegion = SelectionRegion::Bottom;
 			object._oAnimFrame -= 2;
 		}
 	}
@@ -2973,13 +2983,13 @@ void OperateShrineMurphys(DiabloGenerator &rng, Player &player)
 
 void OperateShrine(Player &player, Object &shrine, SfxID sType)
 {
-	if (shrine._oSelFlag == 0)
+	if (!shrine.canInteractWith())
 		return;
 
 	CloseGoldDrop();
 
 	DiabloGenerator rng(shrine._oRndSeed);
-	shrine._oSelFlag = 0;
+	shrine.selectionRegion = SelectionRegion::None;
 
 	PlaySfxLoc(sType, shrine.position);
 	shrine._oAnimFlag = true;
@@ -3094,12 +3104,12 @@ void OperateShrine(Player &player, Object &shrine, SfxID sType)
 
 void OperateBookStand(Object &bookStand, bool sendmsg, bool sendLootMsg)
 {
-	if (bookStand._oSelFlag == 0) {
+	if (!bookStand.canInteractWith()) {
 		return;
 	}
 
 	PlaySfxLoc(SfxID::ItemScroll, bookStand.position);
-	bookStand._oSelFlag = 0;
+	bookStand.selectionRegion = SelectionRegion::None;
 	bookStand._oAnimFrame += 2;
 	SetRndSeed(bookStand._oRndSeed);
 	if (FlipCoin(5))
@@ -3112,18 +3122,18 @@ void OperateBookStand(Object &bookStand, bool sendmsg, bool sendLootMsg)
 
 void OperateBookcase(Object &bookcase, bool sendmsg, bool sendLootMsg)
 {
-	if (bookcase._oSelFlag == 0) {
+	if (!bookcase.canInteractWith()) {
 		return;
 	}
 
 	PlaySfxLoc(SfxID::ItemScroll, bookcase.position);
-	bookcase._oSelFlag = 0;
+	bookcase.selectionRegion = SelectionRegion::None;
 	bookcase._oAnimFrame -= 2;
 	SetRndSeed(bookcase._oRndSeed);
 	CreateTypeItem(bookcase.position, false, ItemType::Misc, IMISC_BOOK, sendLootMsg, false);
 
 	if (Quests[Q_ZHAR].IsAvailable()) {
-		auto &zhar = Monsters[MAX_PLRS];
+		Monster &zhar = Monsters[MAX_PLRS];
 		if (zhar.mode == MonsterMode::Stand // prevents playing the "angry" message for the second time if zhar got aggroed by losing vision and talking again
 		    && zhar.uniqueType == UniqueMonsterType::Zhar
 		    && zhar.activeForTicks == UINT8_MAX
@@ -3141,10 +3151,10 @@ void OperateBookcase(Object &bookcase, bool sendmsg, bool sendLootMsg)
 
 void OperateDecapitatedBody(Object &corpse, bool sendmsg, bool sendLootMsg)
 {
-	if (corpse._oSelFlag == 0) {
+	if (!corpse.canInteractWith()) {
 		return;
 	}
-	corpse._oSelFlag = 0;
+	corpse.selectionRegion = SelectionRegion::None;
 	SetRndSeed(corpse._oRndSeed);
 	CreateRndItem(corpse.position, false, sendLootMsg, false);
 	if (sendmsg)
@@ -3153,10 +3163,10 @@ void OperateDecapitatedBody(Object &corpse, bool sendmsg, bool sendLootMsg)
 
 void OperateArmorStand(Object &armorStand, bool sendmsg, bool sendLootMsg)
 {
-	if (armorStand._oSelFlag == 0) {
+	if (!armorStand.canInteractWith()) {
 		return;
 	}
-	armorStand._oSelFlag = 0;
+	armorStand.selectionRegion = SelectionRegion::None;
 	armorStand._oAnimFrame++;
 	SetRndSeed(armorStand._oRndSeed);
 	bool uniqueRnd = !FlipCoin();
@@ -3245,10 +3255,10 @@ bool OperateFountains(Player &player, Object &fountain)
 			PlaySfxLoc(SfxID::OperateFountain, fountain.position);
 		break;
 	case OBJ_MURKYFTN:
-		if (fountain._oSelFlag == 0)
+		if (!fountain.canInteractWith())
 			break;
 		PlaySfxLoc(SfxID::OperateFountain, fountain.position);
-		fountain._oSelFlag = 0;
+		fountain.selectionRegion = SelectionRegion::None;
 		AddMissile(
 		    player.position.tile,
 		    player.position.tile,
@@ -3263,10 +3273,10 @@ bool OperateFountains(Player &player, Object &fountain)
 			NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, fountain.position);
 		break;
 	case OBJ_TEARFTN: {
-		if (fountain._oSelFlag == 0)
+		if (!fountain.canInteractWith())
 			break;
 		PlaySfxLoc(SfxID::OperateFountain, fountain.position);
-		fountain._oSelFlag = 0;
+		fountain.selectionRegion = SelectionRegion::None;
 		if (&player != MyPlayer)
 			return false;
 
@@ -3308,13 +3318,13 @@ bool OperateFountains(Player &player, Object &fountain)
 
 void OperateWeaponRack(Object &weaponRack, bool sendmsg, bool sendLootMsg)
 {
-	if (weaponRack._oSelFlag == 0)
+	if (!weaponRack.canInteractWith())
 		return;
 	SetRndSeed(weaponRack._oRndSeed);
 
 	ItemType weaponType { PickRandomlyAmong({ ItemType::Sword, ItemType::Axe, ItemType::Bow, ItemType::Mace }) };
 
-	weaponRack._oSelFlag = 0;
+	weaponRack.selectionRegion = SelectionRegion::None;
 	weaponRack._oAnimFrame++;
 
 	CreateTypeItem(weaponRack.position, leveltype != DTYPE_CATHEDRAL, weaponType, IMISC_NONE, sendLootMsg, false);
@@ -3358,7 +3368,7 @@ bool OperateNakrulBook(int s)
 
 void OperateStoryBook(Object &storyBook)
 {
-	if (storyBook._oSelFlag == 0 || qtextflag) {
+	if (!storyBook.canInteractWith() || qtextflag) {
 		return;
 	}
 	storyBook._oAnimFrame = storyBook._oVar4;
@@ -3385,14 +3395,14 @@ void OperateLazStand(Object &stand)
 		return;
 	}
 
-	if (stand._oSelFlag == 0 || qtextflag) {
+	if (!stand.canInteractWith() || qtextflag) {
 		return;
 	}
 
 	stand._oAnimFrame++;
-	stand._oSelFlag = 0;
+	stand.selectionRegion = SelectionRegion::None;
 	Point pos = GetSuperItemLoc(stand.position);
-	SpawnQuestItem(IDI_LAZSTAFF, pos, 0, 0, true);
+	SpawnQuestItem(IDI_LAZSTAFF, pos, 0, SelectionRegion::None, true);
 	NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, stand.position);
 }
 
@@ -3422,7 +3432,7 @@ bool AreAllCruxesOfTypeBroken(int cruxType)
 
 void BreakCrux(Object &crux, bool sendmsg)
 {
-	if (crux._oSelFlag == 0)
+	if (!crux.canInteractWith())
 		return;
 
 	crux._oAnimFlag = true;
@@ -3431,7 +3441,7 @@ void BreakCrux(Object &crux, bool sendmsg)
 	crux._oSolidFlag = true;
 	crux._oMissFlag = true;
 	crux._oBreak = -1;
-	crux._oSelFlag = 0;
+	crux.selectionRegion = SelectionRegion::None;
 
 	if (sendmsg)
 		NetSendCmdLoc(MyPlayerId, false, CMD_BREAKOBJ, crux.position);
@@ -3445,7 +3455,7 @@ void BreakCrux(Object &crux, bool sendmsg)
 
 void BreakBarrel(const Player &player, Object &barrel, bool forcebreak, bool sendmsg)
 {
-	if (barrel._oSelFlag == 0)
+	if (!barrel.canInteractWith())
 		return;
 	if (!forcebreak && &player != MyPlayer) {
 		return;
@@ -3457,7 +3467,7 @@ void BreakBarrel(const Player &player, Object &barrel, bool forcebreak, bool sen
 	barrel._oSolidFlag = false;
 	barrel._oMissFlag = true;
 	barrel._oBreak = -1;
-	barrel._oSelFlag = 0;
+	barrel.selectionRegion = SelectionRegion::None;
 	barrel._oPreFlag = true;
 
 	if (barrel.isExplosive()) {
@@ -3515,7 +3525,7 @@ void SyncCrux(const Object &crux)
 
 void SyncLever(const Object &lever)
 {
-	if (lever._oSelFlag != 0)
+	if (lever.canInteractWith())
 		return;
 
 	if (currlevel == 16 && !AreAllLeversActivated(lever._oVar8))
@@ -3559,7 +3569,7 @@ void UpdatePedestalState(Object &pedestal)
 	pedestal._oVar6 += addedStones;
 	SyncPedestal(pedestal);
 	if (pedestal._oVar6 >= 3)
-		pedestal._oSelFlag = 0;
+		pedestal.selectionRegion = SelectionRegion::None;
 }
 
 void SyncDoor(Object &door)
@@ -3592,11 +3602,11 @@ void ResyncDoors(WorldTilePosition p1, WorldTilePosition p2, bool sendmsg)
 
 void UpdateState(Object &object, int frame)
 {
-	if (object._oSelFlag == 0) {
+	if (!object.canInteractWith()) {
 		return;
 	}
 
-	object._oSelFlag = 0;
+	object.selectionRegion = SelectionRegion::None;
 	object._oAnimFrame = frame;
 	object._oAnimFlag = false;
 }
@@ -3610,7 +3620,7 @@ unsigned int Object::GetId() const
 
 bool Object::IsDisabled() const
 {
-	if (!*sgOptions.Gameplay.disableCripplingShrines) {
+	if (!*GetOptions().Gameplay.disableCripplingShrines) {
 		return false;
 	}
 	if (IsAnyOf(_otype, _object_id::OBJ_GOATSHRINE, _object_id::OBJ_CAULDRON)) {
@@ -3647,7 +3657,7 @@ bool IsItemBlockingObjectAtPosition(Point position)
 	}
 
 	object = FindObjectAtPosition(position + Direction::South);
-	if (object != nullptr && object->_oSelFlag != 0) {
+	if (object != nullptr && object->canInteractWith()) {
 		// An unopened container or breakable object exists which potentially overlaps this tile, the player might not be able to pick up an item dropped here.
 		return true;
 	}
@@ -3655,7 +3665,7 @@ bool IsItemBlockingObjectAtPosition(Point position)
 	object = FindObjectAtPosition(position + Direction::SouthEast, false);
 	if (object != nullptr) {
 		Object *otherDoor = FindObjectAtPosition(position + Direction::SouthWest, false);
-		if (otherDoor != nullptr && object->_oSelFlag != 0 && otherDoor->_oSelFlag != 0) {
+		if (otherDoor != nullptr && object->canInteractWith() && otherDoor->canInteractWith()) {
 			// Two interactive objects potentially overlap both sides of this tile, as above the player might not be able to pick up an item which is dropped here.
 			return true;
 		}
@@ -3664,10 +3674,10 @@ bool IsItemBlockingObjectAtPosition(Point position)
 	return false;
 }
 
-void LoadLevelObjects(uint16_t filesWidths[65])
+tl::expected<void, std::string> LoadLevelObjects(uint16_t filesWidths[65])
 {
 	if (HeadlessMode)
-		return;
+		return {};
 
 	for (const ObjectData objectData : AllObjects) {
 		if (leveltype == objectData.olvltype) {
@@ -3675,7 +3685,7 @@ void LoadLevelObjects(uint16_t filesWidths[65])
 		}
 	}
 
-	for (int i = OFILE_L1BRAZ; i <= OFILE_L5BOOKS; i++) {
+	for (size_t i = 0, n = ObjMasterLoadList.size(); i < n; ++i) {
 		if (filesWidths[i] == 0) {
 			continue;
 		}
@@ -3683,23 +3693,27 @@ void LoadLevelObjects(uint16_t filesWidths[65])
 		ObjFileList[numobjfiles] = static_cast<object_graphic_id>(i);
 		char filestr[32];
 		*BufCopy(filestr, "objects\\", ObjMasterLoadList[i]) = '\0';
-		pObjCels[numobjfiles] = LoadCel(filestr, filesWidths[i]);
+		ASSIGN_OR_RETURN(pObjCels[numobjfiles], LoadCelWithStatus(filestr, filesWidths[i]));
 		numobjfiles++;
 	}
+	return {};
 }
 
-void InitObjectGFX()
+tl::expected<void, std::string> InitObjectGFX()
 {
 	uint16_t filesWidths[65] = {};
 
 	if (IsAnyOf(currlevel, 4, 8, 12)) {
-		filesWidths[OFILE_BKSLBRNT] = AllObjects[OBJ_STORYBOOK].animWidth;
-		filesWidths[OFILE_CANDLE2] = AllObjects[OBJ_STORYCANDLE].animWidth;
+		for (const auto id : { OBJ_STORYBOOK, OBJ_STORYCANDLE }) {
+			const ObjectData &obj = AllObjects[id];
+			filesWidths[obj.ofindex] = obj.animWidth;
+		}
 	}
 
-	for (const ObjectData objectData : AllObjects) {
+	for (size_t id = 0, n = AllObjects.size(); id < n; ++id) {
+		const ObjectData &objectData = AllObjects[id];
 		if (objectData.minlvl != 0 && currlevel >= objectData.minlvl && currlevel <= objectData.maxlvl) {
-			if (IsAnyOf(objectData.ofindex, OFILE_TRAPHOLE, OFILE_TRAPHOLE) && leveltype == DTYPE_HELL) {
+			if (IsAnyOf(static_cast<_object_id>(id), OBJ_TRAPL, OBJ_TRAPR) && leveltype == DTYPE_HELL) {
 				continue;
 			}
 
@@ -3718,7 +3732,7 @@ void InitObjectGFX()
 		}
 	}
 
-	LoadLevelObjects(filesWidths);
+	return LoadLevelObjects(filesWidths);
 }
 
 void FreeObjectGFX()
@@ -4134,7 +4148,7 @@ bool UpdateTrapState(Object &trap)
 	case OBJ_SARC:
 	case OBJ_L5LEVER:
 	case OBJ_L5SARC:
-		if (trigger._oSelFlag != 0 && trigger._oTrapFlag)
+		if (trigger.canInteractWith() && trigger._oTrapFlag)
 			return false;
 		break;
 	default:
@@ -4340,7 +4354,7 @@ void ObjChangeMapResync(int x1, int y1, int x2, int y2)
 _item_indexes ItemMiscIdIdx(item_misc_id imiscid)
 {
 	std::underlying_type_t<_item_indexes> i = IDI_GOLD;
-	while (AllItemsList[i].iRnd == IDROP_NEVER || AllItemsList[i].iMiscId != imiscid) {
+	while (AllItemsList[i].dropRate == 0 || AllItemsList[i].iMiscId != imiscid) {
 		i++;
 	}
 
@@ -4676,12 +4690,12 @@ void BreakObject(const Player &player, Object &object)
 
 void DeltaSyncBreakObj(Object &object)
 {
-	if (!object.IsBreakable() || object._oSelFlag == 0)
+	if (!object.IsBreakable() || !object.canInteractWith())
 		return;
 
 	object._oMissFlag = true;
 	object._oBreak = -1;
-	object._oSelFlag = 0;
+	object.selectionRegion = SelectionRegion::None;
 	object._oPreFlag = true;
 	object._oAnimFlag = false;
 	object._oAnimFrame = object._oAnimLen;

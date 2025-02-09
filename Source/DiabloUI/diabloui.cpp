@@ -10,6 +10,7 @@
 #include "DiabloUI/dialogs.h"
 #include "DiabloUI/scrollbar.h"
 #include "DiabloUI/text_input.hpp"
+#include "controls/control_mode.hpp"
 #include "controls/controller.h"
 #include "controls/input.h"
 #include "controls/menu_controls.h"
@@ -21,9 +22,13 @@
 #include "engine/dx.h"
 #include "engine/load_pcx.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/text_render.hpp"
+#include "engine/ticks.hpp"
 #include "hwcursor.hpp"
+#include "init.h"
 #include "utils/algorithm/container.hpp"
 #include "utils/display.h"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/log.hpp"
 #include "utils/pcx_to_clx.hpp"
@@ -426,7 +431,7 @@ void UiHandleEvents(SDL_Event *event)
 	if (event->type == SDL_KEYDOWN && event->key.keysym.sym == SDLK_RETURN) {
 		const Uint8 *state = SDLC_GetKeyState();
 		if (state[SDLC_KEYSTATE_LALT] != 0 || state[SDLC_KEYSTATE_RALT] != 0) {
-			sgOptions.Graphics.fullscreen.SetValue(!IsFullScreen());
+			GetOptions().Graphics.fullscreen.SetValue(!IsFullScreen());
 			SaveOptions();
 			if (gfnFullscreen != nullptr)
 				gfnFullscreen();
@@ -452,9 +457,9 @@ void UiHandleEvents(SDL_Event *event)
 			// For example, if the previous size was too large for a hardware cursor then it was invisible
 			// but may now become visible.
 			DoReinitializeHardwareCursor();
-		} else if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+		} else if (event->window.event == SDL_WINDOWEVENT_FOCUS_LOST && *GetOptions().Gameplay.pauseOnFocusLoss) {
 			music_mute();
-		} else if (event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+		} else if (event->window.event == SDL_WINDOWEVENT_FOCUS_GAINED && *GetOptions().Gameplay.pauseOnFocusLoss) {
 			diablo_focus_unpause();
 		}
 	}
@@ -648,7 +653,7 @@ Sint16 GetCenterOffset(Sint16 w, Sint16 bw)
 void UiLoadDefaultPalette()
 {
 	LoadPalette(gbIsHellfire ? "ui_art\\hellfire.pal" : "ui_art\\diablo.pal", /*blend=*/false);
-	ApplyGamma(logical_palette, orig_palette, 256);
+	ApplyToneMapping(logical_palette, orig_palette, 256);
 }
 
 bool UiLoadBlackBackground()
@@ -668,7 +673,7 @@ void LoadBackgroundArt(const char *pszFile, int frames)
 		return;
 
 	LoadPalInMem(pPal);
-	ApplyGamma(logical_palette, orig_palette, 256);
+	ApplyToneMapping(logical_palette, orig_palette, 256);
 	UiOnBackgroundChange();
 }
 
@@ -683,10 +688,10 @@ void UiAddBackground(std::vector<std::unique_ptr<UiItemBase>> *vecDialog)
 	}
 }
 
-void UiAddLogo(std::vector<std::unique_ptr<UiItemBase>> *vecDialog)
+void UiAddLogo(std::vector<std::unique_ptr<UiItemBase>> *vecDialog, int y)
 {
 	vecDialog->push_back(std::make_unique<UiImageAnimatedClx>(
-	    *ArtLogo, MakeSdlRect(0, GetUIRectangle().position.y, 0, 0), UiFlags::AlignCenter));
+	    *ArtLogo, MakeSdlRect(0, y, 0, 0), UiFlags::AlignCenter));
 }
 
 void UiFadeIn()
@@ -711,17 +716,27 @@ void UiFadeIn()
 	RenderPresent();
 }
 
+namespace {
+ClxSpriteList GetListSelectorSprites(int itemHeight)
+{
+	int size;
+	if (itemHeight >= 42) {
+		size = FOCUS_BIG;
+	} else if (itemHeight >= 30) {
+		size = FOCUS_MED;
+	} else {
+		size = FOCUS_SMALL;
+	}
+	return *ArtFocus[size];
+}
+} // namespace
+
 void DrawSelector(const SDL_Rect &rect)
 {
-	int size = FOCUS_SMALL;
-	if (rect.h >= 42)
-		size = FOCUS_BIG;
-	else if (rect.h >= 30)
-		size = FOCUS_MED;
-	const ClxSpriteList sprites = *ArtFocus[size];
+	const ClxSpriteList sprites = GetListSelectorSprites(rect.h);
 	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
 
-	// TODO FOCUS_MED appares higher than the box
+	// TODO FOCUS_MED appears higher than the box
 	const int y = rect.y + (rect.h - static_cast<int>(sprite.height())) / 2;
 
 	const Surface &out = Surface(DiabloUiSurface());
@@ -810,18 +825,25 @@ void Render(const UiList &uiList)
 	const Surface &out = Surface(DiabloUiSurface());
 
 	for (std::size_t i = listOffset; i < uiList.m_vecItems.size() && (i - listOffset) < ListViewportSize; ++i) {
-		SDL_Rect rect = uiList.itemRect(static_cast<int>(i - listOffset));
+		const SDL_Rect rect = uiList.itemRect(static_cast<int>(i - listOffset));
 		const UiListItem &item = *uiList.GetItem(i);
 		if (i == SelectedItem)
 			DrawSelector(rect);
 
-		Rectangle rectangle = MakeRectangle(rect);
+		const Rectangle rectangle = MakeRectangle(rect).inset(
+		    Displacement(GetListSelectorSprites(rect.h)[0].width(), 0));
+
+		const UiFlags uiFlags = uiList.GetFlags() | item.uiFlags;
+		const GameFontTables fontSize = GetFontSizeFromUiFlags(uiFlags);
+		std::string_view text = item.m_text.str();
+		while (GetLineWidth(text, fontSize, 1) > rectangle.size.width) {
+			text = std::string_view(text.data(), FindLastUtf8Symbols(text));
+		}
+
 		if (item.args.empty()) {
-			DrawString(out, item.m_text, rectangle,
-			    { .flags = uiList.GetFlags() | item.uiFlags, .spacing = uiList.GetSpacing() });
+			DrawString(out, text, rectangle, { .flags = uiFlags, .spacing = uiList.GetSpacing() });
 		} else {
-			DrawStringWithColors(out, item.m_text, item.args, rectangle,
-			    { .flags = uiList.GetFlags() | item.uiFlags, .spacing = uiList.GetSpacing() });
+			DrawStringWithColors(out, text, item.args, rectangle, { .flags = uiFlags, .spacing = uiList.GetSpacing() });
 		}
 	}
 }

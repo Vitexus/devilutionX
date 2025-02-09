@@ -7,13 +7,18 @@
 
 #include <cstdint>
 
+#include <SDL.h>
+
+#ifdef USE_SDL1
+#include "utils/sdl2_to_1_2_backports.h"
+#endif
+
 #ifdef _DEBUG
 #include "monstdat.h"
 #endif
-#include "init.h"
 #include "levels/gendung.h"
 #include "utils/attributes.h"
-#include "utils/endian.hpp"
+#include "utils/endian_read.hpp"
 
 namespace devilution {
 
@@ -32,7 +37,7 @@ enum clicktype : int8_t {
 };
 
 /**
- * @brief Specifices what game logic step is currently executed
+ * @brief Specifies what game logic step is currently executed
  */
 enum class GameLogicStep : uint8_t {
 	None,
@@ -58,7 +63,8 @@ enum class MouseActionType : uint8_t {
 	OperateObject,
 };
 
-extern uint32_t glSeedTbl[NUMLEVELS];
+extern uint32_t DungeonSeeds[NUMLEVELS];
+extern DVL_API_FOR_TEST std::optional<uint32_t> LevelSeeds[NUMLEVELS];
 extern Point MousePosition;
 extern DVL_API_FOR_TEST bool gbRunGame;
 extern bool gbRunGameResult;
@@ -69,12 +75,6 @@ extern bool cineflag;
 /* These are defined in fonts.h */
 extern void FontsCleanup();
 extern DVL_API_FOR_TEST int PauseMode;
-extern bool gbBard;
-extern bool gbBarbarian;
-/**
- * @brief Don't load UI or show Messageboxes or other user-interaction. Needed for UnitTests.
- */
-extern DVL_API_FOR_TEST bool HeadlessMode;
 extern clicktype sgbMouseDown;
 extern uint16_t gnTickDelay;
 extern char gszProductName[64];
@@ -94,7 +94,7 @@ void diablo_focus_pause();
 void diablo_focus_unpause();
 bool PressEscKey();
 void DisableInputEventHandler(const SDL_Event &event, uint16_t modState);
-void LoadGameLevel(bool firstflag, lvl_entry lvldir);
+tl::expected<void, std::string> LoadGameLevel(bool firstflag, lvl_entry lvldir);
 bool IsDiabloAlive(bool playSFX);
 void PrintScreen(SDL_Keycode vkey);
 
@@ -110,17 +110,8 @@ void diablo_color_cyc_logic();
 extern bool DebugDisableNetworkTimeout;
 #endif
 
-struct QuickMessage {
-	/** Config variable names for quick message */
-	const char *const key;
-	/** Default quick message */
-	const char *const message;
-};
-
-constexpr size_t QUICK_MESSAGE_OPTIONS = 10;
-extern QuickMessage QuickMessages[QUICK_MESSAGE_OPTIONS];
 /**
- * @brief Specifices what game logic step is currently executed
+ * @brief Specifies what game logic step is currently executed
  */
 extern GameLogicStep gGameLogicStep;
 

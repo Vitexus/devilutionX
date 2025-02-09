@@ -6,12 +6,14 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
-#include <unordered_map>
+
+#include <ankerl/unordered_dense.h>
 
 #include "diablo.h"
-#include "engine.h"
 #include "engine/clx_sprite.hpp"
+#include "engine/point.hpp"
 
 namespace devilution {
 
@@ -19,10 +21,11 @@ extern std::string TestMapPath;
 extern OptionalOwnedClxSpriteList pSquareCel;
 extern bool DebugToggle;
 extern bool DebugGodMode;
+extern bool DebugInvisible;
 extern bool DebugVision;
 extern bool DebugPath;
 extern bool DebugGrid;
-extern std::unordered_map<int, Point> DebugCoordsMap;
+extern ankerl::unordered_dense::map<int, Point> DebugCoordsMap;
 extern bool DebugScrollViewEnabled;
 extern std::string debugTRN;
 extern uint32_t glMid1Seed[NUMLEVELS];
@@ -32,6 +35,7 @@ extern uint32_t glEndSeed[NUMLEVELS];
 
 enum class DebugGridTextItem : uint16_t {
 	None,
+	microTiles,
 	dPiece,
 	dTransVal,
 	dLight,
@@ -39,6 +43,7 @@ enum class DebugGridTextItem : uint16_t {
 	dFlags,
 	dPlayer,
 	dMonster,
+	missiles,
 	dCorpse,
 	dObject,
 	dItem,
@@ -69,7 +74,7 @@ bool IsDebugGridTextNeeded();
 bool IsDebugGridInMegatiles();
 DebugGridTextItem GetDebugGridTextType();
 void SetDebugGridTextType(DebugGridTextItem value);
-bool GetDebugGridText(Point dungeonCoords, char *debugGridTextBuffer);
+bool GetDebugGridText(Point dungeonCoords, std::string &debugGridText);
 bool IsDebugAutomapHighlightNeeded();
 bool ShouldHighlightDebugAutomapTile(Point position);
 void AddDebugAutomapMonsterHighlight(std::string_view name);

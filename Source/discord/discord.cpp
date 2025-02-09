@@ -17,7 +17,7 @@
 #include <fmt/format.h>
 
 #include "config.h"
-#include "init.h"
+#include "game_mode.hpp"
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
 #include "multi.h"
@@ -28,6 +28,14 @@
 #include "utils/str_cat.hpp"
 
 namespace devilution {
+namespace {
+void IsHellfireChanged()
+{
+	discord_manager::UpdateMenu(true);
+}
+const auto IsHellfireChangedHandler = (AddIsHellfireChangeHandler(IsHellfireChanged), true);
+} // namespace
+
 namespace discord_manager {
 
 // App ID used for DevilutionX's Diablo (classic Diablo's is 496571953147150354)

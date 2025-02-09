@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
+#include <ankerl/unordered_dense.h>
 #include <function_ref.hpp>
 
 #include "engine/assets.hpp"
@@ -14,6 +14,7 @@
 #include "utils/file_util.h"
 #include "utils/log.hpp"
 #include "utils/paths.h"
+#include "utils/string_view_hash.hpp"
 
 #ifdef USE_SDL1
 #include "utils/sdl2_to_1_2_backports.h"
@@ -37,21 +38,7 @@ std::unique_ptr<char[]> translationValues;
 
 using TranslationRef = uint32_t;
 
-struct StringHash {
-	size_t operator()(const char *str) const noexcept
-	{
-		return std::hash<std::string_view> {}(str);
-	}
-};
-
-struct StringEq {
-	bool operator()(const char *lhs, const char *rhs) const noexcept
-	{
-		return std::string_view(lhs) == std::string_view(rhs);
-	}
-};
-
-std::vector<std::unordered_map<const char *, TranslationRef, StringHash, StringEq>> translation = { {}, {} };
+std::vector<ankerl::unordered_dense::map<const char *, TranslationRef, StringViewHash, StringViewEquals>> translation = { {}, {} };
 
 constexpr uint32_t TranslationRefOffsetBits = 19;
 constexpr uint32_t TranslationRefSizeBits = 32 - TranslationRefOffsetBits; // 13
@@ -348,13 +335,7 @@ std::string_view GetLanguageCode()
 {
 	if (!forceLocale.empty())
 		return forceLocale;
-	return *sgOptions.Language.code;
-}
-
-bool IsSmallFontTall()
-{
-	const std::string_view code = GetLanguageCode().substr(0, 2);
-	return code == "zh" || code == "ja" || code == "ko";
+	return *GetOptions().Language.code;
 }
 
 void LanguageInitialize()
@@ -487,6 +468,7 @@ void LanguageInitialize()
 
 	char *keyPtr = &translationKeys[0];
 	char *valuePtr = &translationValues[0];
+	translation[0].reserve(head.nbMappings - 1);
 	for (uint32_t i = 1; i < head.nbMappings; i++) {
 		if (readWholeFile
 		        ? ReadEntry(data.get(), fileSize, src[i], keyPtr) && ReadEntry(data.get(), fileSize, dst[i], valuePtr)

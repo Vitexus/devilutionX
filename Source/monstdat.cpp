@@ -6,10 +6,11 @@
 #include "monstdat.h"
 
 #include <cstdint>
-#include <unordered_map>
 
+#include <ankerl/unordered_dense.h>
 #include <expected.hpp>
 
+#include "cursor.h"
 #include "data/file.hpp"
 #include "data/record_reader.hpp"
 #include "items.h"
@@ -459,6 +460,15 @@ tl::expected<monster_resistance, std::string> ParseMonsterResistance(std::string
 	return tl::make_unexpected("Unknown enum value");
 }
 
+tl::expected<SelectionRegion, std::string> ParseSelectionRegion(std::string_view value)
+{
+	if (value.empty()) return SelectionRegion::None;
+	if (value == "Bottom") return SelectionRegion::Bottom;
+	if (value == "Middle") return SelectionRegion::Middle;
+	if (value == "Top") return SelectionRegion::Top;
+	return tl::make_unexpected("Unknown enum value");
+}
+
 tl::expected<UniqueMonsterPack, std::string> ParseUniqueMonsterPack(std::string_view value)
 {
 	if (value == "None") return UniqueMonsterPack::None;
@@ -475,7 +485,7 @@ void LoadMonstDat()
 
 	MonstersData.clear();
 	MonstersData.reserve(dataFile.numRecords());
-	std::unordered_map<std::string, size_t> spritePathToId;
+	ankerl::unordered_dense::map<std::string, size_t> spritePathToId;
 	for (DataFileRecord record : dataFile) {
 		RecordReader reader { record, filename };
 		MonsterData &monster = MonstersData.emplace_back();
@@ -518,7 +528,7 @@ void LoadMonstDat()
 		reader.read("monsterClass", monster.monsterClass, ParseMonsterClass);
 		reader.readEnumList("resistance", monster.resistance, ParseMonsterResistance);
 		reader.readEnumList("resistanceHell", monster.resistanceHell, ParseMonsterResistance);
-		reader.readInt("selectionType", monster.selectionType);
+		reader.readEnumList("selectionRegion", monster.selectionRegion, ParseSelectionRegion);
 
 		// treasure
 		// TODO: Replace this hack with proper parsing once items have been migrated to data files.

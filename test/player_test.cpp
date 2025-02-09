@@ -14,7 +14,7 @@ extern bool TestPlayerDoGotHit(Player &player);
 
 int RunBlockTest(int frames, ItemSpecialEffect flags)
 {
-	Player &player = Players[0];
+	devilution::Player &player = Players[0];
 
 	player._pHFrames = frames;
 	player._pIFlags = flags;
@@ -90,7 +90,7 @@ TEST(Player, PM_DoGotHit)
 	}
 }
 
-static void AssertPlayer(Player &player)
+static void AssertPlayer(devilution::Player &player)
 {
 	ASSERT_EQ(CountU8(player._pSplLvl, 64), 0);
 	ASSERT_EQ(Count8(player.InvGrid, InventoryGridCells), 1);
@@ -136,7 +136,7 @@ static void AssertPlayer(Player &player)
 	ASSERT_EQ(player.pDamAcFlags, ItemSpecialEffectHf::None);
 
 	ASSERT_EQ(player._pmode, 0);
-	ASSERT_EQ(Count8(player.walkpath, MaxPathLength), 0);
+	ASSERT_EQ(Count8(player.walkpath, MaxPathLengthPlayer), 0);
 	ASSERT_EQ(player.queuedSpell.spellId, SpellID::Null);
 	ASSERT_EQ(player.queuedSpell.spellType, SpellType::Skill);
 	ASSERT_EQ(player.queuedSpell.spellFrom, 0);
@@ -188,9 +188,8 @@ TEST(Player, CreatePlayer)
 	// Please provide them so that the tests can run successfully
 	ASSERT_TRUE(HaveSpawn() || HaveDiabdat());
 
-	InitCursor();
-
 	LoadPlayerDataFiles();
+	LoadMonsterData();
 	LoadItemData();
 	Players.resize(1);
 	CreatePlayer(Players[0], HeroClass::Rogue);

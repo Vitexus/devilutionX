@@ -26,8 +26,13 @@ enum interface_mode : uint8_t {
 	WM_DIABNEWGAME,
 	WM_DIABLOADGAME,
 
+	// Asynchronous loading events.
+	WM_PROGRESS,
+	WM_ERROR,
+	WM_DONE,
+
 	WM_FIRST = WM_DIABNEXTLVL,
-	WM_LAST = WM_DIABLOADGAME,
+	WM_LAST = WM_DONE,
 };
 
 void RegisterCustomEvents();
@@ -59,7 +64,7 @@ enum Cutscenes : uint8_t {
 };
 
 void interface_msg_pump();
-void IncProgress();
+void IncProgress(uint32_t steps = 1);
 void CompleteProgress();
 void ShowProgress(interface_mode uMsg);
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <utility>
 
 #ifdef __vita__
 #include <psp2/power.h>
@@ -28,6 +29,7 @@
 #include "controls/touch/gamepad.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/dx.h"
+#include "headless_mode.hpp"
 #include "options.h"
 #include "utils/log.hpp"
 #include "utils/sdl_geometry.h"
@@ -89,7 +91,7 @@ void CalculatePreferredWindowSize(int &width, int &height)
 		std::swap(mode.w, mode.h);
 	}
 
-	if (*sgOptions.Graphics.integerScaling) {
+	if (*GetOptions().Graphics.integerScaling) {
 		int factor = std::min(mode.w / width, mode.h / height);
 		width = mode.w / factor;
 		height = mode.h / factor;
@@ -110,12 +112,10 @@ void FreeRenderer()
 {
 #if defined(_WIN32) && !defined(NXDK)
 	bool wasD3D9 = false;
-	bool wasD3D11 = false;
 	if (renderer != nullptr) {
 		SDL_RendererInfo previousRendererInfo;
 		SDL_GetRendererInfo(renderer, &previousRendererInfo);
 		wasD3D9 = (std::string_view(previousRendererInfo.name) == "direct3d");
-		wasD3D11 = (std::string_view(previousRendererInfo.name) == "direct3d11");
 	}
 #endif
 
@@ -124,10 +124,9 @@ void FreeRenderer()
 		renderer = nullptr;
 	}
 
-#if defined(_WIN32) && !defined(NXDK)
+#if defined(_WIN32) && !defined(NXDK) && !defined(USE_SDL1)
 	// On Windows 11 the directx9 VSYNC timer doesn't get recreated properly, see https://github.com/libsdl-org/SDL/issues/5099
-	// Furthermore, the direct3d11 driver "poisons" the window so it can't be used by another renderer
-	if ((wasD3D9 && *sgOptions.Graphics.upscale && *sgOptions.Graphics.vSync) || (wasD3D11 && !*sgOptions.Graphics.upscale)) {
+	if (wasD3D9 && *GetOptions().Graphics.upscale && *GetOptions().Graphics.frameRateControl != FrameRateControl::VerticalSync) {
 		std::string title = SDL_GetWindowTitle(ghMainWnd);
 		Uint32 flags = SDL_GetWindowFlags(ghMainWnd);
 		Rectangle dimensions;
@@ -184,16 +183,150 @@ void CalculateUIRectangle()
 
 Size GetPreferredWindowSize()
 {
-	Size windowSize = forceResolution.width != 0 ? forceResolution : *sgOptions.Graphics.resolution;
+	Size windowSize = forceResolution.width != 0 ? forceResolution : *GetOptions().Graphics.resolution;
 
 #ifndef USE_SDL1
-	if (*sgOptions.Graphics.upscale && *sgOptions.Graphics.fitToScreen) {
+	if (*GetOptions().Graphics.upscale && *GetOptions().Graphics.fitToScreen) {
 		CalculatePreferredWindowSize(windowSize.width, windowSize.height);
 	}
 #endif
 	AdjustToScreenGeometry(windowSize);
 	return windowSize;
 }
+
+const auto OptionChangeHandlerResolution = (GetOptions().Graphics.resolution.SetValueChangedCallback(ResizeWindow), true);
+const auto OptionChangeHandlerFullscreen = (GetOptions().Graphics.fullscreen.SetValueChangedCallback(SetFullscreenMode), true);
+
+void OptionGrabInputChanged()
+{
+#ifdef USE_SDL1
+	SDL_WM_GrabInput(*GetOptions().Gameplay.grabInput ? SDL_GRAB_ON : SDL_GRAB_OFF);
+#else
+	if (ghMainWnd != nullptr)
+		SDL_SetWindowGrab(ghMainWnd, *GetOptions().Gameplay.grabInput ? SDL_TRUE : SDL_FALSE);
+#endif
+}
+const auto OptionChangeHandlerGrabInput = (GetOptions().Gameplay.grabInput.SetValueChangedCallback(OptionGrabInputChanged), true);
+
+void UpdateAvailableResolutions()
+{
+	GraphicsOptions &graphicsOptions = GetOptions().Graphics;
+
+	std::vector<Size> sizes;
+	float scaleFactor = GetDpiScalingFactor();
+
+	// Add resolutions
+	bool supportsAnyResolution = false;
+#ifdef USE_SDL1
+	auto *modes = SDL_ListModes(nullptr, SDL_FULLSCREEN | SDL_HWPALETTE);
+	// SDL_ListModes returns -1 if any resolution is allowed (for example returned on 3DS)
+	if (modes == (SDL_Rect **)-1) {
+		supportsAnyResolution = true;
+	} else if (modes != nullptr) {
+		for (size_t i = 0; modes[i] != nullptr; i++) {
+			if (modes[i]->w < modes[i]->h) {
+				std::swap(modes[i]->w, modes[i]->h);
+			}
+			sizes.emplace_back(Size {
+			    static_cast<int>(modes[i]->w * scaleFactor),
+			    static_cast<int>(modes[i]->h * scaleFactor) });
+		}
+	}
+#else
+	int displayModeCount = SDL_GetNumDisplayModes(0);
+	for (int i = 0; i < displayModeCount; i++) {
+		SDL_DisplayMode mode;
+		if (SDL_GetDisplayMode(0, i, &mode) != 0) {
+			ErrSdl();
+		}
+		if (mode.w < mode.h) {
+			std::swap(mode.w, mode.h);
+		}
+		sizes.emplace_back(Size {
+		    static_cast<int>(mode.w * scaleFactor),
+		    static_cast<int>(mode.h * scaleFactor) });
+	}
+	supportsAnyResolution = *GetOptions().Graphics.upscale;
+#endif
+
+	if (supportsAnyResolution && sizes.size() == 1) {
+		// Attempt to provide sensible options for 4:3 and the native aspect ratio
+		const int width = sizes[0].width;
+		const int height = sizes[0].height;
+		const int commonHeights[] = { 480, 540, 720, 960, 1080, 1440, 2160 };
+		for (int commonHeight : commonHeights) {
+			if (commonHeight > height)
+				break;
+			sizes.emplace_back(Size { commonHeight * 4 / 3, commonHeight });
+			if (commonHeight * width % height == 0)
+				sizes.emplace_back(Size { commonHeight * width / height, commonHeight });
+		}
+	}
+
+	const Size configuredSize = *graphicsOptions.resolution;
+
+	// Ensures that the ini specified resolution is present in resolution list even if it doesn't match a monitor resolution (for example if played in window mode)
+	sizes.push_back(configuredSize);
+	// Ensures that the platform's preferred default resolution is always present
+	sizes.emplace_back(Size { DEFAULT_WIDTH, DEFAULT_HEIGHT });
+	// Ensures that the vanilla Diablo resolution is present on systems that would support it
+	if (supportsAnyResolution)
+		sizes.emplace_back(Size { 640, 480 });
+
+#ifndef USE_SDL1
+	if (*graphicsOptions.fitToScreen) {
+		SDL_DisplayMode mode;
+		if (SDL_GetDesktopDisplayMode(0, &mode) != 0) {
+			ErrSdl();
+		}
+		for (auto &size : sizes) {
+			// Ensure that the ini specified resolution remains present in the resolution list
+			if (size.height == configuredSize.height)
+				size.width = configuredSize.width;
+			else
+				size.width = size.height * mode.w / mode.h;
+		}
+	}
+#endif
+
+	// Sort by width then by height
+	c_sort(sizes, [](const Size &x, const Size &y) -> bool {
+		if (x.width == y.width)
+			return x.height > y.height;
+		return x.width > y.width;
+	});
+	// Remove duplicate entries
+	sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
+
+	std::vector<std::pair<Size, std::string>> resolutions;
+	for (auto &size : sizes) {
+#ifndef USE_SDL1
+		if (*graphicsOptions.fitToScreen) {
+			resolutions.emplace_back(size, StrCat(size.height, "p"));
+			continue;
+		}
+#endif
+		resolutions.emplace_back(size, StrCat(size.width, "x", size.height));
+	}
+	graphicsOptions.resolution.setAvailableResolutions(std::move(resolutions));
+}
+
+#if !defined(USE_SDL1) || defined(__3DS__)
+void ResizeWindowAndUpdateResolutionOptions()
+{
+	ResizeWindow();
+#ifndef __3DS__
+	UpdateAvailableResolutions();
+#endif
+}
+const auto OptionChangeHandlerFitToScreen = (GetOptions().Graphics.fitToScreen.SetValueChangedCallback(ResizeWindowAndUpdateResolutionOptions), true);
+#endif
+
+#ifndef USE_SDL1
+const auto OptionChangeHandlerScaleQuality = (GetOptions().Graphics.scaleQuality.SetValueChangedCallback(ReinitializeTexture), true);
+const auto OptionChangeHandlerIntegerScaling = (GetOptions().Graphics.integerScaling.SetValueChangedCallback(ReinitializeIntegerScale), true);
+const auto OptionChangeHandlerVSync = (GetOptions().Graphics.frameRateControl.SetValueChangedCallback(ReinitializeRenderer), true);
+#endif
 
 } // namespace
 
@@ -236,9 +369,12 @@ void SetVideoMode(int width, int height, int bpp, uint32_t flags)
 	if (ghMainWnd == nullptr) {
 		ErrSdl();
 	}
-	const SDL_VideoInfo &current = *SDL_GetVideoInfo();
-	Log("Video mode is now {}x{} bpp={} flags=0x{:08X}",
-	    current.current_w, current.current_h, current.vfmt->BitsPerPixel, SDL_GetVideoSurface()->flags);
+	const SDL_Surface *surface = SDL_GetVideoSurface();
+	if (surface == nullptr) {
+		ErrSdl();
+	}
+	Log("Video surface is now {}x{} bpp={} flags=0x{:08X}",
+	    surface->w, surface->h, surface->format->BitsPerPixel, surface->flags);
 }
 
 void SetVideoModeToPrimary(bool fullscreen, int width, int height)
@@ -248,7 +384,7 @@ void SetVideoModeToPrimary(bool fullscreen, int width, int height)
 		flags |= SDL_FULLSCREEN;
 #ifdef __3DS__
 	flags &= ~SDL_FULLSCREEN;
-	flags |= Get3DSScalingFlag(*sgOptions.Graphics.fitToScreen, width, height);
+	flags |= Get3DSScalingFlag(*GetOptions().Graphics.fitToScreen, width, height);
 #endif
 	SetVideoMode(width, height, SDL1_VIDEO_MODE_BPP, flags);
 	if (OutputRequiresScaling())
@@ -272,7 +408,7 @@ bool SpawnWindow(const char *lpWindowName)
 #endif
 #ifdef NXDK
 	{
-		Size windowSize = forceResolution.width != 0 ? forceResolution : *sgOptions.Graphics.resolution;
+		Size windowSize = forceResolution.width != 0 ? forceResolution : *GetOptions().Graphics.resolution;
 		VIDEO_MODE xmode;
 		void *p = nullptr;
 		while (XVideoListModes(&xmode, 0, 0, &p)) {
@@ -314,8 +450,8 @@ bool SpawnWindow(const char *lpWindowName)
 	RegisterCustomEvents();
 
 #ifndef USE_SDL1
-	if (sgOptions.Controller.szMapping[0] != '\0') {
-		SDL_GameControllerAddMapping(sgOptions.Controller.szMapping);
+	if (GetOptions().Controller.szMapping[0] != '\0') {
+		SDL_GameControllerAddMapping(GetOptions().Controller.szMapping);
 	}
 #endif
 
@@ -333,18 +469,18 @@ bool SpawnWindow(const char *lpWindowName)
 
 #ifdef USE_SDL1
 	SDL_WM_SetCaption(lpWindowName, WINDOW_ICON_NAME);
-	SetVideoModeToPrimary(*sgOptions.Graphics.fullscreen, windowSize.width, windowSize.height);
-	if (*sgOptions.Gameplay.grabInput)
+	SetVideoModeToPrimary(*GetOptions().Graphics.fullscreen, windowSize.width, windowSize.height);
+	if (*GetOptions().Gameplay.grabInput)
 		SDL_WM_GrabInput(SDL_GRAB_ON);
 	atexit(SDL_VideoQuit); // Without this video mode is not restored after fullscreen.
 #else
 	int flags = SDL_WINDOW_ALLOW_HIGHDPI;
-	if (*sgOptions.Graphics.upscale) {
-		if (*sgOptions.Graphics.fullscreen) {
+	if (*GetOptions().Graphics.upscale) {
+		if (*GetOptions().Graphics.fullscreen) {
 			flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 		}
 		flags |= SDL_WINDOW_RESIZABLE;
-	} else if (*sgOptions.Graphics.fullscreen) {
+	} else if (*GetOptions().Graphics.fullscreen) {
 		flags |= SDL_WINDOW_FULLSCREEN;
 	}
 
@@ -354,7 +490,7 @@ bool SpawnWindow(const char *lpWindowName)
 	// This is a solution to a problem related to SDL mouse grab.
 	// See https://github.com/diasurgical/devilutionX/issues/4251
 	if (ghMainWnd != nullptr)
-		SDL_SetWindowGrab(ghMainWnd, *sgOptions.Gameplay.grabInput ? SDL_TRUE : SDL_FALSE);
+		SDL_SetWindowGrab(ghMainWnd, *GetOptions().Gameplay.grabInput ? SDL_TRUE : SDL_FALSE);
 
 #endif
 	if (ghMainWnd == nullptr) {
@@ -373,7 +509,12 @@ bool SpawnWindow(const char *lpWindowName)
 
 	ReinitializeRenderer();
 
-	return ghMainWnd != nullptr;
+	if (ghMainWnd != nullptr) {
+		UpdateAvailableResolutions();
+		return true;
+	}
+
+	return false;
 }
 
 #ifndef USE_SDL1
@@ -385,7 +526,7 @@ void ReinitializeTexture()
 	if (renderer == nullptr)
 		return;
 
-	auto quality = StrCat(static_cast<int>(*sgOptions.Graphics.scaleQuality));
+	auto quality = StrCat(static_cast<int>(*GetOptions().Graphics.scaleQuality));
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, quality.c_str());
 
 	texture = SDLWrap::CreateTexture(renderer, DEVILUTIONX_DISPLAY_TEXTURE_FORMAT, SDL_TEXTUREACCESS_STREAMING, gnScreenWidth, gnScreenHeight);
@@ -393,12 +534,12 @@ void ReinitializeTexture()
 
 void ReinitializeIntegerScale()
 {
-	if (*sgOptions.Graphics.fitToScreen) {
+	if (*GetOptions().Graphics.fitToScreen) {
 		ResizeWindow();
 		return;
 	}
 
-	if (renderer != nullptr && SDL_RenderSetIntegerScale(renderer, *sgOptions.Graphics.integerScaling ? SDL_TRUE : SDL_FALSE) < 0) {
+	if (renderer != nullptr && SDL_RenderSetIntegerScale(renderer, *GetOptions().Graphics.integerScaling ? SDL_TRUE : SDL_FALSE) < 0) {
 		ErrSdl();
 	}
 }
@@ -410,19 +551,21 @@ void ReinitializeRenderer()
 		return;
 
 #ifdef USE_SDL1
-	const SDL_VideoInfo &current = *SDL_GetVideoInfo();
-	Size windowSize = { current.current_w, current.current_h };
-	AdjustToScreenGeometry(windowSize);
+	const SDL_Surface *surface = SDL_GetVideoSurface();
+	if (surface == nullptr) {
+		ErrSdl();
+	}
+	AdjustToScreenGeometry(Size(surface->w, surface->h));
 #else
 	if (texture)
 		texture.reset();
 
 	FreeRenderer();
 
-	if (*sgOptions.Graphics.upscale) {
+	if (*GetOptions().Graphics.upscale) {
 		Uint32 rendererFlags = 0;
 
-		if (*sgOptions.Graphics.vSync) {
+		if (*GetOptions().Graphics.frameRateControl == FrameRateControl::VerticalSync) {
 			rendererFlags |= SDL_RENDERER_PRESENTVSYNC;
 		}
 
@@ -433,7 +576,7 @@ void ReinitializeRenderer()
 
 		ReinitializeTexture();
 
-		if (SDL_RenderSetIntegerScale(renderer, *sgOptions.Graphics.integerScaling ? SDL_TRUE : SDL_FALSE) < 0) {
+		if (SDL_RenderSetIntegerScale(renderer, *GetOptions().Graphics.integerScaling ? SDL_TRUE : SDL_FALSE) < 0) {
 			ErrSdl();
 		}
 
@@ -457,7 +600,7 @@ void SetFullscreenMode()
 {
 #ifdef USE_SDL1
 	Uint32 flags = ghMainWnd->flags ^ SDL_FULLSCREEN;
-	if (*sgOptions.Graphics.fullscreen) {
+	if (*GetOptions().Graphics.fullscreen) {
 		flags |= SDL_FULLSCREEN;
 	}
 	ghMainWnd = SDL_SetVideoMode(0, 0, 0, flags);
@@ -468,7 +611,7 @@ void SetFullscreenMode()
 	// When switching from windowed to "true fullscreen",
 	// update the display mode of the window before changing the
 	// fullscreen mode so that the display mode only has to change once
-	if (*sgOptions.Graphics.fullscreen && !*sgOptions.Graphics.upscale) {
+	if (*GetOptions().Graphics.fullscreen && !*GetOptions().Graphics.upscale) {
 		Size windowSize = GetPreferredWindowSize();
 		SDL_DisplayMode displayMode = GetNearestDisplayMode(windowSize);
 		if (SDL_SetWindowDisplayMode(ghMainWnd, &displayMode) != 0) {
@@ -477,19 +620,19 @@ void SetFullscreenMode()
 	}
 
 	Uint32 flags = 0;
-	if (*sgOptions.Graphics.fullscreen) {
-		flags = *sgOptions.Graphics.upscale ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
+	if (*GetOptions().Graphics.fullscreen) {
+		flags = *GetOptions().Graphics.upscale ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
 	}
 	if (SDL_SetWindowFullscreen(ghMainWnd, flags) != 0) {
 		ErrSdl();
 	}
 
-	if (!*sgOptions.Graphics.fullscreen) {
+	if (!*GetOptions().Graphics.fullscreen) {
 		SDL_RestoreWindow(ghMainWnd); // Avoid window being maximized before resizing
 		Size windowSize = GetPreferredWindowSize();
 		SDL_SetWindowSize(ghMainWnd, windowSize.width, windowSize.height);
 	}
-	if (!*sgOptions.Graphics.upscale) {
+	if (!*GetOptions().Graphics.upscale) {
 		// Because "true fullscreen" is locked into specific resolutions based on the modes
 		// supported by the display, the resolution may have changed when fullscreen was toggled
 		ReinitializeRenderer();
@@ -508,10 +651,10 @@ void ResizeWindow()
 	Size windowSize = GetPreferredWindowSize();
 
 #ifdef USE_SDL1
-	SetVideoModeToPrimary(*sgOptions.Graphics.fullscreen, windowSize.width, windowSize.height);
+	SetVideoModeToPrimary(*GetOptions().Graphics.fullscreen, windowSize.width, windowSize.height);
 #else
 	// For "true fullscreen" windows, the window resizes automatically based on the display mode
-	bool trueFullscreen = *sgOptions.Graphics.fullscreen && !*sgOptions.Graphics.upscale;
+	bool trueFullscreen = *GetOptions().Graphics.fullscreen && !*GetOptions().Graphics.upscale;
 	if (trueFullscreen) {
 		SDL_DisplayMode displayMode = GetNearestDisplayMode(windowSize);
 		if (SDL_SetWindowDisplayMode(ghMainWnd, &displayMode) != 0)
@@ -519,12 +662,12 @@ void ResizeWindow()
 	}
 
 	// Handle switching between "fake fullscreen" and "true fullscreen" when upscale is toggled
-	bool upscaleChanged = *sgOptions.Graphics.upscale != (renderer != nullptr);
-	if (upscaleChanged && *sgOptions.Graphics.fullscreen) {
-		Uint32 flags = *sgOptions.Graphics.upscale ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
+	bool upscaleChanged = *GetOptions().Graphics.upscale != (renderer != nullptr);
+	if (upscaleChanged && *GetOptions().Graphics.fullscreen) {
+		Uint32 flags = *GetOptions().Graphics.upscale ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
 		if (SDL_SetWindowFullscreen(ghMainWnd, flags) != 0)
 			ErrSdl();
-		if (!*sgOptions.Graphics.fullscreen)
+		if (!*GetOptions().Graphics.fullscreen)
 			SDL_RestoreWindow(ghMainWnd); // Avoid window being maximized before resizing
 	}
 

@@ -7,7 +7,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install tar curl zip unzip bash-completion build-essential ripgrep htop \
     ninja-build ccache g++ mold gdb clang-format clang-tidy \
     rpm pkg-config cmake git smpq gettext libsdl2-dev libsdl2-image-dev libsodium-dev \
-    libpng-dev libbz2-dev libfmt-dev libgtest-dev libgmock-dev libsimpleini-dev zsh \
+    libpng-dev libbz2-dev libfmt-dev libgtest-dev libgmock-dev libbenchmark-dev zsh \
     qtbase5-dev qt6-base-dev ristretto \
     && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
@@ -28,9 +28,9 @@ RUN git clone https://github.com/diasurgical/devilutionx-mpq-tools.git /tmp/devi
     rm -rf /tmp/devilutionx-mpq-tools
 
 # Install d1-graphics-tool
-RUN curl -O -L https://github.com/diasurgical/d1-graphics-tool/releases/latest/download/D1GraphicsTool-Linux-x64.deb && \
-    dpkg -i D1GraphicsTool-Linux-x64.deb && \
-    rm D1GraphicsTool-Linux-x64.deb
+RUN curl -O -L https://github.com/diasurgical/d1-graphics-tool/releases/latest/download/D1GraphicsTool-Linux-Qt5.deb && \
+    dpkg -i D1GraphicsTool-Linux-Qt5.deb && \
+    rm D1GraphicsTool-Linux-Qt5.deb
 
 # Download spawn.mpq and fonts.mpq
 RUN curl --create-dirs -O -L --output-dir /usr/local/share/diasurgical/devilutionx/ \

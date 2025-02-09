@@ -7,6 +7,7 @@
 
 #include <SDL.h>
 
+#include "controls/control_mode.hpp"
 #include "controls/game_controls.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -46,7 +47,7 @@ void InvalidateTargets()
 		}
 	}
 
-	if (ObjectUnderCursor != nullptr && ObjectUnderCursor->_oSelFlag < 1)
+	if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->canInteractWith())
 		ObjectUnderCursor = nullptr;
 
 	if (PlayerUnderCursor != nullptr) {
@@ -66,7 +67,7 @@ void RepeatMouseAction()
 	if (sgbMouseDown == CLICK_NONE && ControllerActionHeld == GameActionType_NONE)
 		return;
 
-	if (stextflag != TalkID::None)
+	if (ActiveStore != TalkID::None)
 		return;
 
 	if (LastMouseButtonAction == MouseActionType::None)

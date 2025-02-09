@@ -6,6 +6,9 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
+#include <expected.hpp>
 
 #include "DiabloUI/diabloui.h"
 #include "player.h"
@@ -81,7 +84,7 @@ using SaveWriter = MpqWriter;
 #endif
 
 /**
- * @brief Comparsion result of pfile_compare_hero_demo
+ * @brief Comparison result of pfile_compare_hero_demo
  */
 struct HeroCompareResult {
 	enum Status : uint8_t {
@@ -107,9 +110,9 @@ void pfile_write_hero(bool writeGameData = false);
 void pfile_write_hero_demo(int demo);
 /**
  * @brief Compares the actual game-state (savegame) with a reference game-state (save game from demo recording)
- * @param demo for the comparsion
+ * @param demo for the comparison
  * @param logDetails in case of a difference log details
- * @return The comparsion result.
+ * @return The comparison result.
  */
 HeroCompareResult pfile_compare_hero_demo(int demo, bool logDetails);
 #endif
@@ -122,7 +125,7 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo);
 bool pfile_delete_save(_uiheroinfo *heroInfo);
 void pfile_read_player_from_save(uint32_t saveNum, Player &player);
 void pfile_save_level();
-void pfile_convert_levels();
+tl::expected<void, std::string> pfile_convert_levels();
 void pfile_remove_temp_files();
 std::unique_ptr<std::byte[]> pfile_read(const char *pszName, size_t *pdwLen);
 void pfile_update(bool forceSave);

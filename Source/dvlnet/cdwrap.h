@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <exception>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include <ankerl/unordered_dense.h>
 #include <function_ref.hpp>
 
 #include "dvlnet/abstract_net.h"
@@ -18,7 +18,7 @@ namespace devilution::net {
 class cdwrap : public abstract_net {
 private:
 	std::unique_ptr<abstract_net> dvlnet_wrap;
-	std::map<event_type, SEVTHANDLER> registered_handlers;
+	ankerl::unordered_dense::map<event_type, SEVTHANDLER> registered_handlers;
 	buffer_t game_init_info;
 	std::optional<std::string> game_pw;
 	tl::function_ref<std::unique_ptr<abstract_net>()> make_net_fn_;
@@ -32,8 +32,8 @@ public:
 		reset();
 	}
 
-	int create(std::string addrstr) override;
-	int join(std::string addrstr) override;
+	int create(std::string_view addrstr) override;
+	int join(std::string_view addrstr) override;
 	bool SNetReceiveMessage(uint8_t *sender, void **data, size_t *size) override;
 	bool SNetSendMessage(uint8_t dest, void *data, size_t size) override;
 	bool SNetReceiveTurns(char **data, size_t *size, uint32_t *status) override;

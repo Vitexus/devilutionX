@@ -6,14 +6,23 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
-#include <utility>
 
-#include "engine.h"
 #include "engine/clx_sprite.hpp"
+#include "engine/point.hpp"
+#include "engine/size.hpp"
+#include "engine/surface.hpp"
 #include "utils/attributes.h"
+#include "utils/enum_traits.h"
 
 namespace devilution {
+
+enum class SelectionRegion : uint8_t {
+	None = 0,
+	Bottom = 1U << 0,
+	Middle = 1U << 1,
+	Top = 1U << 2,
+};
+use_enum_as_flags(SelectionRegion);
 
 enum cursor_id : uint8_t {
 	CURSOR_NONE,

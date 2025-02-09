@@ -10,6 +10,7 @@
 #include <fmt/core.h>
 
 #include "control.h"
+#include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "dead.h"
@@ -24,10 +25,12 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/trn.hpp"
 #include "engine/world_tile.hpp"
+#include "game_mode.hpp"
 #include "gamemenu.h"
+#include "headless_mode.hpp"
 #include "help.h"
-#include "init.h"
 #include "inv_iterators.hpp"
+#include "levels/tile_properties.hpp"
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "loadsave.h"
@@ -43,6 +46,7 @@
 #include "spells.h"
 #include "stores.h"
 #include "towners.h"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/log.hpp"
 #include "utils/str_cat.hpp"
@@ -60,10 +64,7 @@ namespace {
 
 struct DirectionSettings {
 	Direction dir;
-	DisplacementOf<int8_t> tileAdd;
-	DisplacementOf<int8_t> map;
 	PLR_MODE walkMode;
-	void (*walkModeHandler)(Player &, const DirectionSettings &);
 };
 
 void UpdatePlayerLightOffset(Player &player)
@@ -75,48 +76,22 @@ void UpdatePlayerLightOffset(Player &player)
 	ChangeLightOffset(player.lightId, offset.screenToLight());
 }
 
-void WalkNorthwards(Player &player, const DirectionSettings &walkParams)
+void WalkInDirection(Player &player, const DirectionSettings &walkParams)
 {
 	player.occupyTile(player.position.future, true);
-	player.position.temp = player.position.tile + walkParams.tileAdd;
-}
-
-void WalkSouthwards(Player &player, const DirectionSettings & /*walkParams*/)
-{
-	player.position.temp = player.position.tile;
-	player.position.tile = player.position.future; // Move player to the next tile to maintain correct render order
-	player.occupyTile(player.position.temp, true);
-	player.occupyTile(player.position.tile, false);
-	// BUGFIX: missing `if (leveltype != DTYPE_TOWN) {` for call to ChangeLightXY and PM_ChangeLightOff.
-	ChangeLightXY(player.lightId, player.position.tile);
-	UpdatePlayerLightOffset(player);
-}
-
-void WalkSideways(Player &player, const DirectionSettings &walkParams)
-{
-	Point const nextPosition = player.position.tile + walkParams.map;
-
-	player.occupyTile(player.position.tile, true);
-	player.occupyTile(player.position.future, false);
-
-	if (leveltype != DTYPE_TOWN) {
-		ChangeLightXY(player.lightId, nextPosition);
-		UpdatePlayerLightOffset(player);
-	}
-
-	player.position.temp = player.position.future;
+	player.position.temp = player.position.tile + walkParams.dir;
 }
 
 constexpr std::array<const DirectionSettings, 8> WalkSettings { {
 	// clang-format off
-	{ Direction::South,     {  1,  1 }, { 0, 0 }, PM_WALK_SOUTHWARDS, WalkSouthwards },
-	{ Direction::SouthWest, {  0,  1 }, { 0, 0 }, PM_WALK_SOUTHWARDS, WalkSouthwards },
-	{ Direction::West,      { -1,  1 }, { 0, 1 }, PM_WALK_SIDEWAYS,   WalkSideways   },
-	{ Direction::NorthWest, { -1,  0 }, { 0, 0 }, PM_WALK_NORTHWARDS, WalkNorthwards },
-	{ Direction::North,     { -1, -1 }, { 0, 0 }, PM_WALK_NORTHWARDS, WalkNorthwards },
-	{ Direction::NorthEast, {  0, -1 }, { 0, 0 }, PM_WALK_NORTHWARDS, WalkNorthwards },
-	{ Direction::East,      {  1, -1 }, { 1, 0 }, PM_WALK_SIDEWAYS,   WalkSideways   },
-	{ Direction::SouthEast, {  1,  0 }, { 0, 0 }, PM_WALK_SOUTHWARDS, WalkSouthwards }
+	{ Direction::South,     PM_WALK_SOUTHWARDS },
+	{ Direction::SouthWest, PM_WALK_SOUTHWARDS },
+	{ Direction::West,      PM_WALK_SIDEWAYS   },
+	{ Direction::NorthWest, PM_WALK_NORTHWARDS },
+	{ Direction::North,     PM_WALK_NORTHWARDS },
+	{ Direction::NorthEast, PM_WALK_NORTHWARDS },
+	{ Direction::East,      PM_WALK_SIDEWAYS   },
+	{ Direction::SouthEast, PM_WALK_SOUTHWARDS }
 	// clang-format on
 } };
 
@@ -150,9 +125,9 @@ void HandleWalkMode(Player &player, Direction dir)
 	player._pdir = dir;
 
 	// The player's tile position after finishing this movement action
-	player.position.future = player.position.tile + dirModeParams.tileAdd;
+	player.position.future = player.position.tile + dirModeParams.dir;
 
-	dirModeParams.walkModeHandler(player, dirModeParams);
+	WalkInDirection(player, dirModeParams);
 
 	player.tempDirection = dirModeParams.dir;
 	player._pmode = dirModeParams.walkMode;
@@ -197,30 +172,19 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	}
 
 	int8_t skippedAnimationFrames = 0;
-	if (includesFirstFrame) {
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack) && HasAnyOf(player._pIFlags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack)) {
-			// Combining Fastest Attack with any other attack speed modifier skips over the fourth frame, reducing the effectiveness of Fastest Attack.
-			// Faster Attack makes up for this by also skipping the sixth frame so this case only applies when using Quick or Fast Attack modifiers.
-			skippedAnimationFrames = 3;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
-			skippedAnimationFrames = 4;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FasterAttack)) {
-			skippedAnimationFrames = 3;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastAttack)) {
-			skippedAnimationFrames = 2;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::QuickAttack)) {
-			skippedAnimationFrames = 1;
-		}
-	} else {
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FasterAttack)) {
-			// The combination of Faster and Fast Attack doesn't result in more skipped frames, because the second frame skip of Faster Attack is not triggered.
-			skippedAnimationFrames = 2;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastAttack)) {
-			skippedAnimationFrames = 1;
-		} else if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestAttack)) {
-			// Fastest Attack is skipped if Fast or Faster Attack is also specified, because both skip the frame that triggers Fastest Attack skipping.
-			skippedAnimationFrames = 2;
-		}
+	const auto flags = player._pIFlags;
+
+	// If the first frame is not included in vanilla, the skip logic for the first frame will not be executed.
+	// This will result in a different and slower attack speed.
+	if (HasAnyOf(flags, ItemSpecialEffect::FastestAttack)) {
+		// If the fastest attack logic is trigger frames in vanilla two frames are skipped, so missing the first frame reduces the skip logic by two frames.
+		skippedAnimationFrames = includesFirstFrame ? 4 : 2;
+	} else if (HasAnyOf(flags, ItemSpecialEffect::FasterAttack)) {
+		skippedAnimationFrames = includesFirstFrame ? 3 : 2;
+	} else if (HasAnyOf(flags, ItemSpecialEffect::FastAttack)) {
+		skippedAnimationFrames = includesFirstFrame ? 2 : 1;
+	} else if (HasAnyOf(flags, ItemSpecialEffect::QuickAttack)) {
+		skippedAnimationFrames = includesFirstFrame ? 1 : 0;
 	}
 
 	auto animationFlags = AnimationDistributionFlags::ProcessAnimationPending;
@@ -240,11 +204,13 @@ void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileC
 	}
 
 	int8_t skippedAnimationFrames = 0;
+	const auto flags = player._pIFlags;
+
 	if (!gbIsHellfire) {
-		if (includesFirstFrame && HasAnyOf(player._pIFlags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack)) {
+		if (includesFirstFrame && HasAnyOf(flags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack)) {
 			skippedAnimationFrames += 1;
 		}
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastAttack)) {
+		if (HasAnyOf(flags, ItemSpecialEffect::FastAttack)) {
 			skippedAnimationFrames += 1;
 		}
 	}
@@ -279,8 +245,8 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 		return;
 	}
 
-	// Checks conditions for spell again, cause initial check was done when spell was queued and the parameters could be changed meanwhile
-	bool isValid = true;
+	// Checks conditions for spell again, because initial check was done when spell was queued and the parameters could be changed meanwhile
+	bool isValid = false;
 	switch (player.queuedSpell.spellType) {
 	case SpellType::Skill:
 	case SpellType::Spell:
@@ -292,8 +258,7 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 	case SpellType::Charges:
 		isValid = CanUseStaff(player, player.queuedSpell.spellId);
 		break;
-	case SpellType::Invalid:
-		isValid = false;
+	default:
 		break;
 	}
 	if (!isValid)
@@ -322,43 +287,40 @@ void RespawnDeadItem(Item &&itm, Point target)
 		return;
 
 	int ii = AllocateItem();
+	Item &item = Items[ii];
 
 	dItem[target.x][target.y] = ii + 1;
 
-	Items[ii] = itm;
-	Items[ii].position = target;
-	RespawnItem(Items[ii], true);
-	NetSendCmdPItem(false, CMD_SPAWNITEM, target, Items[ii]);
+	item = itm;
+	item.position = target;
+	RespawnItem(item, true);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, target, item);
 }
 
-void DeadItem(Player &player, Item &&itm, Displacement direction)
+void DeadItem(Player &player, Item &&item, Displacement direction)
 {
-	if (itm.isEmpty())
+	if (item.isEmpty())
 		return;
 
-	Point target = player.position.tile + direction;
-	if (direction != Displacement { 0, 0 } && ItemSpaceOk(target)) {
-		RespawnDeadItem(std::move(itm), target);
-		return;
+	const Point playerTile = player.position.tile;
+	if (direction != Displacement { 0, 0 }) {
+		const Point target = playerTile + direction;
+		if (ItemSpaceOk(target)) {
+			RespawnDeadItem(std::move(item), target);
+			return;
+		}
 	}
 
-	for (int k = 1; k < 50; k++) {
-		for (int j = -k; j <= k; j++) {
-			for (int i = -k; i <= k; i++) {
-				Point next = player.position.tile + Displacement { i, j };
-				if (ItemSpaceOk(next)) {
-					RespawnDeadItem(std::move(itm), next);
-					return;
-				}
-			}
-		}
+	std::optional<Point> dropPoint = FindClosestValidPosition(ItemSpaceOk, playerTile, 1, 50);
+	if (dropPoint) {
+		RespawnDeadItem(std::move(item), *dropPoint);
 	}
 }
 
 int DropGold(Player &player, int amount, bool skipFullStacks)
 {
 	for (int i = 0; i < player._pNumInv && amount > 0; i++) {
-		auto &item = player.InvList[i];
+		Item &item = player.InvList[i];
 
 		if (item._itype != ItemType::Gold || (skipFullStacks && item._ivalue == MaxGold))
 			continue;
@@ -430,10 +392,10 @@ void InitLevelChange(Player &player)
 /**
  * @brief Continue movement towards new tile
  */
-bool DoWalk(Player &player, int variant)
+bool DoWalk(Player &player)
 {
 	// Play walking sound effect on certain animation frames
-	if (*sgOptions.Audio.walkingSound && (leveltype != DTYPE_TOWN || sgGameInitInfo.bRunInTown == 0)) {
+	if (*GetOptions().Audio.walkingSound && (leveltype != DTYPE_TOWN || sgGameInitInfo.bRunInTown == 0)) {
 		if (player.AnimInfo.currentFrame == 0
 		    || player.AnimInfo.currentFrame == 4) {
 			PlaySfxLoc(SfxID::Walk, player.position.tile);
@@ -447,22 +409,10 @@ bool DoWalk(Player &player, int variant)
 	}
 
 	// We reached the new tile -> update the player's tile position
-	switch (variant) {
-	case PM_WALK_NORTHWARDS:
-		dPlayer[player.position.tile.x][player.position.tile.y] = 0;
-		player.position.tile = player.position.temp;
-		player.occupyTile(player.position.tile, false);
-		break;
-	case PM_WALK_SOUTHWARDS:
-		dPlayer[player.position.temp.x][player.position.temp.y] = 0;
-		break;
-	case PM_WALK_SIDEWAYS:
-		dPlayer[player.position.tile.x][player.position.tile.y] = 0;
-		player.position.tile = player.position.temp;
-		// dPlayer is set here for backwards comparability, without it the player would be invisible if loaded from a vanilla save.
-		player.occupyTile(player.position.tile, false);
-		break;
-	}
+	dPlayer[player.position.tile.x][player.position.tile.y] = 0;
+	player.position.tile = player.position.temp;
+	// dPlayer is set here for backwards compatibility; without it, the player would be invisible if loaded from a vanilla save.
+	player.occupyTile(player.position.tile, false);
 
 	// Update the coordinates for lighting and vision entries for the player
 	if (leveltype != DTYPE_TOWN) {
@@ -600,12 +550,13 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 	}
 
 	if (gbIsHellfire && HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
-		int midam = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
+		// Fixed off by 1 error from Hellfire
+		int midam = RandomIntBetween(player._pIFMinDam, player._pIFMaxDam);
 		AddMissile(player.position.tile, player.position.temp, player._pdir, MissileID::SpectralArrow, TARGET_MONSTERS, player, midam, 0);
 	}
 	int mind = player._pIMinDam;
 	int maxd = player._pIMaxDam;
-	int dam = GenerateRnd(maxd - mind + 1) + mind;
+	int dam = RandomIntBetween(mind, maxd);
 	dam += dam * player._pIBonusDam / 100;
 	dam += player._pIBonusDamMod;
 	int dam2 = dam << 6;
@@ -732,7 +683,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 		M_StartKill(monster, player);
 	} else {
 		if (monster.mode != MonsterMode::Petrified && HasAnyOf(player._pIFlags, ItemSpecialEffect::Knockback))
-			M_GetKnockback(monster);
+			M_GetKnockback(monster, player.position.tile);
 		M_StartHit(monster, player, dam);
 	}
 	return true;
@@ -773,7 +724,7 @@ bool PlrHitPlr(Player &attacker, Player &target)
 
 	int mind = attacker._pIMinDam;
 	int maxd = attacker._pIMaxDam;
-	int dam = GenerateRnd(maxd - mind + 1) + mind;
+	int dam = RandomIntBetween(mind, maxd);
 	dam += (dam * attacker._pIBonusDam) / 100;
 	dam += attacker._pIBonusDamMod + attacker._pDamageMod;
 
@@ -920,7 +871,8 @@ bool DoRangeAttack(Player &player)
 			mistype = MissileID::LightningArrow;
 		}
 		if (HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows)) {
-			dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
+			// Fixed off by 1 error from Hellfire
+			dmg = RandomIntBetween(player._pIFMinDam, player._pIFMaxDam);
 			mistype = MissileID::SpectralArrow;
 		}
 
@@ -1230,11 +1182,11 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 				break;
 			}
 
-			for (size_t j = 1; j < MaxPathLength; j++) {
+			for (size_t j = 1; j < MaxPathLengthPlayer; j++) {
 				player.walkpath[j - 1] = player.walkpath[j];
 			}
 
-			player.walkpath[MaxPathLength - 1] = WALK_NONE;
+			player.walkpath[MaxPathLengthPlayer - 1] = WALK_NONE;
 
 			if (player._pmode == PM_STAND) {
 				StartStand(player, player._pdir);
@@ -1293,22 +1245,18 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 		case ACTION_SPELL:
 			d = GetDirection(player.position.tile, { player.destParam1, player.destParam2 });
 			StartSpell(player, d, player.destParam1, player.destParam2);
-			player.executedSpell.spellLevel = player.destParam3;
 			break;
 		case ACTION_SPELLWALL:
 			StartSpell(player, static_cast<Direction>(player.destParam3), player.destParam1, player.destParam2);
 			player.tempDirection = static_cast<Direction>(player.destParam3);
-			player.executedSpell.spellLevel = player.destParam4;
 			break;
 		case ACTION_SPELLMON:
 			d = GetDirection(player.position.tile, monster->position.future);
 			StartSpell(player, d, monster->position.future.x, monster->position.future.y);
-			player.executedSpell.spellLevel = player.destParam2;
 			break;
 		case ACTION_SPELLPLR:
 			d = GetDirection(player.position.tile, target->position.future);
 			StartSpell(player, d, target->position.future.x, target->position.future.y);
-			player.executedSpell.spellLevel = player.destParam2;
 			break;
 		case ACTION_OPERATE:
 			if (IsPlayerAdjacentToObject(player, *object)) {
@@ -1463,7 +1411,7 @@ void ValidatePlayer()
 	// This lets us catch cases where someone is editing experience directly through memory modification and reset their experience back to the expected cap.
 	if (myPlayer._pExperience > myPlayer.getNextExperienceThreshold()) {
 		myPlayer._pExperience = myPlayer.getNextExperienceThreshold();
-		if (*sgOptions.Gameplay.experienceBar) {
+		if (*GetOptions().Gameplay.experienceBar) {
 			RedrawEverything();
 		}
 	}
@@ -1507,40 +1455,14 @@ void ValidatePlayer()
 	}
 
 	myPlayer._pMemSpells &= msk;
-}
-
-void CheckCheatStats(Player &player)
-{
-	if (player._pStrength > 750) {
-		player._pStrength = 750;
-	}
-
-	if (player._pDexterity > 750) {
-		player._pDexterity = 750;
-	}
-
-	if (player._pMagic > 750) {
-		player._pMagic = 750;
-	}
-
-	if (player._pVitality > 750) {
-		player._pVitality = 750;
-	}
-
-	if (player._pHitPoints > 128000) {
-		player._pHitPoints = 128000;
-	}
-
-	if (player._pMana > 128000) {
-		player._pMana = 128000;
-	}
+	myPlayer._pInfraFlag = false;
 }
 
 HeroClass GetPlayerSpriteClass(HeroClass cls)
 {
-	if (cls == HeroClass::Bard && !gbBard)
+	if (cls == HeroClass::Bard && !HaveBardAssets())
 		return HeroClass::Rogue;
-	if (cls == HeroClass::Barbarian && !gbBarbarian)
+	if (cls == HeroClass::Barbarian && !HaveBarbarianAssets())
 		return HeroClass::Warrior;
 	return cls;
 }
@@ -1603,6 +1525,16 @@ void Player::CalcScrolls()
 		}
 	}
 	EnsureValidReadiedSpell(*this);
+}
+
+bool Player::CanUseItem(const Item &item) const
+{
+	if (!IsItemValid(*this, item))
+		return false;
+
+	return _pStrength >= item._iMinStr
+	    && _pMagic >= item._iMinMag
+	    && _pDexterity >= item._iMinDex;
 }
 
 void Player::RemoveInvItem(int iv, bool calcScrolls)
@@ -1731,21 +1663,21 @@ Point Player::GetTargetPosition() const
 	return target;
 }
 
-bool Player::IsPositionInPath(Point pos)
+int Player::GetPositionPathIndex(Point pos)
 {
 	constexpr Displacement DirectionOffset[8] = { { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 }, { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
 	Point target = position.future;
+	int i = 0;
 	for (auto step : walkpath) {
-		if (target == pos) {
-			return true;
-		}
+		if (target == pos) return i;
 		if (step == WALK_NONE)
 			break;
 		if (step > 0) {
 			target += DirectionOffset[step - 1];
 		}
+		++i;
 	}
-	return false;
+	return -1;
 }
 
 void Player::Say(HeroSpeech speechId) const
@@ -1819,7 +1751,7 @@ void Player::RestorePartialMana()
 
 void Player::ReadySpellFromEquipment(inv_body_loc bodyLocation, bool forceSpell)
 {
-	auto &item = InvBody[bodyLocation];
+	Item &item = InvBody[bodyLocation];
 	if (item._itype == ItemType::Staff && IsValidSpell(item._iSpell) && item._iCharges > 0 && item._iStatFlag) {
 		if (forceSpell || _pRSpell == SpellID::Invalid || _pRSplType == SpellType::Invalid) {
 			_pRSpell = item._iSpell;
@@ -1917,19 +1849,19 @@ void Player::UpdatePreviewCelSprite(_cmd_id cmdId, Point point, uint16_t wParam1
 
 	switch (cmdId) {
 	case _cmd_id::CMD_RATTACKID: {
-		auto &monster = Monsters[wParam1];
+		Monster &monster = Monsters[wParam1];
 		dir = GetDirection(position.future, monster.position.future);
 		graphic = player_graphic::Attack;
 		break;
 	}
 	case _cmd_id::CMD_SPELLID: {
-		auto &monster = Monsters[wParam1];
+		Monster &monster = Monsters[wParam1];
 		dir = GetDirection(position.future, monster.position.future);
 		graphic = GetPlayerGraphicForSpell(static_cast<SpellID>(wParam2));
 		break;
 	}
 	case _cmd_id::CMD_ATTACKID: {
-		auto &monster = Monsters[wParam1];
+		Monster &monster = Monsters[wParam1];
 		point = monster.position.future;
 		minimalWalkDistance = 2;
 		if (!CanTalkToMonst(monster)) {
@@ -1991,8 +1923,8 @@ void Player::UpdatePreviewCelSprite(_cmd_id cmdId, Point point, uint16_t wParam1
 	}
 
 	if (minimalWalkDistance >= 0 && position.future != point) {
-		int8_t testWalkPath[MaxPathLength];
-		int steps = FindPath([this](Point position) { return PosOkPlayer(*this, position); }, position.future, point, testWalkPath);
+		int8_t testWalkPath[MaxPathLengthPlayer];
+		int steps = FindPath(CanStep, [this](Point position) { return PosOkPlayer(*this, position); }, position.future, point, testWalkPath, MaxPathLengthPlayer);
 		if (steps == 0) {
 			// Can't walk to desired location => stand still
 			return;
@@ -2174,9 +2106,13 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	*fmt::format_to(pszName, R"(plrgfx\{0}\{1}\{1}{2})", path, std::string_view(prefix, 3), szCel) = 0;
 	const uint16_t animationWidth = GetPlayerSpriteWidth(cls, graphic, animWeaponId);
 	animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
-	std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
-	if (trn) {
-		ClxApplyTrans(*animationData.sprites, trn->data());
+	std::optional<std::array<uint8_t, 256>> graphicTRN = GetPlayerGraphicTRN(pszName);
+	if (graphicTRN) {
+		ClxApplyTrans(*animationData.sprites, graphicTRN->data());
+	}
+	std::optional<std::array<uint8_t, 256>> classTRN = GetClassTRN(player);
+	if (classTRN) {
+		ClxApplyTrans(*animationData.sprites, classTRN->data());
 	}
 }
 
@@ -2446,7 +2382,7 @@ void Player::_addExperience(uint32_t experience, int levelDelta)
 	// ensure we only add enough experience to reach the max experience cap so we don't overflow
 	_pExperience += std::min(clampedExp, maxExperience - _pExperience);
 
-	if (*sgOptions.Gameplay.experienceBar) {
+	if (*GetOptions().Gameplay.experienceBar) {
 		RedrawEverything();
 	}
 
@@ -2713,8 +2649,8 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 
 	if (&player != MyPlayer && dropItems) {
 		// Ensure that items are removed for remote players
-		// The dropped items will be synced seperatly (by the remote client)
-		for (auto &item : player.InvBody) {
+		// The dropped items will be synced separately (by the remote client)
+		for (Item &item : player.InvBody) {
 			item.clear();
 		}
 		CalcPlrInv(player, false);
@@ -2727,7 +2663,7 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 		SetPlayerOld(player);
 
 		// Only generate drops once (for the local player)
-		// For remote players we get seperated sync messages (by the remote client)
+		// For remote players we get separated sync messages (by the remote client)
 		if (&player == MyPlayer) {
 			RedrawComponent(PanelDrawComponent::Health);
 
@@ -2768,7 +2704,7 @@ StartPlayerKill(Player &player, DeathReason deathReason)
 			}
 			if (dropItems) {
 				Direction pdd = player._pdir;
-				for (auto &item : player.InvBody) {
+				for (Item &item : player.InvBody) {
 					pdd = Left(pdd);
 					DeadItem(player, item.pop(), Displacement(pdd));
 				}
@@ -2803,7 +2739,7 @@ void StripTopGold(Player &player)
 		return;
 	if (AutoEquip(player, player.HoldItem, false))
 		return;
-	if (AutoPlaceItemInInventory(player, player.HoldItem))
+	if (CanFitItemInInventory(player, player.HoldItem))
 		return;
 	if (AutoPlaceItemInBelt(player, player.HoldItem))
 		return;
@@ -2820,7 +2756,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
-	if (totalDamage > 0 && player.pManaShield) {
+	if (totalDamage > 0 && player.pManaShield && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 		uint8_t manaShieldLevel = player._pSplLvl[static_cast<int8_t>(SpellID::ManaShield)];
 		if (manaShieldLevel > 0) {
 			totalDamage += totalDamage / -player.GetManaShieldDamageReduction();
@@ -3021,8 +2957,6 @@ void ProcessPlayers()
 	for (size_t pnum = 0; pnum < Players.size(); pnum++) {
 		Player &player = Players[pnum];
 		if (player.plractive && player.isOnActiveLevel() && (&player == MyPlayer || !player._pLvlChanging)) {
-			CheckCheatStats(player);
-
 			if (!PlrDeathModeOK(player) && (player._pHitPoints >> 6) <= 0) {
 				SyncPlrKill(player, DeathReason::Unknown);
 			}
@@ -3031,10 +2965,8 @@ void ProcessPlayers()
 				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::DrainLife) && leveltype != DTYPE_TOWN) {
 					ApplyPlrDamage(DamageType::Physical, player, 0, 0, 4);
 				}
-				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana) && player._pManaBase > 0) {
-					player._pManaBase -= player._pMana;
-					player._pMana = 0;
-					RedrawComponent(PanelDrawComponent::Mana);
+				if (player.pManaShield && HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+					NetSendCmd(true, CMD_REMSHIELD);
 				}
 			}
 
@@ -3049,7 +2981,7 @@ void ProcessPlayers()
 				case PM_WALK_NORTHWARDS:
 				case PM_WALK_SOUTHWARDS:
 				case PM_WALK_SIDEWAYS:
-					tplayer = DoWalk(player, player._pmode);
+					tplayer = DoWalk(player);
 					break;
 				case PM_ATTACK:
 					tplayer = DoAttack(player);
@@ -3125,7 +3057,7 @@ void MakePlrPath(Player &player, Point targetPosition, bool endspace)
 		return;
 	}
 
-	int path = FindPath([&player](Point position) { return PosOkPlayer(player, position); }, player.position.future, targetPosition, player.walkpath);
+	int path = FindPath(CanStep, [&player](Point position) { return PosOkPlayer(player, position); }, player.position.future, targetPosition, player.walkpath, MaxPathLengthPlayer);
 	if (path == 0) {
 		return;
 	}
@@ -3219,21 +3151,30 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		return;
 	}
 
-	const int spellLevel = myPlayer.GetSpellLevel(spellID);
 	const int spellFrom = 0;
 	if (IsWallSpell(spellID)) {
 		LastMouseButtonAction = MouseActionType::Spell;
 		Direction sd = GetDirection(myPlayer.position.tile, cursPosition);
-		NetSendCmdLocParam5(true, CMD_SPELLXYD, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), static_cast<uint16_t>(sd), spellLevel, spellFrom);
+		NetSendCmdLocParam4(true, CMD_SPELLXYD, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), static_cast<uint16_t>(sd), spellFrom);
 	} else if (pcursmonst != -1 && !isShiftHeld) {
 		LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
-		NetSendCmdParam5(true, CMD_SPELLID, pcursmonst, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellLevel, spellFrom);
+		NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	} else if (PlayerUnderCursor != nullptr && !isShiftHeld && !myPlayer.friendlyMode) {
 		LastMouseButtonAction = MouseActionType::SpellPlayerTarget;
-		NetSendCmdParam5(true, CMD_SPELLPID, PlayerUnderCursor->getId(), static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellLevel, spellFrom);
+		NetSendCmdParam4(true, CMD_SPELLPID, PlayerUnderCursor->getId(), static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	} else {
+		Point targetedTile = cursPosition;
+		if (spellID == SpellID::Teleport && myPlayer.executedSpell.spellId == SpellID::Teleport) {
+			// Check if the player is attempting to queue Teleport onto a tile that is currently being targeted with Teleport, or a nearby tile
+			if (cursPosition.WalkingDistance(myPlayer.position.temp) <= 1) {
+				// Get the relative displacement from the player's current position to the cursor position
+				WorldTileDisplacement relativeMove = cursPosition - static_cast<Point>(myPlayer.position.tile);
+				// Target the tile the relative distance away from the player's targeted Teleport tile
+				targetedTile = myPlayer.position.temp + relativeMove;
+			}
+		}
 		LastMouseButtonAction = MouseActionType::Spell;
-		NetSendCmdLocParam4(true, CMD_SPELLXY, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellLevel, spellFrom);
+		NetSendCmdLocParam3(true, CMD_SPELLXY, targetedTile, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), spellFrom);
 	}
 }
 
@@ -3464,9 +3405,15 @@ void PlayDungMsgs()
 		myPlayer.Say(HeroSpeech::IMustBeGettingClose, 40);
 		myPlayer.pDungMsgs |= DungMsgHell;
 	} else if (!setlevel && currlevel == 16 && !myPlayer._pLvlVisited[16] && (myPlayer.pDungMsgs & DungMsgDiablo) == 0) {
-		sfxdelay = 40;
-		sfxdnum = SfxID::DiabloGreeting;
-		myPlayer.pDungMsgs |= DungMsgDiablo;
+		for (auto &monster : Monsters) {
+			if (monster.type().type != MT_DIABLO) continue;
+			if (monster.hitPoints > 0) {
+				sfxdelay = 40;
+				sfxdnum = SfxID::DiabloGreeting;
+				myPlayer.pDungMsgs |= DungMsgDiablo;
+			}
+			break;
+		}
 	} else if (!setlevel && currlevel == 17 && !myPlayer._pLvlVisited[17] && (myPlayer.pDungMsgs2 & 1) == 0) {
 		sfxdelay = 10;
 		sfxdnum = SfxID::Defiler1;

@@ -66,7 +66,7 @@ struct PlayerPack {
 	uint8_t pBattleNet;
 	uint8_t pManaShield;
 	uint8_t pDungMsgs2;
-	/** The format the charater is in, 0: Diablo, 1: Hellfire */
+	/** The format the character is in, 0: Diablo, 1: Hellfire */
 	int8_t bIsHellfire;
 	uint8_t reserved; // For future use
 	uint16_t wReflections;
@@ -142,10 +142,6 @@ struct PlayerNetPack {
 };
 #pragma pack(pop)
 
-bool IsCreationFlagComboValid(uint16_t iCreateInfo);
-bool IsTownItemValid(uint16_t iCreateInfo, const Player &player);
-bool IsUniqueMonsterItemValid(uint16_t iCreateInfo, uint32_t dwBuff);
-bool IsDungeonItemValid(uint16_t iCreateInfo, uint32_t dwBuff);
 bool RecreateHellfireSpellBook(const Player &player, const TItem &packedItem, Item *item = nullptr);
 void PackPlayer(PlayerPack &pPack, const Player &player);
 void UnPackPlayer(const PlayerPack &pPack, Player &player);

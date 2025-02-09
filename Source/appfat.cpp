@@ -6,7 +6,12 @@
 
 #include <config.h>
 
+#include <SDL.h>
 #include <fmt/format.h>
+
+#ifdef USE_SDL1
+#include "utils/sdl2_to_1_2_backports.h"
+#endif
 
 #include "diablo.h"
 #include "multi.h"
@@ -46,11 +51,16 @@ void FreeDlg()
 
 } // namespace
 
-void app_fatal(std::string_view str)
+void DisplayFatalErrorAndExit(std::string_view title, std::string_view body)
 {
 	FreeDlg();
-	UiErrorOkDialog(_("Error"), str);
+	UiErrorOkDialog(title, body);
 	diablo_quit(1);
+}
+
+void app_fatal(std::string_view str)
+{
+	DisplayFatalErrorAndExit(_("Error"), str);
 }
 
 #ifdef _DEBUG
@@ -62,32 +72,27 @@ void assert_fail(int nLineNo, const char *pszFile, const char *pszFail)
 
 void ErrDlg(const char *title, std::string_view error, std::string_view logFilePath, int logLineNr)
 {
-	FreeDlg();
-
-	std::string text = fmt::format(fmt::runtime(_(/* TRANSLATORS: Error message that displays relevant information for bug report */ "{:s}\n\nThe error occurred at: {:s} line {:d}")), error, logFilePath, logLineNr);
-
-	UiErrorOkDialog(title, text);
-	diablo_quit(1);
+	DisplayFatalErrorAndExit(
+	    title,
+	    fmt::format(fmt::runtime(_(/* TRANSLATORS: Error message that displays relevant information for bug report */ "{:s}\n\nThe error occurred at: {:s} line {:d}")),
+	        error, logFilePath, logLineNr));
 }
 
 void InsertCDDlg(std::string_view archiveName)
 {
-	std::string text = fmt::format(
-	    fmt::runtime(_("Unable to open main data archive ({:s}).\n"
-	                   "\n"
-	                   "Make sure that it is in the game folder.")),
-	    archiveName);
-
-	UiErrorOkDialog(_("Data File Error"), text);
-	diablo_quit(1);
+	DisplayFatalErrorAndExit(_("Data File Error"),
+	    fmt::format(fmt::runtime(_("Unable to open main data archive ({:s}).\n"
+	                               "\n"
+	                               "Make sure that it is in the game folder.")),
+	        archiveName));
 }
 
 void DirErrorDlg(std::string_view error)
 {
-	std::string text = fmt::format(fmt::runtime(_(/* TRANSLATORS: Error when Program is not allowed to write data */ "Unable to write to location:\n{:s}")), error);
-
-	UiErrorOkDialog(_("Read-Only Directory Error"), text);
-	diablo_quit(1);
+	DisplayFatalErrorAndExit(
+	    _("Read-Only Directory Error"),
+	    fmt::format(fmt::runtime(_(/* TRANSLATORS: Error when Program is not allowed to write data */ "Unable to write to location:\n{:s}")),
+	        error));
 }
 
 } // namespace devilution

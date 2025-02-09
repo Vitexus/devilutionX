@@ -13,6 +13,7 @@
 #include "cursor.h"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "gmenu.h"
 #include "inv.h"
 #include "options.h"
@@ -78,7 +79,7 @@ private:
 
 void ToggleItemLabelHighlight()
 {
-	sgOptions.Gameplay.showItemLabels.SetValue(!*sgOptions.Gameplay.showItemLabels);
+	GetOptions().Gameplay.showItemLabels.SetValue(!*GetOptions().Gameplay.showItemLabels);
 }
 
 void HighlightKeyPressed(bool pressed)
@@ -98,7 +99,7 @@ void ResetItemlabelHighlighted()
 
 bool IsHighlightingLabelsEnabled()
 {
-	return stextflag == TalkID::None && highlightKeyPressed != *sgOptions.Gameplay.showItemLabels;
+	return ActiveStore == TalkID::None && highlightKeyPressed != *GetOptions().Gameplay.showItemLabels;
 }
 
 void AddItemToLabelQueue(int id, Point position)
@@ -124,7 +125,7 @@ void AddItemToLabelQueue(int id, Point position)
 
 	position.x += *labelCenterOffsets[index];
 	position.y -= TILE_HEIGHT;
-	if (*sgOptions.Graphics.zoom) {
+	if (*GetOptions().Graphics.zoom) {
 		position *= 2;
 	}
 	position.x -= nameWidth / 2;
@@ -193,7 +194,7 @@ void DrawItemNameLabels(const Surface &out)
 			if (!gmenu_is_active()
 			    && PauseMode == 0
 			    && !MyPlayerIsDead
-			    && stextflag == TalkID::None
+			    && ActiveStore == TalkID::None
 			    && IsMouseOverGameArea()
 			    && LastMouseButtonAction == MouseActionType::None) {
 				isLabelHighlighted = true;
@@ -201,7 +202,7 @@ void DrawItemNameLabels(const Surface &out)
 				pcursitem = label.id;
 			}
 		}
-		if (pcursitem == label.id && stextflag == TalkID::None)
+		if (pcursitem == label.id && ActiveStore == TalkID::None)
 			FillRect(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight, PAL8_BLUE + 6);
 		else
 			DrawHalfTransparentRectTo(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight);

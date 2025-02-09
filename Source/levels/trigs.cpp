@@ -11,11 +11,14 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "diablo_msg.hpp"
-#include "init.h"
+#include "game_mode.hpp"
+#include "multi.h"
 #include "utils/algorithm/container.hpp"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include <function_ref.hpp>
 
@@ -11,9 +12,12 @@
 #include "controls/controller_motion.h"
 #include "controls/plrctrls.h"
 #include "controls/remap_keyboard.h"
+#include "engine/assets.hpp"
 #include "engine/render/text_render.hpp"
 #include "hwcursor.hpp"
 #include "options.h"
+#include "utils/display.h"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -72,8 +76,8 @@ bool IsValidEntry(OptionEntryBase *pOptionEntry)
 std::vector<DrawStringFormatArg> CreateDrawStringFormatArgForEntry(OptionEntryBase *pEntry)
 {
 	return std::vector<DrawStringFormatArg> {
-		{ pEntry->GetName().data(), UiFlags::ColorUiGold },
-		{ pEntry->GetValueDescription().data(), UiFlags::ColorUiSilver }
+		{ pEntry->GetName(), UiFlags::ColorUiGold },
+		{ pEntry->GetValueDescription(), UiFlags::ColorUiSilver }
 	};
 }
 
@@ -167,7 +171,7 @@ void ItemFocused(size_t value)
 		optionDescription[0] = '\0';
 		if (vecItem->m_value < 0)
 			return;
-		auto *pCategory = sgOptions.GetCategories()[vecItem->m_value];
+		auto *pCategory = GetOptions().GetCategories()[vecItem->m_value];
 		UpdateDescription(*pCategory);
 	} break;
 	case ShownMenuType::Settings: {
@@ -234,7 +238,7 @@ void ItemSelected(size_t value)
 		case SpecialMenuEntry::UnbindKey: {
 			auto *pOptionKey = static_cast<KeymapperOptions::Action *>(selectedOption);
 			pOptionKey->SetValue(SDLK_UNKNOWN);
-			vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription().data();
+			vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription();
 			break;
 		}
 		case SpecialMenuEntry::BindPadButton:
@@ -243,7 +247,7 @@ void ItemSelected(size_t value)
 		case SpecialMenuEntry::UnbindPadButton:
 			auto *pOptionPad = static_cast<PadmapperOptions::Action *>(selectedOption);
 			pOptionPad->SetValue(ControllerButton_NONE);
-			vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription().data();
+			vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription();
 			break;
 		}
 		return;
@@ -251,7 +255,7 @@ void ItemSelected(size_t value)
 
 	switch (shownMenu) {
 	case ShownMenuType::Categories: {
-		selectedCategory = sgOptions.GetCategories()[vecItemValue];
+		selectedCategory = GetOptions().GetCategories()[vecItemValue];
 		endMenu = true;
 		shownMenu = ShownMenuType::Settings;
 	} break;
@@ -293,7 +297,7 @@ void ItemSelected(size_t value)
 				for (auto &arg : args)
 					vecItem->args.push_back(arg);
 				if (optionUsesTwoLines) {
-					vecDialogItems[value + 1]->m_text = pOption->GetValueDescription().data();
+					vecDialogItems[value + 1]->m_text = std::string(pOption->GetValueDescription());
 				}
 			}
 		}
@@ -315,7 +319,7 @@ void EscPressed()
 
 void FullscreenChanged()
 {
-	auto *fullscreenOption = &sgOptions.Graphics.fullscreen;
+	auto *fullscreenOption = &GetOptions().Graphics.fullscreen;
 
 	for (auto &vecItem : vecDialogItems) {
 		int vecItemValue = vecItem->m_value;
@@ -345,17 +349,20 @@ void UiSettingsMenu()
 	do {
 		endMenu = false;
 
+		// For the settings menu, we use the full height and allow some more width.
+		const int uiWidth = std::clamp<int>(gnScreenWidth, 640, 720);
+		const Rectangle uiRectangle = {
+			{ (gnScreenWidth - uiWidth) / 2, 0 },
+			{ uiWidth, gnScreenHeight }
+		};
+
 		UiLoadBlackBackground();
 		LoadScrollBar();
 		UiAddBackground(&vecDialog);
-		UiAddLogo(&vecDialog);
-
-		const Rectangle &uiRectangle = GetUIRectangle();
+		UiAddLogo(&vecDialog, uiRectangle.position.y);
 
 		const int descriptionLineHeight = IsSmallFontTall() ? 20 : 18;
 		const int descriptionMarginTop = IsSmallFontTall() ? 10 : 16;
-		rectList = { uiRectangle.position + Displacement { 50, 204 }, Size { 540, 208 } };
-		rectDescription = { rectList.position + Displacement { -26, rectList.size.height + descriptionMarginTop }, Size { 590, 80 - descriptionMarginTop } };
 
 		optionDescription[0] = '\0';
 
@@ -372,8 +379,6 @@ void UiSettingsMenu()
 			break;
 		}
 		vecDialog.push_back(std::make_unique<UiArtText>(titleText.data(), MakeSdlRect(uiRectangle.position.x, uiRectangle.position.y + 161, uiRectangle.size.width, 35), UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 8));
-		vecDialog.push_back(std::make_unique<UiScrollbar>((*ArtScrollBarBackground)[0], (*ArtScrollBarThumb)[0], *ArtScrollBarArrow, MakeSdlRect(rectList.position.x + rectList.size.width + 5, rectList.position.y, 25, rectList.size.height)));
-		vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription), UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
 
 		size_t itemToSelect = 0;
 		std::optional<tl::function_ref<bool(SDL_Event &)>> eventHandler;
@@ -381,7 +386,7 @@ void UiSettingsMenu()
 		switch (shownMenu) {
 		case ShownMenuType::Categories: {
 			size_t catIndex = 0;
-			for (OptionCategoryBase *pCategory : sgOptions.GetCategories()) {
+			for (OptionCategoryBase *pCategory : GetOptions().GetCategories()) {
 				for (OptionEntryBase *pEntry : pCategory->GetEntries()) {
 					if (!IsValidEntry(pEntry))
 						continue;
@@ -402,10 +407,10 @@ void UiSettingsMenu()
 				auto formatArgs = CreateDrawStringFormatArgForEntry(pEntry);
 				int optionId = static_cast<int>(vecOptions.size());
 				if (NeedsTwoLinesToDisplayOption(formatArgs)) {
-					vecDialogItems.push_back(std::make_unique<UiListItem>("{}:", formatArgs, optionId, UiFlags::ColorUiGold | UiFlags::NeedsNextElement));
-					vecDialogItems.push_back(std::make_unique<UiListItem>(pEntry->GetValueDescription(), optionId, UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
+					vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view("{}:"), formatArgs, optionId, UiFlags::ColorUiGold | UiFlags::NeedsNextElement));
+					vecDialogItems.push_back(std::make_unique<UiListItem>(std::string(pEntry->GetValueDescription()), optionId, UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
 				} else {
-					vecDialogItems.push_back(std::make_unique<UiListItem>("{}: {}", formatArgs, optionId, UiFlags::ColorUiGold));
+					vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view("{}: {}"), formatArgs, optionId, UiFlags::ColorUiGold));
 				}
 				vecOptions.push_back(pEntry);
 			}
@@ -420,7 +425,7 @@ void UiSettingsMenu()
 		} break;
 		case ShownMenuType::KeyInput: {
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Bound key:"), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorWhitegold | UiFlags::ElementDisabled));
-			vecDialogItems.push_back(std::make_unique<UiListItem>(selectedOption->GetValueDescription(), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiGold));
+			vecDialogItems.push_back(std::make_unique<UiListItem>(std::string(selectedOption->GetValueDescription()), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiGold));
 			assert(IndexKeyOrPadInput == vecDialogItems.size() - 1);
 			itemToSelect = IndexKeyOrPadInput;
 			eventHandler = [](SDL_Event &event) {
@@ -465,11 +470,11 @@ void UiSettingsMenu()
 				auto *pOptionKey = static_cast<KeymapperOptions::Action *>(selectedOption);
 				if (!pOptionKey->SetValue(key))
 					return false;
-				vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription().data();
+				vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription();
 				return true;
 			};
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Press any key to change."), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
-			vecDialogItems.push_back(std::make_unique<UiListItem>("", static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
+			vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view {}, static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Unbind key"), static_cast<int>(SpecialMenuEntry::UnbindKey), UiFlags::ColorUiGold));
 			UpdateDescription(*selectedOption);
 		} break;
@@ -479,10 +484,10 @@ void UiSettingsMenu()
 			assert(IndexKeyOrPadInput == vecDialogItems.size() - 1);
 			itemToSelect = IndexKeyOrPadInput;
 
-			vecDialogItems.push_back(std::make_unique<UiListItem>(padEntryTimerText, static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
+			vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view(padEntryTimerText), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
 			assert(IndexPadTimerText == vecDialogItems.size() - 1);
 
-			vecDialogItems.push_back(std::make_unique<UiListItem>("", static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
+			vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view {}, static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Unbind button combo"), static_cast<int>(SpecialMenuEntry::UnbindPadButton), UiFlags::ColorUiGold));
 
 			padEntryStartTime = 0;
@@ -518,7 +523,7 @@ void UiSettingsMenu()
 						padEntryCombo.modifier = padEntryCombo.button;
 					padEntryCombo.button = ctrlEvent.button;
 					if (pOptionPad->SetValue(padEntryCombo))
-						vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription().data();
+						vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription();
 				}
 				return true;
 			};
@@ -526,10 +531,20 @@ void UiSettingsMenu()
 		} break;
 		}
 
-		vecDialogItems.push_back(std::make_unique<UiListItem>("", static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
+		vecDialogItems.push_back(std::make_unique<UiListItem>(std::string_view {}, static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
 		vecDialogItems.push_back(std::make_unique<UiListItem>(_("Previous Menu"), static_cast<int>(SpecialMenuEntry::PreviousMenu), UiFlags::ColorUiGold));
 
-		vecDialog.push_back(std::make_unique<UiList>(vecDialogItems, rectList.size.height / 26, rectList.position.x, rectList.position.y, rectList.size.width, 26, UiFlags::FontSize24 | UiFlags::AlignCenter));
+		constexpr int ListItemHeight = 26;
+		rectList = { uiRectangle.position + Displacement { 50, 204 },
+			Size { uiRectangle.size.width - 100, std::min<int>(static_cast<int>(vecDialogItems.size()) * ListItemHeight, uiRectangle.size.height - 272) } };
+		rectDescription = { rectList.position + Displacement { -26, rectList.size.height + descriptionMarginTop },
+			Size { uiRectangle.size.width - 50, 80 - descriptionMarginTop } };
+		vecDialog.push_back(std::make_unique<UiScrollbar>((*ArtScrollBarBackground)[0], (*ArtScrollBarThumb)[0],
+		    *ArtScrollBarArrow, MakeSdlRect(rectList.position.x + rectList.size.width + 5, rectList.position.y, 25, rectList.size.height)));
+		vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription),
+		    UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
+		vecDialog.push_back(std::make_unique<UiList>(vecDialogItems, rectList.size.height / ListItemHeight,
+		    rectList.position.x, rectList.position.y, rectList.size.width, ListItemHeight, UiFlags::FontSize24 | UiFlags::AlignCenter));
 
 		UiInitList(ItemFocused, ItemSelected, EscPressed, vecDialog, true, FullscreenChanged, nullptr, itemToSelect);
 

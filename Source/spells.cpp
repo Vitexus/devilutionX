@@ -14,6 +14,7 @@
 #include "engine/point.hpp"
 #include "engine/random.hpp"
 #include "engine/world_tile.hpp"
+#include "game_mode.hpp"
 #include "gamemenu.h"
 #include "inv.h"
 #include "missiles.h"
@@ -202,7 +203,7 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 		return SpellCheckResult::Fail_Level0;
 	}
 
-	if (player._pMana < GetManaAmount(player, sn)) {
+	if (player._pMana < GetManaAmount(player, sn) || HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 		return SpellCheckResult::Fail_NoMana;
 	}
 

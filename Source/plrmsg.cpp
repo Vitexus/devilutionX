@@ -11,6 +11,7 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "qol/chatlog.h"
@@ -98,11 +99,11 @@ void DrawPlrMsg(const Surface &out)
 	int y = GetMainPanel().position.y - 13;
 	int width = gnScreenWidth - 20;
 
-	if (!talkflag && IsLeftPanelOpen()) {
+	if (!ChatFlag && IsLeftPanelOpen()) {
 		x += GetLeftPanel().position.x + GetLeftPanel().size.width;
 		width -= GetLeftPanel().size.width;
 	}
-	if (!talkflag && IsRightPanelOpen())
+	if (!ChatFlag && IsRightPanelOpen())
 		width -= gnScreenWidth - GetRightPanel().position.x;
 
 	if (width < 300)
@@ -113,7 +114,7 @@ void DrawPlrMsg(const Surface &out)
 	for (PlayerMessage &message : Messages) {
 		if (message.text.empty())
 			break;
-		if (!talkflag && SDL_GetTicks() - message.time >= 10000)
+		if (!ChatFlag && SDL_GetTicks() - message.time >= 10000)
 			break;
 
 		std::string text = WordWrapString(message.text, width);

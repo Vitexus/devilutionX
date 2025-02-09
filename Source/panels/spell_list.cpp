@@ -5,10 +5,11 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
-#include "engine.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/palette.h"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv_iterators.hpp"
 #include "options.h"
@@ -73,8 +74,8 @@ std::optional<std::string_view> GetHotkeyName(SpellID spellId, SpellType spellTy
 			continue;
 		auto quickSpellActionKey = StrCat("QuickSpell", t + 1);
 		if (ControlMode == ControlTypes::Gamepad)
-			return sgOptions.Padmapper.InputNameForAction(quickSpellActionKey, useShortName);
-		return sgOptions.Keymapper.KeyNameForAction(quickSpellActionKey);
+			return GetOptions().Padmapper.InputNameForAction(quickSpellActionKey, useShortName);
+		return GetOptions().Keymapper.KeyNameForAction(quickSpellActionKey);
 	}
 	return {};
 }
@@ -158,12 +159,12 @@ void DrawSpellList(const Surface &out)
 			PrintSBookSpellType(out, spellListItem.location, _("Spell"), spellColor);
 			InfoString = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", spellDataItem.sNameText));
 			if (spellId == SpellID::HolyBolt) {
-				AddPanelString(_("Damages undead only"));
+				AddInfoBoxString(_("Damages undead only"));
 			}
 			if (spellLevel == 0)
-				AddPanelString(_("Spell Level 0 - Unusable"));
+				AddInfoBoxString(_("Spell Level 0 - Unusable"));
 			else
-				AddPanelString(fmt::format(fmt::runtime(_("Spell Level {:d}")), spellLevel));
+				AddInfoBoxString(fmt::format(fmt::runtime(_("Spell Level {:d}")), spellLevel));
 			break;
 		case SpellType::Scroll: {
 			if (!myPlayer.isOnLevel(0)) {
@@ -174,7 +175,7 @@ void DrawSpellList(const Surface &out)
 			const int scrollCount = c_count_if(InventoryAndBeltPlayerItemsRange { myPlayer }, [spellId](const Item &item) {
 				return item.isScrollOf(spellId);
 			});
-			AddPanelString(fmt::format(fmt::runtime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount)), scrollCount));
+			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount)), scrollCount));
 		} break;
 		case SpellType::Charges: {
 			if (!myPlayer.isOnLevel(0)) {
@@ -183,14 +184,14 @@ void DrawSpellList(const Surface &out)
 			PrintSBookSpellType(out, spellListItem.location, _("Staff"), spellColor);
 			InfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", spellDataItem.sNameText));
 			int charges = myPlayer.InvBody[INVLOC_HAND_LEFT]._iCharges;
-			AddPanelString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
+			AddInfoBoxString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
 		} break;
 		case SpellType::Invalid:
 			break;
 		}
 		std::optional<std::string_view> fullHotkeyName = GetHotkeyName(spellId, spellListItem.type);
 		if (fullHotkeyName) {
-			AddPanelString(fmt::format(fmt::runtime(_("Spell Hotkey {:s}")), *fullHotkeyName));
+			AddInfoBoxString(fmt::format(fmt::runtime(_("Spell Hotkey {:s}")), *fullHotkeyName));
 		}
 	}
 }
@@ -253,7 +254,7 @@ void SetSpell()
 	SpellID pSpell;
 	SpellType pSplType;
 
-	spselflag = false;
+	SpellSelectFlag = false;
 	if (!GetSpellListSelection(pSpell, pSplType)) {
 		return;
 	}
@@ -332,7 +333,7 @@ void ToggleSpell(size_t slot)
 
 void DoSpeedBook()
 {
-	spselflag = true;
+	SpellSelectFlag = true;
 	const Point mainPanelPosition = GetMainPanel().position;
 	int xo = mainPanelPosition.x + 12 + SPLICONLENGTH * 10;
 	int yo = mainPanelPosition.y - 17;

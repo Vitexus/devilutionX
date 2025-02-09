@@ -9,13 +9,14 @@
 #include <list>
 #include <optional>
 
-#include "engine.h"
+#include "engine/displacement.hpp"
 #include "engine/point.hpp"
 #include "engine/world_tile.hpp"
 #include "misdat.h"
 #include "monster.h"
 #include "player.h"
 #include "spelldat.h"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -43,7 +44,7 @@ struct MissilePosition {
 	Displacement offsetForRendering;
 
 	/**
-	 * @brief Stops the missile (set velocity to zero and set offset to last renderer location; shouldn't matter cause the missile don't move anymore)
+	 * @brief Stops the missile (set velocity to zero and set offset to last renderer location; shouldn't matter because the missile doesn't move anymore)
 	 */
 	void StopMissile()
 	{
@@ -119,7 +120,8 @@ struct Missile {
 	bool _miLightFlag;
 	bool _miPreFlag;
 	uint32_t _miUniqTrans;
-	int _mirange; // Time to live for the missile in game ticks, oncs 0 the missile will be marked for deletion via _miDelFlag
+	/** @brief Time to live for the missile in game ticks; once 0, the missile will be marked for deletion via _miDelFlag */
+	int duration;
 	int _misource;
 	mienemy_type _micaster;
 	int _midam;
@@ -363,7 +365,7 @@ void AddIdentify(Missile &missile, AddMissileParameter &parameter);
  * var5: X coordinate of the second wave
  * var6: Y coordinate of the second wave
  */
-void AddFireWallControl(Missile &missile, AddMissileParameter &parameter);
+void AddWallControl(Missile &missile, AddMissileParameter &parameter);
 void AddInfravision(Missile &missile, AddMissileParameter &parameter);
 
 /**
@@ -421,7 +423,6 @@ void ProcessBigExplosion(Missile &missile);
 void ProcessLightningBow(Missile &missile);
 void ProcessRingOfFire(Missile &missile);
 void ProcessSearch(Missile &missile);
-void ProcessLightningWallControl(Missile &missile);
 void ProcessImmolation(Missile &missile);
 void ProcessSpectralArrow(Missile &missile);
 void ProcessLightningControl(Missile &missile);
@@ -439,7 +440,7 @@ void ProcessTeleport(Missile &missile);
 void ProcessStoneCurse(Missile &missile);
 void ProcessApocalypseBoom(Missile &missile);
 void ProcessRhino(Missile &missile);
-void ProcessFireWallControl(Missile &missile);
+void ProcessWallControl(Missile &missile);
 void ProcessInfravision(Missile &missile);
 void ProcessApocalypse(Missile &missile);
 void ProcessFlameWaveControl(Missile &missile);
@@ -454,7 +455,7 @@ void ProcessBoneSpirit(Missile &missile);
 void ProcessResurrectBeam(Missile &missile);
 void ProcessRedPortal(Missile &missile);
 void ProcessMissiles();
-void missiles_process_charge();
+void SetUpMissileAnimationData();
 void RedoMissileFlags();
 
 #ifdef BUILD_TESTING

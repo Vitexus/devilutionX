@@ -2,11 +2,13 @@
 
 #include <cstdint>
 
+#include "controls/control_mode.hpp"
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
 #endif
 #include "controls/devices/joystick.h"
+#include "controls/padmapper.hpp"
 #include "controls/plrctrls.h"
 #include "controls/touch/gamepad.h"
 #include "doom.h"
@@ -16,6 +18,7 @@
 #include "panels/spell_list.hpp"
 #include "qol/stash.h"
 #include "stores.h"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -129,12 +132,12 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.primaryActionButton.isHeld && VirtualGamepadState.primaryActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!inGameMenu && !QuestLogIsOpen && !SpellbookFlag) {
 					*action = GameAction(GameActionType_PRIMARY_ACTION);
 					if (ControllerActionHeld == GameActionType_NONE) {
 						ControllerActionHeld = GameActionType_PRIMARY_ACTION;
 					}
-				} else if (sgpCurrentMenu != nullptr || stextflag != TalkID::None || QuestLogIsOpen) {
+				} else if (sgpCurrentMenu != nullptr || ActiveStore != TalkID::None || QuestLogIsOpen) {
 					*action = GameActionSendKey { SDLK_RETURN, false };
 				} else {
 					*action = GameActionSendKey { SDLK_SPACE, false };
@@ -142,7 +145,7 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.secondaryActionButton.isHeld && VirtualGamepadState.secondaryActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!inGameMenu && !QuestLogIsOpen && !SpellbookFlag) {
 					*action = GameAction(GameActionType_SECONDARY_ACTION);
 					if (ControllerActionHeld == GameActionType_NONE)
 						ControllerActionHeld = GameActionType_SECONDARY_ACTION;
@@ -150,7 +153,7 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.spellActionButton.isHeld && VirtualGamepadState.spellActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!inGameMenu && !QuestLogIsOpen && !SpellbookFlag) {
 					*action = GameAction(GameActionType_CAST_SPELL);
 					if (ControllerActionHeld == GameActionType_NONE)
 						ControllerActionHeld = GameActionType_CAST_SPELL;
@@ -158,25 +161,25 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.cancelButton.isHeld && VirtualGamepadState.cancelButton.didStateChange) {
-				if (inGameMenu || DoomFlag || spselflag)
+				if (inGameMenu || DoomFlag || SpellSelectFlag)
 					*action = GameActionSendKey { SDLK_ESCAPE, false };
 				else if (invflag)
 					*action = GameAction(GameActionType_TOGGLE_INVENTORY);
-				else if (sbookflag)
+				else if (SpellbookFlag)
 					*action = GameAction(GameActionType_TOGGLE_SPELL_BOOK);
 				else if (QuestLogIsOpen)
 					*action = GameAction(GameActionType_TOGGLE_QUEST_LOG);
-				else if (chrflag)
+				else if (CharFlag)
 					*action = GameAction(GameActionType_TOGGLE_CHARACTER_INFO);
 				return true;
 			}
 			if (VirtualGamepadState.healthButton.isHeld && VirtualGamepadState.healthButton.didStateChange) {
-				if (!QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
+				if (!QuestLogIsOpen && !SpellbookFlag && ActiveStore == TalkID::None)
 					*action = GameAction(GameActionType_USE_HEALTH_POTION);
 				return true;
 			}
 			if (VirtualGamepadState.manaButton.isHeld && VirtualGamepadState.manaButton.didStateChange) {
-				if (!QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
+				if (!QuestLogIsOpen && !SpellbookFlag && ActiveStore == TalkID::None)
 					*action = GameAction(GameActionType_USE_MANA_POTION);
 				return true;
 			}
@@ -196,13 +199,13 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 
 	SDL_Keycode translation = SDLK_UNKNOWN;
 
-	if (gmenu_is_active() || stextflag != TalkID::None)
+	if (gmenu_is_active() || ActiveStore != TalkID::None)
 		translation = TranslateControllerButtonToGameMenuKey(ctrlEvent.button);
 	else if (inGameMenu)
 		translation = TranslateControllerButtonToMenuKey(ctrlEvent.button);
 	else if (QuestLogIsOpen)
 		translation = TranslateControllerButtonToQuestLogKey(ctrlEvent.button);
-	else if (sbookflag)
+	else if (SpellbookFlag)
 		translation = TranslateControllerButtonToSpellbookKey(ctrlEvent.button);
 
 	if (translation != SDLK_UNKNOWN) {
@@ -211,6 +214,28 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 	}
 
 	return false;
+}
+
+bool CanDeferToMovementHandler(const PadmapperOptions::Action &action)
+{
+	if (action.boundInput.modifier != ControllerButton_NONE)
+		return false;
+
+	if (SpellSelectFlag) {
+		const std::string_view prefix { "QuickSpell" };
+		const std::string_view key { action.key };
+		if (key.size() >= prefix.size()) {
+			const std::string_view truncated { key.data(), prefix.size() };
+			if (truncated == prefix)
+				return false;
+		}
+	}
+
+	return IsAnyOf(action.boundInput.button,
+	    ControllerButton_BUTTON_DPAD_UP,
+	    ControllerButton_BUTTON_DPAD_DOWN,
+	    ControllerButton_BUTTON_DPAD_LEFT,
+	    ControllerButton_BUTTON_DPAD_RIGHT);
 }
 
 void PressControllerButton(ControllerButton button)
@@ -233,11 +258,11 @@ void PressControllerButton(ControllerButton button)
 
 	if (PadHotspellMenuActive) {
 		auto quickSpellAction = [](size_t slot) {
-			if (spselflag) {
+			if (SpellSelectFlag) {
 				SetSpeedSpell(slot);
 				return;
 			}
-			if (!*sgOptions.Gameplay.quickCast)
+			if (!*GetOptions().Gameplay.quickCast)
 				ToggleSpell(slot);
 			else
 				QuickCast(slot);
@@ -288,7 +313,7 @@ void PressControllerButton(ControllerButton button)
 			return;
 		case devilution::ControllerButton_BUTTON_Y:
 #ifdef __3DS__
-			sgOptions.Graphics.zoom.SetValue(!*sgOptions.Graphics.zoom);
+			GetOptions().Graphics.zoom.SetValue(!*GetOptions().Graphics.zoom);
 			CalcViewportGeometry();
 #endif
 			return;
@@ -297,7 +322,10 @@ void PressControllerButton(ControllerButton button)
 		}
 	}
 
-	sgOptions.Padmapper.ButtonPressed(button);
+	const PadmapperOptions::Action *action = GetOptions().Padmapper.findAction(button, IsControllerButtonPressed);
+	if (action == nullptr) return;
+	if (IsMovementHandlerActive() && CanDeferToMovementHandler(*action)) return;
+	PadmapperPress(button, *action);
 }
 
 } // namespace
@@ -336,7 +364,7 @@ bool IsSimulatedMouseClickBinding(ControllerButtonEvent ctrlEvent)
 		return false;
 	if (!ctrlEvent.up && ctrlEvent.button == SuppressedButton)
 		return false;
-	std::string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent);
+	const std::string_view actionName = PadmapperActionNameTriggeredByButtonEvent(ctrlEvent);
 	return IsAnyOf(actionName, "LeftMouseClick1", "LeftMouseClick2", "RightMouseClick1", "RightMouseClick2");
 }
 
@@ -354,8 +382,7 @@ bool HandleControllerButtonEvent(const SDL_Event &event, const ControllerButtonE
 	struct ButtonReleaser {
 		~ButtonReleaser()
 		{
-			if (ctrlEvent.up)
-				sgOptions.Padmapper.ButtonReleased(ctrlEvent.button, false);
+			if (ctrlEvent.up) PadmapperRelease(ctrlEvent.button, /*invokeAction=*/false);
 		}
 		ControllerButtonEvent ctrlEvent;
 	};
@@ -376,10 +403,10 @@ bool HandleControllerButtonEvent(const SDL_Event &event, const ControllerButtonE
 		SuppressedButton = ControllerButton_NONE;
 	}
 
-	if (ctrlEvent.up && sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent) != "") {
+	if (ctrlEvent.up && !PadmapperActionNameTriggeredByButtonEvent(ctrlEvent).empty()) {
 		// Button press may have brought up a menu;
 		// don't confuse release of that button with intent to interact with the menu
-		sgOptions.Padmapper.ButtonReleased(ctrlEvent.button);
+		PadmapperRelease(ctrlEvent.button, /*invokeAction=*/true);
 		return true;
 	} else if (GetGameAction(event, ctrlEvent, &action)) {
 		ProcessGameAction(action);

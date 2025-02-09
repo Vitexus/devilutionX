@@ -14,11 +14,13 @@
 #include "engine/load_file.hpp"
 #include "engine/palette.h"
 #include "engine/render/automap_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
 #include "player.h"
 #include "utils/attributes.h"
 #include "utils/enum_traits.h"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
 #include "utils/utf8.hpp"
@@ -1320,9 +1322,6 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, cons
 	const uint8_t playerColor = MapColorsPlayer + (8 * player.getId()) % 128;
 
 	Point tile = player.position.tile;
-	if (player._pmode == PM_WALK_SIDEWAYS) {
-		tile = player.position.future;
-	}
 
 	int px = tile.x - 2 * AutomapOffset.deltaX - ViewPosition.x;
 	int py = tile.y - 2 * AutomapOffset.deltaY - ViewPosition.y;
@@ -1477,6 +1476,10 @@ void DrawAutomapText(const Surface &out)
 	if (DebugGodMode) {
 		linePosition.y += 15;
 		DrawString(out, "God Mode", linePosition, debugTextOptions);
+	}
+	if (DebugInvisible) {
+		linePosition.y += 15;
+		DrawString(out, "Invisible", linePosition, debugTextOptions);
 	}
 	if (DisableLighting) {
 		linePosition.y += 15;

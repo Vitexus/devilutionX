@@ -7,8 +7,6 @@
 
 #include <string_view>
 
-#include <SDL.h>
-
 #include "utils/attributes.h"
 
 namespace devilution {
@@ -22,6 +20,13 @@ namespace devilution {
 #else
 #define assert(exp) (void)((exp) || (assert_fail(__LINE__, __FILE__, #exp), 0))
 #endif
+
+/**
+ * @brief Terminates the game and displays an error message box.
+ * @param str Message box title.
+ * @param str Error message.
+ */
+[[noreturn]] void DisplayFatalErrorAndExit(std::string_view title, std::string_view body);
 
 /**
  * @brief Terminates the game and displays an error message box.

@@ -14,7 +14,10 @@
 #include "DiabloUI/selok.h"
 #include "DiabloUI/selyesno.h"
 #include "control.h"
+#include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
+#include "engine/assets.hpp"
+#include "game_mode.hpp"
 #include "menu.h"
 #include "options.h"
 #include "pfile.h"
@@ -160,10 +163,10 @@ void SelheroListSelect(size_t value)
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Sorcerer"), static_cast<int>(HeroClass::Sorcerer)));
 		if (gbIsHellfire) {
 			vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Monk"), static_cast<int>(HeroClass::Monk)));
-			if (gbBard || *sgOptions.Gameplay.testBard) {
+			if (HaveBardAssets() || *GetOptions().Gameplay.testBard) {
 				vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Bard"), static_cast<int>(HeroClass::Bard)));
 			}
-			if (gbBarbarian || *sgOptions.Gameplay.testBarbarian) {
+			if (HaveBarbarianAssets() || *GetOptions().Gameplay.testBarbarian) {
 				vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Barbarian"), static_cast<int>(HeroClass::Barbarian)));
 			}
 		}
@@ -262,7 +265,7 @@ void AddSelHeroBackground()
 void SelheroClassSelectorSelect(size_t value)
 {
 	auto hClass = static_cast<HeroClass>(vecSelHeroDlgItems[value]->m_value);
-	if (gbIsSpawn && (hClass == HeroClass::Rogue || hClass == HeroClass::Sorcerer || (hClass == HeroClass::Bard && !gbBard))) {
+	if (gbIsSpawn && (hClass == HeroClass::Rogue || hClass == HeroClass::Sorcerer || (hClass == HeroClass::Bard && !HaveBardAssets()))) {
 		RemoveSelHeroBackground();
 		UiSelOkDialog(nullptr, _("The Rogue and Sorcerer are only available in the full retail version of Diablo. Visit https://www.gog.com/game/diablo to purchase.").data(), false);
 		AddSelHeroBackground();
@@ -512,11 +515,11 @@ void selhero_List_Init()
 
 	vecSelHeroDlgItems.clear();
 	for (std::size_t i = 0; i < selhero_SaveCount; i++) {
-		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(selhero_heros[i].name, static_cast<int>(i)));
+		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(std::string_view(selhero_heros[i].name), static_cast<int>(i)));
 		if (selhero_heros[i].saveNumber == selhero_heroInfo.saveNumber)
 			selectedItem = i;
 	}
-	vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Hero").data(), static_cast<int>(selhero_SaveCount)));
+	vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Hero"), static_cast<int>(selhero_SaveCount)));
 
 	vecSelDlgItems.push_back(std::make_unique<UiList>(vecSelHeroDlgItems, 6, uiPosition.x + 265, (uiPosition.y + 256), 320, 26, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold));
 

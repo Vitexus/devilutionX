@@ -6,7 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ctime>
+#include <cstring>
 #include <string_view>
 
 #include <SDL.h>
@@ -28,7 +28,8 @@
 #include "storm/storm_net.hpp"
 #include "sync.h"
 #include "tmsg.h"
-#include "utils/endian.hpp"
+#include "utils/endian_read.hpp"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -45,7 +46,7 @@ bool sgbSendDeltaTbl[MAX_PLRS];
 GameData sgGameInitInfo;
 bool gbSelectProvider;
 int sglTimeoutStart;
-int sgdwPlayerLeftReasonTbl[MAX_PLRS];
+uint32_t sgdwPlayerLeftReasonTbl[MAX_PLRS];
 uint32_t sgdwGameLoops;
 /**
  * Specifies the maximum number of players in a game, where 1
@@ -71,6 +72,16 @@ const event_type EventTypes[3] = {
 	EVENT_TYPE_PLAYER_CREATE_GAME,
 	EVENT_TYPE_PLAYER_MESSAGE
 };
+
+void GameData::swapLE()
+{
+	size = SDL_SwapLE32(size);
+	programid = SDL_SwapLE32(programid);
+	gameSeed[0] = SDL_SwapLE32(gameSeed[0]);
+	gameSeed[1] = SDL_SwapLE32(gameSeed[1]);
+	gameSeed[2] = SDL_SwapLE32(gameSeed[2]);
+	gameSeed[3] = SDL_SwapLE32(gameSeed[3]);
+}
 
 namespace {
 
@@ -380,34 +391,44 @@ void SetupLocalPositions()
 
 void HandleEvents(_SNETEVENT *pEvt)
 {
+	const uint32_t playerId = pEvt->playerid;
 	switch (pEvt->eventid) {
 	case EVENT_TYPE_PLAYER_CREATE_GAME: {
-		auto *gameData = (GameData *)pEvt->data;
-		if (gameData->size != sizeof(GameData))
-			app_fatal(StrCat("Invalid size of game data: ", gameData->size));
-		sgGameInitInfo = *gameData;
-		sgbPlayerTurnBitTbl[pEvt->playerid] = true;
-		break;
-	}
+		GameData gameData;
+		if (pEvt->databytes < sizeof(GameData))
+			app_fatal(StrCat("Invalid packet size (<sizeof(GameData)): ", pEvt->databytes));
+		std::memcpy(&gameData, pEvt->data, sizeof(gameData));
+		gameData.swapLE();
+		if (gameData.size != sizeof(GameData))
+			app_fatal(StrCat("Invalid size of game data: ", gameData.size));
+		sgGameInitInfo = gameData;
+		sgbPlayerTurnBitTbl[playerId] = true;
+	} break;
 	case EVENT_TYPE_PLAYER_LEAVE_GAME: {
-		sgbPlayerLeftGameTbl[pEvt->playerid] = true;
-		sgbPlayerTurnBitTbl[pEvt->playerid] = false;
+		sgbPlayerLeftGameTbl[playerId] = true;
+		sgbPlayerTurnBitTbl[playerId] = false;
 
-		int leftReason = 0;
-		if (pEvt->data != nullptr && pEvt->databytes >= sizeof(leftReason))
-			leftReason = *(int *)pEvt->data;
-		sgdwPlayerLeftReasonTbl[pEvt->playerid] = leftReason;
+		int32_t leftReason = 0;
+		if (pEvt->data != nullptr && pEvt->databytes >= sizeof(leftReason)) {
+			std::memcpy(&leftReason, pEvt->data, sizeof(leftReason));
+			leftReason = SDL_SwapLE32(leftReason);
+		}
+		sgdwPlayerLeftReasonTbl[playerId] = leftReason;
 		if (leftReason == LEAVE_ENDING)
 			gbSomebodyWonGameKludge = true;
 
-		sgbSendDeltaTbl[pEvt->playerid] = false;
+		sgbSendDeltaTbl[playerId] = false;
 
-		if (gbDeltaSender == pEvt->playerid)
+		if (gbDeltaSender == playerId)
 			gbDeltaSender = MAX_PLRS;
 	} break;
-	case EVENT_TYPE_PLAYER_MESSAGE:
-		EventPlrMsg((char *)pEvt->data);
-		break;
+	case EVENT_TYPE_PLAYER_MESSAGE: {
+		std::string_view data(static_cast<const char *>(pEvt->data), pEvt->databytes);
+		if (const size_t nullPos = data.find('\0'); nullPos != std::string_view::npos) {
+			data.remove_suffix(data.size() - nullPos);
+		}
+		EventPlrMsg(data);
+	} break;
 	}
 }
 
@@ -436,7 +457,9 @@ bool InitSingle(GameData *gameData)
 	}
 
 	int unused = 0;
-	if (!SNetCreateGame("local", "local", (char *)&sgGameInitInfo, sizeof(sgGameInitInfo), &unused)) {
+	GameData gameInitInfo = sgGameInitInfo;
+	gameInitInfo.swapLE();
+	if (!SNetCreateGame("local", "local", reinterpret_cast<char *>(&gameInitInfo), sizeof(gameInitInfo), &unused)) {
 		app_fatal(StrCat("SNetCreateGame1:\n", SDL_GetError()));
 	}
 
@@ -485,18 +508,21 @@ bool InitMulti(GameData *gameData)
 
 void InitGameInfo()
 {
+	xoshiro128plusplus gameGenerator = ReserveSeedSequence();
+	gameGenerator.save(sgGameInitInfo.gameSeed);
+
 	sgGameInitInfo.size = sizeof(sgGameInitInfo);
-	sgGameInitInfo.dwSeed = static_cast<uint32_t>(time(nullptr));
 	sgGameInitInfo.programid = GAME_ID;
 	sgGameInitInfo.versionMajor = PROJECT_VERSION_MAJOR;
 	sgGameInitInfo.versionMinor = PROJECT_VERSION_MINOR;
 	sgGameInitInfo.versionPatch = PROJECT_VERSION_PATCH;
-	sgGameInitInfo.nTickRate = *sgOptions.Gameplay.tickRate;
-	sgGameInitInfo.bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
-	sgGameInitInfo.bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
-	sgGameInitInfo.bCowQuest = *sgOptions.Gameplay.cowQuest ? 1 : 0;
-	sgGameInitInfo.bFriendlyFire = *sgOptions.Gameplay.friendlyFire ? 1 : 0;
-	sgGameInitInfo.fullQuests = (!gbIsMultiplayer || *sgOptions.Gameplay.multiplayerFullQuests) ? 1 : 0;
+	const Options &options = GetOptions();
+	sgGameInitInfo.nTickRate = *options.Gameplay.tickRate;
+	sgGameInitInfo.bRunInTown = *options.Gameplay.runInTown ? 1 : 0;
+	sgGameInitInfo.bTheoQuest = *options.Gameplay.theoQuest ? 1 : 0;
+	sgGameInitInfo.bCowQuest = *options.Gameplay.cowQuest ? 1 : 0;
+	sgGameInitInfo.bFriendlyFire = *options.Gameplay.friendlyFire ? 1 : 0;
+	sgGameInitInfo.fullQuests = (!gbIsMultiplayer || *options.Gameplay.multiplayerFullQuests) ? 1 : 0;
 }
 
 void NetSendLoPri(uint8_t playerId, const std::byte *data, size_t size)
@@ -787,12 +813,15 @@ bool NetInit(bool bSinglePlayer)
 		NetClose();
 		gbSelectProvider = false;
 	}
-	SetRndSeed(sgGameInitInfo.dwSeed);
+	xoshiro128plusplus gameGenerator(sgGameInitInfo.gameSeed);
 	gnTickDelay = 1000 / sgGameInitInfo.nTickRate;
 
 	for (int i = 0; i < NUMLEVELS; i++) {
-		glSeedTbl[i] = AdvanceRndSeed();
+		DungeonSeeds[i] = gameGenerator.next();
+		LevelSeeds[i] = std::nullopt;
 	}
+	// explicitly randomize the town seed to divorce shops from the game seed
+	DungeonSeeds[0] = GenerateSeed();
 	PublicGame = DvlNet_IsPublicGame();
 
 	Player &myPlayer = *MyPlayer;

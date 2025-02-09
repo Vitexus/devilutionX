@@ -3,12 +3,14 @@
 #include <cstdint>
 
 #include "controls/input.h"
-#include "engine.h"
+#include "controls/padmapper.hpp"
 #include "engine/demomode.h"
+#include "engine/render/primitive_render.hpp"
 #include "interfac.h"
 #include "movie.h"
 #include "options.h"
 #include "panels/console.hpp"
+#include "utils/is_of.hpp"
 #include "utils/log.hpp"
 
 #ifdef USE_SDL1
@@ -142,7 +144,7 @@ EventHandler CurrentEventHandler;
 
 EventHandler SetEventHandler(EventHandler eventHandler)
 {
-	sgOptions.Padmapper.ReleaseAllActiveButtons();
+	PadmapperReleaseAllActiveButtons();
 
 	EventHandler previousHandler = CurrentEventHandler;
 	CurrentEventHandler = eventHandler;

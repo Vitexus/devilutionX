@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 #include <expected.hpp>
 
@@ -15,6 +16,8 @@
 #include "appfat.h"
 #include "dvlnet/abstract_net.h"
 #include "utils/attributes.h"
+#include "utils/endian_read.hpp"
+#include "utils/endian_write.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/stubs.h"
 
@@ -43,11 +46,11 @@ typedef uint8_t plr_t;
 typedef uint8_t seq_t;
 typedef uint32_t cookie_t;
 typedef uint32_t timestamp_t;
-typedef int leaveinfo_t; // also change later
+typedef uint32_t leaveinfo_t;
 #ifdef PACKET_ENCRYPTION
 typedef std::array<unsigned char, crypto_secretbox_KEYBYTES> key_t;
 #else
-// Stub out the key_t defintion as we're not doing any encryption.
+// Stub out the key_t definition as we're not doing any encryption.
 using key_t = uint8_t;
 #endif
 
@@ -171,11 +174,7 @@ public:
 
 	tl::expected<void, PacketError> process_element(buffer_t &x);
 	template <class T>
-	tl::expected<void, PacketError> process_element(T &x);
-	template <class T>
-	static const unsigned char *begin(const T &x);
-	template <class T>
-	static const unsigned char *end(const T &x);
+	tl::expected<void, PacketError> process_element(const T &x);
 	static cookie_t GenerateCookie();
 	void Encrypt();
 };
@@ -236,10 +235,18 @@ inline tl::expected<void, PacketError> packet_in::process_element(buffer_t &x)
 template <class T>
 tl::expected<void, PacketError> packet_in::process_element(T &x)
 {
+	static_assert(std::is_integral<T>::value || std::is_enum<T>::value, "Unsupported T");
+	static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Unsupported T");
 	if (decrypted_buffer.size() < sizeof(T)) {
 		return tl::make_unexpected(PacketError());
 	}
-	std::memcpy(&x, decrypted_buffer.data(), sizeof(T));
+	if (sizeof(T) == 4) {
+		x = static_cast<T>(LoadLE32(decrypted_buffer.data()));
+	} else if (sizeof(T) == 2) {
+		x = static_cast<T>(LoadLE16(decrypted_buffer.data()));
+	} else if (sizeof(T) == 1) {
+		std::memcpy(&x, decrypted_buffer.data(), sizeof(T));
+	}
 	decrypted_buffer.erase(decrypted_buffer.begin(),
 	    decrypted_buffer.begin() + sizeof(T));
 	return {};
@@ -391,22 +398,22 @@ inline tl::expected<void, PacketError> packet_out::process_element(buffer_t &x)
 }
 
 template <class T>
-tl::expected<void, PacketError> packet_out::process_element(T &x)
+tl::expected<void, PacketError> packet_out::process_element(const T &x)
 {
-	decrypted_buffer.insert(decrypted_buffer.end(), begin(x), end(x));
+	static_assert(std::is_integral<T>::value || std::is_enum<T>::value, "Unsupported T");
+	static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Unsupported T");
+	if (sizeof(T) == 4) {
+		unsigned char buf[4];
+		WriteLE32(buf, x);
+		decrypted_buffer.insert(decrypted_buffer.end(), buf, buf + 4);
+	} else if (sizeof(T) == 2) {
+		unsigned char buf[2];
+		WriteLE16(buf, x);
+		decrypted_buffer.insert(decrypted_buffer.end(), buf, buf + 2);
+	} else if (sizeof(T) == 1) {
+		decrypted_buffer.push_back(static_cast<unsigned char>(x));
+	}
 	return {};
-}
-
-template <class T>
-const unsigned char *packet_out::begin(const T &x)
-{
-	return reinterpret_cast<const unsigned char *>(&x);
-}
-
-template <class T>
-const unsigned char *packet_out::end(const T &x)
-{
-	return reinterpret_cast<const unsigned char *>(&x) + sizeof(T);
 }
 
 class packet_factory {

@@ -17,6 +17,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/size.hpp"
+#include "headless_mode.hpp"
 #include "hwcursor.hpp"
 #include "inv.h"
 #include "minitext.h"
@@ -293,7 +294,7 @@ void TransferItemToInventory(Player &player, uint16_t itemId)
 		return;
 	}
 
-	if (!AutoPlaceItemInInventory(player, item, true)) {
+	if (!AutoPlaceItemInInventory(player, item)) {
 		player.SaySpecific(HeroSpeech::IHaveNoRoom);
 		return;
 	}
@@ -462,7 +463,7 @@ bool UseStashItem(uint16_t c)
 		return true;
 	if (pcurs != CURSOR_HAND)
 		return true;
-	if (stextflag != TalkID::None)
+	if (ActiveStore != TalkID::None)
 		return true;
 
 	Item *item = &Stash.stashList[c];
@@ -586,8 +587,8 @@ void StartGoldWithdraw()
 {
 	CloseGoldDrop();
 
-	if (talkflag)
-		control_reset_talk();
+	if (ChatFlag)
+		ResetChat();
 
 	Point start = GetPanelPosition(UiPanels::Stash, { 67, 128 });
 	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
@@ -644,7 +645,7 @@ void DrawGoldWithdraw(const Surface &out)
 
 	const int dialogX = 30;
 
-	ClxDraw(out, GetPanelPosition(UiPanels::Stash, { dialogX, 178 }), (*pGBoxBuff)[0]);
+	ClxDraw(out, GetPanelPosition(UiPanels::Stash, { dialogX, 178 }), (*GoldBoxBuffer)[0]);
 
 	// Pre-wrap the string at spaces, otherwise DrawString would hard wrap in the middle of words
 	const std::string wrapped = WordWrapString(_("How many gold pieces do you want to withdraw?"), 200);

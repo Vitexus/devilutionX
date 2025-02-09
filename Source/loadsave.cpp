@@ -6,12 +6,15 @@
 #include "loadsave.h"
 
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <numeric>
-#include <unordered_map>
+#include <string>
 
 #include <SDL.h>
+#include <ankerl/unordered_dense.h>
+#include <expected.hpp>
 #include <fmt/core.h>
 
 #include "automap.h"
@@ -20,11 +23,11 @@
 #include "cursor.h"
 #include "dead.h"
 #include "doom.h"
-#include "engine.h"
 #include "engine/point.hpp"
 #include "engine/random.hpp"
-#include "init.h"
+#include "game_mode.hpp"
 #include "inv.h"
+#include "levels/dun_tile.hpp"
 #include "lighting.h"
 #include "menu.h"
 #include "missiles.h"
@@ -35,8 +38,10 @@
 #include "qol/stash.h"
 #include "stores.h"
 #include "utils/algorithm/container.hpp"
-#include "utils/endian.hpp"
+#include "utils/endian_read.hpp"
+#include "utils/is_of.hpp"
 #include "utils/language.h"
+#include "utils/status_macros.hpp"
 
 namespace devilution {
 
@@ -46,6 +51,7 @@ uint8_t giNumberOfLevels;
 namespace {
 
 constexpr size_t MaxMissilesForSaveGame = 125;
+constexpr size_t PlayerWalkPathSizeForSaveGame = 25;
 
 uint8_t giNumberQuests;
 uint8_t giNumberOfSmithPremiumItems;
@@ -231,6 +237,17 @@ public:
 	}
 };
 
+struct MonsterConversionData {
+	int8_t monsterLevel;
+	uint16_t experience;
+	uint8_t toHit;
+	uint8_t toHitSpecial;
+};
+
+struct LevelConversionData {
+	MonsterConversionData monsterConversionData[MaxMonsters];
+};
+
 void LoadItemData(LoadHelper &file, Item &item)
 {
 	item._iSeed = file.NextLE<uint32_t>();
@@ -246,7 +263,7 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item.AnimInfo.currentFrame = file.NextLENarrow<int32_t, int8_t>(-1);
 	file.Skip(8); // Skip _iAnimWidth and _iAnimWidth2
 	file.Skip(4); // Unused since 1.02
-	item._iSelFlag = file.NextLE<uint8_t>();
+	item.selectionRegion = static_cast<SelectionRegion>(file.NextLE<uint8_t>());
 	file.Skip(3); // Alignment
 	item._iPostDraw = file.NextBool32();
 	item._iIdentified = file.NextBool32();
@@ -330,9 +347,11 @@ void LoadPlayer(LoadHelper &file, Player &player)
 {
 	player._pmode = static_cast<PLR_MODE>(file.NextLE<int32_t>());
 
-	for (int8_t &step : player.walkpath) {
-		step = file.NextLE<int8_t>();
+	for (size_t i = 0; i < PlayerWalkPathSizeForSaveGame; ++i) {
+		player.walkpath[i] = file.NextLE<int8_t>();
 	}
+	player.walkpath[PlayerWalkPathSizeForSaveGame] = WALK_NONE;
+
 	player.plractive = file.NextBool8();
 	file.Skip(2); // Alignment
 	player.destAction = static_cast<action_id>(file.NextLE<int32_t>());
@@ -380,8 +399,24 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	file.Skip(3); // Alignment
 	player._pSBkSpell = static_cast<SpellID>(file.NextLE<int32_t>());
 	file.Skip<int8_t>(); // Skip _pSBkSplType
-	for (uint8_t &spellLevel : player._pSplLvl)
-		spellLevel = file.NextLE<uint8_t>();
+
+	// Only read spell levels for learnable spells
+	for (int i = 0; i < static_cast<int>(SpellID::LAST); i++) {
+		auto spl = static_cast<SpellID>(i);
+		if (GetSpellData(spl).sBookLvl != -1)
+			player._pSplLvl[i] = file.NextLE<uint8_t>();
+		else
+			file.Skip<uint8_t>();
+	}
+	// Skip indices that are unused
+	for (int i = static_cast<int>(SpellID::LAST); i < 64; i++)
+		file.Skip<uint8_t>();
+	// These spells are unavailable in Diablo as learnable spells
+	if (!gbIsHellfire) {
+		player._pSplLvl[static_cast<uint8_t>(SpellID::Apocalypse)] = 0;
+		player._pSplLvl[static_cast<uint8_t>(SpellID::Nova)] = 0;
+	}
+
 	file.Skip(7); // Alignment
 	player._pMemSpells = file.NextLE<uint64_t>();
 	player._pAblSpells = file.NextLE<uint64_t>();
@@ -553,7 +588,7 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	sgGameInitInfo.nDifficulty = static_cast<_difficulty>(file.NextLE<uint32_t>());
 	player.pDamAcFlags = static_cast<ItemSpecialEffectHf>(file.NextLE<uint32_t>());
 	file.Skip(20); // Available bytes
-	CalcPlrItemVals(player, false);
+	CalcPlrInv(player, false);
 
 	player.executedSpell = player.queuedSpell; // Ensures backwards compatibility
 
@@ -568,7 +603,7 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	// Omit pointer _pBData
 	// Omit pointer pReserved
 
-	// Ensure plrIsOnSetLevel and plrlevel is correctly initialized, cause in vanilla sometimes plrlevel is not updated to setlvlnum
+	// Ensure plrIsOnSetLevel and plrlevel is correctly initialized, because in vanilla sometimes plrlevel is not updated to setlvlnum
 	if (setlevel)
 		player.setLevel(setlvlnum);
 	else
@@ -577,7 +612,7 @@ void LoadPlayer(LoadHelper &file, Player &player)
 
 bool gbSkipSync = false;
 
-void LoadMonster(LoadHelper *file, Monster &monster)
+void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *monsterConversionData = nullptr)
 {
 	monster.levelType = file->NextLE<int32_t>();
 	monster.mode = static_cast<MonsterMode>(file->NextLE<int32_t>());
@@ -639,17 +674,28 @@ void LoadMonster(LoadHelper *file, Monster &monster)
 	monster.corpseId = file->NextLE<int8_t>();
 
 	monster.whoHit = file->NextLE<int8_t>();
-	file->Skip(1); // Skip level - now calculated on the fly
-	file->Skip(1); // Alignment
-	file->Skip(2); // Skip exp - now calculated from monstdat when the monster dies
-
-	if (monster.isPlayerMinion()) // Don't skip for golems
-		monster.toHit = file->NextLE<uint8_t>();
+	if (monsterConversionData != nullptr)
+		monsterConversionData->monsterLevel = file->NextLE<int8_t>();
 	else
-		file->Skip(1); // Skip hit as it's already initialized
+		file->Skip(1); // Skip level - now calculated on the fly
+	file->Skip(1);     // Alignment
+	if (monsterConversionData != nullptr)
+		monsterConversionData->experience = file->NextLE<uint16_t>();
+	else
+		file->Skip(2); // Skip exp - now calculated from monstdat when the monster dies
+
+	if (monsterConversionData != nullptr)
+		monsterConversionData->toHit = file->NextLE<uint8_t>();
+	else if (monster.isPlayerMinion()) // Don't skip for golems
+		monster.golemToHit = file->NextLE<uint8_t>();
+	else
+		file->Skip(1); // Skip toHit - now calculated on the fly
 	monster.minDamage = file->NextLE<uint8_t>();
 	monster.maxDamage = file->NextLE<uint8_t>();
-	file->Skip(1); // Skip toHitSpecial as it's already initialized
+	if (monsterConversionData != nullptr)
+		monsterConversionData->toHitSpecial = file->NextLE<uint8_t>();
+	else
+		file->Skip(1); // Skip toHitSpecial - now calculated on the fly
 	monster.minDamageSpecial = file->NextLE<uint8_t>();
 	monster.maxDamageSpecial = file->NextLE<uint8_t>();
 	monster.armorClass = file->NextLE<uint8_t>();
@@ -667,7 +713,7 @@ void LoadMonster(LoadHelper *file, Monster &monster)
 	monster.packSize = file->NextLE<uint8_t>();
 	monster.lightId = file->NextLE<int8_t>();
 	if (monster.lightId == 0)
-		monster.lightId = NO_LIGHT; // Correct incorect values in old saves
+		monster.lightId = NO_LIGHT; // Correct incorrect values in old saves
 
 	// Omit pointer name;
 
@@ -688,7 +734,7 @@ void SyncPackSize(Monster &leader)
 	leader.packSize = 0;
 
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
-		auto &minion = Monsters[ActiveMonsters[i]];
+		Monster &minion = Monsters[ActiveMonsters[i]];
 		if (minion.leaderRelation == LeaderRelation::Leashed && minion.getLeader() == &leader)
 			leader.packSize++;
 	}
@@ -726,7 +772,7 @@ void LoadMissile(LoadHelper *file)
 	missile._miLightFlag = file->NextBool32();
 	missile._miPreFlag = file->NextBool32();
 	missile._miUniqTrans = file->NextLE<uint32_t>();
-	missile._mirange = file->NextLE<int32_t>();
+	missile.duration = file->NextLE<int32_t>();
 	missile._misource = file->NextLE<int32_t>();
 	missile._micaster = static_cast<mienemy_type>(file->NextLE<int32_t>());
 	missile._midam = file->NextLE<int32_t>();
@@ -807,7 +853,7 @@ void LoadObject(LoadHelper &file, Object &object)
 	object._oSolidFlag = file.NextBool32();
 	object._oMissFlag = file.NextBool32();
 
-	object._oSelFlag = file.NextLE<int8_t>();
+	object.selectionRegion = static_cast<SelectionRegion>(file.NextLE<int8_t>());
 	file.Skip(3); // Alignment
 	object._oPreFlag = file.NextBool32();
 	object._oTrapFlag = file.NextBool32();
@@ -832,7 +878,7 @@ void LoadItem(LoadHelper &file, Item &item)
 
 void LoadPremium(LoadHelper &file, int i)
 {
-	LoadAndValidateItemData(file, premiumitems[i]);
+	LoadAndValidateItemData(file, PremiumItems[i]);
 }
 
 void LoadQuest(LoadHelper *file, int i)
@@ -934,24 +980,6 @@ bool LevelFileExists(SaveWriter &archive)
 	return archive.HasFile(szName);
 }
 
-bool IsShopPriceValid(const Item &item)
-{
-	const int boyPriceLimit = 90000;
-	if (!gbIsHellfire && (item._iCreateInfo & CF_BOY) != 0 && item._iIvalue > boyPriceLimit)
-		return false;
-
-	const int premiumPriceLimit = 140000;
-	if (!gbIsHellfire && (item._iCreateInfo & CF_SMITHPREMIUM) != 0 && item._iIvalue > premiumPriceLimit)
-		return false;
-
-	const uint16_t smithOrWitch = CF_SMITH | CF_WITCH;
-	const int smithAndWitchPriceLimit = gbIsHellfire ? 200000 : 140000;
-	if ((item._iCreateInfo & smithOrWitch) != 0 && item._iIvalue > smithAndWitchPriceLimit)
-		return false;
-
-	return true;
-}
-
 void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item *pItem)
 {
 	Item heroItem;
@@ -976,10 +1004,6 @@ void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item
 				unpackedItem._iDurability = ClampDurability(unpackedItem, heroItem._iDurability);
 				unpackedItem._iMaxCharges = std::clamp<int>(heroItem._iMaxCharges, 0, unpackedItem._iMaxCharges);
 				unpackedItem._iCharges = std::clamp<int>(heroItem._iCharges, 0, unpackedItem._iMaxCharges);
-			}
-			if (!IsShopPriceValid(unpackedItem)) {
-				unpackedItem.clear();
-				continue;
 			}
 			if (gbIsHellfire) {
 				unpackedItem._iPLToHit = ClampToHit(unpackedItem, heroItem._iPLToHit); // Oil of Accuracy
@@ -1057,9 +1081,9 @@ void SaveItem(SaveHelper &file, const Item &item)
 	// write _iAnimWidth for vanilla compatibility
 	file.WriteLE<int32_t>(ItemAnimWidth);
 	// write _iAnimWidth2 for vanilla compatibility
-	file.WriteLE<int32_t>(CalculateWidth2(ItemAnimWidth));
+	file.WriteLE<int32_t>(CalculateSpriteTileCenterX(ItemAnimWidth));
 	file.Skip<uint32_t>(); // _delFlag, unused since 1.02
-	file.WriteLE<uint8_t>(item._iSelFlag);
+	file.WriteLE<uint8_t>(static_cast<uint8_t>(item.selectionRegion));
 	file.Skip(3); // Alignment
 	file.WriteLE<uint32_t>(item._iPostDraw ? 1 : 0);
 	file.WriteLE<uint32_t>(item._iIdentified ? 1 : 0);
@@ -1127,8 +1151,9 @@ void SaveItem(SaveHelper &file, const Item &item)
 void SavePlayer(SaveHelper &file, const Player &player)
 {
 	file.WriteLE<int32_t>(player._pmode);
-	for (int8_t step : player.walkpath)
-		file.WriteLE<int8_t>(step);
+	for (size_t i = 0; i < PlayerWalkPathSizeForSaveGame; ++i) {
+		file.WriteLE<int8_t>(player.walkpath[i]);
+	}
 	file.WriteLE<uint8_t>(player.plractive ? 1 : 0);
 	file.Skip(2); // Alignment
 	file.WriteLE<int32_t>(player.destAction);
@@ -1175,7 +1200,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	const int animWidth = player.getSpriteWidth();
 	file.WriteLE<int32_t>(animWidth);
 	// write _pAnimWidth2 for vanilla compatibility
-	file.WriteLE<int32_t>(CalculateWidth2(animWidth));
+	file.WriteLE<int32_t>(CalculateSpriteTileCenterX(animWidth));
 	file.Skip<uint32_t>(); // Skip _peflag
 	file.WriteLE<int32_t>(player.lightId);
 	file.WriteLE<int32_t>(1); // _pvid
@@ -1374,7 +1399,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	// Omit pointer pReserved
 }
 
-void SaveMonster(SaveHelper *file, Monster &monster)
+void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *monsterConversionData = nullptr)
 {
 	file->WriteLE<int32_t>(monster.levelType);
 	file->WriteLE<int32_t>(static_cast<int>(monster.mode));
@@ -1446,14 +1471,26 @@ void SaveMonster(SaveHelper *file, Monster &monster)
 	file->WriteLE<int8_t>(monster.corpseId);
 
 	file->WriteLE<int8_t>(monster.whoHit);
-	file->WriteLE<int8_t>(static_cast<int8_t>(monster.level(sgGameInitInfo.nDifficulty)));
+	if (monsterConversionData != nullptr)
+		file->WriteLE<int8_t>(monsterConversionData->monsterLevel);
+	else
+		file->WriteLE<int8_t>(static_cast<int8_t>(monster.level(sgGameInitInfo.nDifficulty)));
 	file->Skip(1); // Alignment
-	file->WriteLE<uint16_t>(static_cast<uint16_t>(std::min<unsigned>(std::numeric_limits<uint16_t>::max(), monster.exp(sgGameInitInfo.nDifficulty))));
+	if (monsterConversionData != nullptr)
+		file->WriteLE<uint16_t>(monsterConversionData->experience);
+	else
+		file->WriteLE<uint16_t>(static_cast<uint16_t>(std::min<unsigned>(std::numeric_limits<uint16_t>::max(), monster.exp(sgGameInitInfo.nDifficulty))));
 
-	file->WriteLE<uint8_t>(static_cast<uint8_t>(std::min<uint16_t>(monster.toHit, std::numeric_limits<uint8_t>::max()))); // For backwards compatibility
+	if (monsterConversionData != nullptr)
+		file->WriteLE<uint8_t>(monsterConversionData->toHit);
+	else
+		file->WriteLE<uint8_t>(static_cast<uint8_t>(std::min<uint16_t>(monster.toHit(sgGameInitInfo.nDifficulty), std::numeric_limits<uint8_t>::max()))); // For backwards compatibility
 	file->WriteLE<uint8_t>(monster.minDamage);
 	file->WriteLE<uint8_t>(monster.maxDamage);
-	file->WriteLE<uint8_t>(static_cast<uint8_t>(std::min<uint16_t>(monster.toHitSpecial(sgGameInitInfo.nDifficulty), std::numeric_limits<uint8_t>::max()))); // For backwards compatibility
+	if (monsterConversionData != nullptr)
+		file->WriteLE<uint8_t>(monsterConversionData->toHitSpecial);
+	else
+		file->WriteLE<uint8_t>(static_cast<uint8_t>(std::min<uint16_t>(monster.toHitSpecial(sgGameInitInfo.nDifficulty), std::numeric_limits<uint8_t>::max()))); // For backwards compatibility
 	file->WriteLE<uint8_t>(monster.minDamageSpecial);
 	file->WriteLE<uint8_t>(monster.maxDamageSpecial);
 	file->WriteLE<uint8_t>(monster.armorClass);
@@ -1505,7 +1542,7 @@ void SaveMissile(SaveHelper *file, const Missile &missile)
 	file->WriteLE<uint32_t>(missile._miLightFlag ? 1 : 0);
 	file->WriteLE<uint32_t>(missile._miPreFlag ? 1 : 0);
 	file->WriteLE<uint32_t>(missile._miUniqTrans);
-	file->WriteLE<int32_t>(missile._mirange);
+	file->WriteLE<int32_t>(missile.duration);
 	file->WriteLE<int32_t>(missile._misource);
 	file->WriteLE<int32_t>(missile._micaster);
 	file->WriteLE<int32_t>(missile._midam);
@@ -1575,14 +1612,14 @@ void SaveObject(SaveHelper &file, const Object &object)
 	file.WriteLE<uint32_t>(object._oAnimLen);
 	file.WriteLE<uint32_t>(object._oAnimFrame);
 	file.WriteLE<int32_t>(object._oAnimWidth);
-	file.WriteLE<int32_t>(CalculateWidth2(static_cast<int>(object._oAnimWidth))); // Write _oAnimWidth2 for vanilla compatibility
+	file.WriteLE<int32_t>(CalculateSpriteTileCenterX(static_cast<int>(object._oAnimWidth))); // Write _oAnimWidth2 for vanilla compatibility
 	file.WriteLE<uint32_t>(object._oDelFlag ? 1 : 0);
 	file.WriteLE<int8_t>(object._oBreak);
 	file.Skip(3); // Alignment
 	file.WriteLE<uint32_t>(object._oSolidFlag ? 1 : 0);
 	file.WriteLE<uint32_t>(object._oMissFlag ? 1 : 0);
 
-	file.WriteLE<int8_t>(object._oSelFlag);
+	file.WriteLE<int8_t>(static_cast<uint8_t>(object.selectionRegion));
 	file.Skip(3); // Alignment
 	file.WriteLE<uint32_t>(object._oPreFlag ? 1 : 0);
 	file.WriteLE<uint32_t>(object._oTrapFlag ? 1 : 0);
@@ -1627,7 +1664,7 @@ void SaveQuest(SaveHelper *file, int i)
 	auto &quest = Quests[i];
 
 	file->WriteLE<uint8_t>(quest._qlevel);
-	file->WriteLE<uint8_t>(quest._qidx); // _qtype for compatability, used in DRLG_CheckQuests
+	file->WriteLE<uint8_t>(quest._qidx); // _qtype for compatibility, used in DRLG_CheckQuests
 	file->WriteLE<uint8_t>(quest._qactive);
 	file->WriteLE<uint8_t>(quest._qlvltype);
 	file->WriteLE<int32_t>(quest.position.x);
@@ -1689,7 +1726,7 @@ void SavePortal(SaveHelper *file, int i)
  * @return a map converting from runtime item indexes to the relative position in the save file, used by SaveDroppedItemLocations
  * @see SaveDroppedItemLocations
  */
-std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
+ankerl::unordered_dense::map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
 {
 	// Vanilla Diablo/Hellfire initialise the ActiveItems and AvailableItems arrays based on saved data, so write valid values for compatibility
 	for (uint8_t i = 0; i < MAXITEMS; i++)
@@ -1697,7 +1734,9 @@ std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
 	for (uint8_t i = 0; i < MAXITEMS; i++)
 		file.WriteLE<uint8_t>((i + ActiveItemCount) % MAXITEMS);
 
-	std::unordered_map<uint8_t, uint8_t> itemIndexes = { { 0, 0 } };
+	ankerl::unordered_dense::map<uint8_t, uint8_t> itemIndexes;
+	itemIndexes.reserve(ActiveItemCount + 1);
+	itemIndexes.emplace(0, 0);
 	for (uint8_t i = 0; i < ActiveItemCount; i++) {
 		itemIndexes[ActiveItems[i] + 1] = i + 1;
 		SaveItem(file, Items[ActiveItems[i]]);
@@ -1710,7 +1749,7 @@ std::unordered_map<uint8_t, uint8_t> SaveDroppedItems(SaveHelper &file)
  * @param file interface to the save file
  * @param itemIndexes a map converting from runtime item indexes to the relative position in the save file
  */
-void SaveDroppedItemLocations(SaveHelper &file, const std::unordered_map<uint8_t, uint8_t> &itemIndexes)
+void SaveDroppedItemLocations(SaveHelper &file, const ankerl::unordered_dense::map<uint8_t, uint8_t> &itemIndexes)
 {
 	for (int j = 0; j < MAXDUNY; j++) {
 		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
@@ -1744,7 +1783,7 @@ void LoadAdditionalMissiles()
 	LoadHelper file(OpenSaveArchive(gSaveNumber), "additionalMissiles");
 
 	if (!file.IsValid()) {
-		// no addtional Missiles saved
+		// no additional Missiles saved
 		return;
 	}
 
@@ -1759,12 +1798,221 @@ void LoadAdditionalMissiles()
 	}
 }
 
+void SaveLevelSeeds(SaveWriter &saveWriter)
+{
+	SaveHelper file(saveWriter, "levelseeds", giNumberOfLevels * (sizeof(uint8_t) + sizeof(uint32_t)));
+
+	for (int i = 0; i < giNumberOfLevels; i++) {
+		file.WriteLE<uint8_t>(LevelSeeds[i] ? 1 : 0);
+		if (LevelSeeds[i]) {
+			file.WriteLE<uint32_t>(*LevelSeeds[i]);
+		}
+	}
+}
+
+void LoadLevelSeeds()
+{
+	LoadHelper file(OpenSaveArchive(gSaveNumber), "levelseeds");
+	if (!file.IsValid())
+		return;
+
+	for (int i = 0; i < giNumberOfLevels; i++) {
+		if (file.NextLE<uint8_t>() != 0) {
+			LevelSeeds[i] = file.NextLE<uint32_t>();
+		} else {
+			LevelSeeds[i] = std::nullopt;
+		}
+	}
+}
+
+void SaveLevel(SaveWriter &saveWriter, LevelConversionData *levelConversionData)
+{
+	Player &myPlayer = *MyPlayer;
+
+	DoUnVision(myPlayer.position.tile, myPlayer._pLightRad); // fix for vision staying on the level
+
+	if (leveltype == DTYPE_TOWN)
+		DungeonSeeds[0] = GenerateSeed();
+
+	char szName[MaxMpqPathSize];
+	GetTempLevelNames(szName);
+	SaveHelper file(saveWriter, szName, 256 * 1024);
+
+	if (leveltype != DTYPE_TOWN) {
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteLE<int8_t>(dCorpse[i][j]);
+		}
+	}
+
+	file.WriteBE(static_cast<int32_t>(ActiveMonsterCount));
+	file.WriteBE<int32_t>(ActiveItemCount);
+	file.WriteBE<int32_t>(ActiveObjectCount);
+
+	if (leveltype != DTYPE_TOWN) {
+		for (unsigned monsterId : ActiveMonsters)
+			file.WriteBE<uint32_t>(monsterId);
+		for (size_t i = 0; i < ActiveMonsterCount; i++) {
+			MonsterConversionData *monsterConversionData = nullptr;
+			if (levelConversionData != nullptr)
+				monsterConversionData = &levelConversionData->monsterConversionData[ActiveMonsters[i]];
+			SaveMonster(&file, Monsters[ActiveMonsters[i]], monsterConversionData);
+		}
+		for (int objectId : ActiveObjects)
+			file.WriteLE<int8_t>(objectId);
+		for (int objectId : AvailableObjects)
+			file.WriteLE<int8_t>(objectId);
+		for (int i = 0; i < ActiveObjectCount; i++) {
+			SaveObject(file, Objects[ActiveObjects[i]]);
+		}
+	}
+
+	auto itemIndexes = SaveDroppedItems(file);
+
+	for (int j = 0; j < MAXDUNY; j++) {
+		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+			file.WriteLE<uint8_t>(static_cast<uint8_t>(dFlags[i][j] & DungeonFlag::SavedFlags));
+	}
+	SaveDroppedItemLocations(file, itemIndexes);
+
+	if (leveltype != DTYPE_TOWN) {
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteBE<int32_t>(dMonster[i][j]);
+		}
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteLE<int8_t>(dObject[i][j]);
+		}
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteLE<uint8_t>(dLight[i][j]);
+		}
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteLE<uint8_t>(dPreLight[i][j]);
+		}
+		for (int j = 0; j < DMAXY; j++) {
+			for (int i = 0; i < DMAXX; i++) // NOLINT(modernize-loop-convert)
+				file.WriteLE<uint8_t>(AutomapView[i][j]);
+		}
+	}
+
+	if (!setlevel)
+		myPlayer._pLvlVisited[currlevel] = true;
+	else
+		myPlayer._pSLvlVisited[setlvlnum] = true;
+}
+
+tl::expected<void, std::string> LoadLevel(LevelConversionData *levelConversionData)
+{
+	char szName[MaxMpqPathSize];
+	std::optional<SaveReader> archive = OpenSaveArchive(gSaveNumber);
+	GetTempLevelNames(szName);
+	if (!archive || !archive->HasFile(szName))
+		GetPermLevelNames(szName);
+	LoadHelper file(std::move(archive), szName);
+	if (!file.IsValid())
+		return tl::make_unexpected(std::string(_("Unable to open save file archive")));
+
+	if (leveltype != DTYPE_TOWN) {
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				dCorpse[i][j] = file.NextLE<int8_t>();
+		}
+		MoveLightsToCorpses();
+	}
+
+	ActiveMonsterCount = file.NextBE<int32_t>();
+	auto savedItemCount = file.NextBE<uint32_t>();
+	ActiveObjectCount = file.NextBE<int32_t>();
+
+	if (leveltype != DTYPE_TOWN) {
+		for (unsigned &monsterId : ActiveMonsters)
+			monsterId = file.NextBE<uint32_t>();
+		for (size_t i = 0; i < ActiveMonsterCount; i++) {
+			Monster &monster = Monsters[ActiveMonsters[i]];
+			MonsterConversionData *monsterConversionData = nullptr;
+			if (levelConversionData != nullptr)
+				monsterConversionData = &levelConversionData->monsterConversionData[ActiveMonsters[i]];
+			LoadMonster(&file, monster, monsterConversionData);
+			if (monster.isUnique() && monster.lightId != NO_LIGHT)
+				Lights[monster.lightId].isInvalid = false;
+		}
+		if (!gbSkipSync) {
+			for (size_t i = 0; i < ActiveMonsterCount; i++)
+				RETURN_IF_ERROR(SyncMonsterAnim(Monsters[ActiveMonsters[i]]));
+		}
+		for (int &objectId : ActiveObjects)
+			objectId = file.NextLE<int8_t>();
+		for (int &objectId : AvailableObjects)
+			objectId = file.NextLE<int8_t>();
+		for (int i = 0; i < ActiveObjectCount; i++)
+			LoadObject(file, Objects[ActiveObjects[i]]);
+		if (!gbSkipSync) {
+			for (int i = 0; i < ActiveObjectCount; i++)
+				SyncObjectAnim(Objects[ActiveObjects[i]]);
+		}
+	}
+
+	LoadDroppedItems(file, savedItemCount);
+
+	for (int j = 0; j < MAXDUNY; j++) {
+		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+			dFlags[i][j] = static_cast<DungeonFlag>(file.NextLE<uint8_t>()) & DungeonFlag::LoadedFlags;
+	}
+
+	// skip dItem indexes, this gets populated in LoadDroppedItems
+	file.Skip<uint8_t>(MAXDUNX * MAXDUNY);
+
+	if (leveltype != DTYPE_TOWN) {
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				dMonster[i][j] = file.NextBE<int32_t>();
+		}
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				dObject[i][j] = file.NextLE<int8_t>();
+		}
+		file.Skip<uint8_t>(MAXDUNY * MAXDUNX); // dLight
+		for (int j = 0; j < MAXDUNY; j++) {
+			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
+				dPreLight[i][j] = file.NextLE<uint8_t>();
+		}
+		for (int j = 0; j < DMAXY; j++) {
+			for (int i = 0; i < DMAXX; i++) { // NOLINT(modernize-loop-convert)
+				const auto automapView = static_cast<MapExplorationType>(file.NextLE<uint8_t>());
+				AutomapView[i][j] = automapView == MAP_EXP_OLD ? MAP_EXP_SELF : automapView;
+			}
+		}
+
+		// No need to load dLight, we can recreate it accurately from LightList
+		memcpy(dLight, dPreLight, sizeof(dLight));                                     // resets the light on entering a level to get rid of incorrect light
+		ChangeLightXY(Players[MyPlayerId].lightId, Players[MyPlayerId].position.tile); // forces player light refresh
+	} else {
+		memset(dLight, 0, sizeof(dLight));
+	}
+
+	if (!gbSkipSync) {
+		AutomapZoomReset();
+		ResyncQuests();
+		RedoMissileFlags();
+		UpdateLighting = true;
+	}
+
+	for (Player &player : Players) {
+		if (player.plractive && player.isOnActiveLevel())
+			Lights[player.lightId].hasChanged = true;
+	}
+	return {};
+}
+
 const int DiabloItemSaveSize = 368;
 const int HellfireItemSaveSize = 372;
 
 } // namespace
 
-void ConvertLevels(SaveWriter &saveWriter)
+tl::expected<void, std::string> ConvertLevels(SaveWriter &saveWriter)
 {
 	// Backup current level state
 	bool tmpSetlevel = setlevel;
@@ -1782,8 +2030,9 @@ void ConvertLevels(SaveWriter &saveWriter)
 
 		leveltype = GetLevelType(currlevel);
 
-		LoadLevel();
-		SaveLevel(saveWriter);
+		LevelConversionData levelConversionData;
+		RETURN_IF_ERROR(LoadLevel(&levelConversionData));
+		SaveLevel(saveWriter, &levelConversionData);
 	}
 
 	setlevel = true; // Convert quest levels
@@ -1801,8 +2050,9 @@ void ConvertLevels(SaveWriter &saveWriter)
 		if (!LevelFileExists(saveWriter))
 			continue;
 
-		LoadLevel();
-		SaveLevel(saveWriter);
+		LevelConversionData levelConversionData;
+		RETURN_IF_ERROR(LoadLevel(&levelConversionData));
+		SaveLevel(saveWriter, &levelConversionData);
 	}
 
 	gbSkipSync = false;
@@ -1812,6 +2062,7 @@ void ConvertLevels(SaveWriter &saveWriter)
 	setlvlnum = tmpSetlvlnum;
 	currlevel = tmpCurrlevel;
 	leveltype = tmpLeveltype;
+	return {};
 }
 
 void RemoveInvalidItem(Item &item)
@@ -2093,16 +2344,18 @@ void RemoveEmptyInventory(Player &player)
 	}
 }
 
-void LoadGame(bool firstflag)
+tl::expected<void, std::string> LoadGame(bool firstflag)
 {
 	FreeGameMem();
 
 	LoadHelper file(OpenSaveArchive(gSaveNumber), "game");
-	if (!file.IsValid())
-		app_fatal(_("Unable to open save file archive"));
+	if (!file.IsValid()) {
+		return tl::make_unexpected(std::string(_("Unable to open save file archive")));
+	}
 
-	if (!IsHeaderValid(file.NextLE<uint32_t>()))
-		app_fatal(_("Invalid save file"));
+	if (!IsHeaderValid(file.NextLE<uint32_t>())) {
+		return tl::make_unexpected(std::string(_("Invalid save file")));
+	}
 
 	if (gbIsHellfireSaveGame) {
 		giNumberOfLevels = 25;
@@ -2126,19 +2379,22 @@ void LoadGame(bool firstflag)
 	int viewX = file.NextBE<int32_t>();
 	int viewY = file.NextBE<int32_t>();
 	invflag = file.NextBool8();
-	chrflag = file.NextBool8();
+	CharFlag = file.NextBool8();
 	int tmpNummonsters = file.NextBE<int32_t>();
 	auto savedItemCount = file.NextBE<uint32_t>();
 	int tmpNummissiles = file.NextBE<int32_t>();
 	int tmpNobjects = file.NextBE<int32_t>();
 
-	if (!gbIsHellfire && IsAnyOf(leveltype, DTYPE_NEST, DTYPE_CRYPT))
-		app_fatal(_("Player is on a Hellfire only level"));
+	if (!gbIsHellfire && IsAnyOf(leveltype, DTYPE_NEST, DTYPE_CRYPT)) {
+		return tl::make_unexpected(std::string(_("Player is on a Hellfire only level")));
+	}
 
 	for (uint8_t i = 0; i < giNumberOfLevels; i++) {
-		glSeedTbl[i] = file.NextBE<uint32_t>();
+		DungeonSeeds[i] = file.NextBE<uint32_t>();
+		LevelSeeds[i] = std::nullopt;
 		file.Skip(4); // Skip loading gnLevelTypeTbl
 	}
+	LoadLevelSeeds();
 
 	Player &myPlayer = *MyPlayer;
 
@@ -2153,11 +2409,11 @@ void LoadGame(bool firstflag)
 		LoadPortal(&file, i);
 
 	if (gbIsHellfireSaveGame != gbIsHellfire) {
-		pfile_convert_levels();
+		RETURN_IF_ERROR(pfile_convert_levels());
 		RemoveEmptyInventory(myPlayer);
 	}
 
-	LoadGameLevel(firstflag, ENTRY_LOAD);
+	RETURN_IF_ERROR(LoadGameLevel(firstflag, ENTRY_LOAD));
 	SetPlrAnims(myPlayer);
 	SyncPlrAnim(myPlayer);
 
@@ -2186,7 +2442,7 @@ void LoadGame(bool firstflag)
 		// For petrified monsters, the data in missile.var1 must be used to
 		// load the appropriate animation data for the monster in missile.var2
 		for (size_t i = 0; i < ActiveMonsterCount; i++)
-			SyncMonsterAnim(Monsters[ActiveMonsters[i]]);
+			RETURN_IF_ERROR(SyncMonsterAnim(Monsters[ActiveMonsters[i]]));
 		for (int &objectId : ActiveObjects)
 			objectId = file.NextLE<int8_t>();
 		for (int &objectId : AvailableObjects)
@@ -2265,8 +2521,8 @@ void LoadGame(bool firstflag)
 		memset(dLight, 0, sizeof(dLight));
 	}
 
-	numpremium = file.NextBE<int32_t>();
-	premiumlevel = file.NextBE<int32_t>();
+	PremiumItemCount = file.NextBE<int32_t>();
+	PremiumItemLevel = file.NextBE<int32_t>();
 
 	for (int i = 0; i < giNumberOfSmithPremiumItems; i++)
 		LoadPremium(file, i);
@@ -2292,9 +2548,8 @@ void LoadGame(bool firstflag)
 		}
 	}
 
-	missiles_process_charge();
+	SetUpMissileAnimationData();
 	RedoMissileFlags();
-	NewCursor(CURSOR_HAND);
 	gbProcessPlayers = IsDiabloAlive(!firstflag);
 
 	if (gbIsHellfireSaveGame != gbIsHellfire) {
@@ -2302,6 +2557,7 @@ void LoadGame(bool firstflag)
 	}
 
 	gbIsHellfireSaveGame = gbIsHellfire;
+	return {};
 }
 
 void SaveHeroItems(SaveWriter &saveWriter, Player &player)
@@ -2408,7 +2664,7 @@ void SaveGameData(SaveWriter &saveWriter)
 	file.WriteBE<int32_t>(ViewPosition.x);
 	file.WriteBE<int32_t>(ViewPosition.y);
 	file.WriteLE<uint8_t>(invflag ? 1 : 0);
-	file.WriteLE<uint8_t>(chrflag ? 1 : 0);
+	file.WriteLE<uint8_t>(CharFlag ? 1 : 0);
 	file.WriteBE(static_cast<int32_t>(ActiveMonsterCount));
 	file.WriteBE<int32_t>(ActiveItemCount);
 	// ActiveMissileCount will be a value from 0-125 (for vanilla compatibility). Writing an unsigned value here to avoid
@@ -2418,7 +2674,7 @@ void SaveGameData(SaveWriter &saveWriter)
 	file.WriteBE<int32_t>(ActiveObjectCount);
 
 	for (uint8_t i = 0; i < giNumberOfLevels; i++) {
-		file.WriteBE<uint32_t>(glSeedTbl[i]);
+		file.WriteBE<uint32_t>(DungeonSeeds[i]);
 		file.WriteBE<int32_t>(getHellfireLevelType(GetLevelType(i)));
 	}
 
@@ -2524,20 +2780,21 @@ void SaveGameData(SaveWriter &saveWriter)
 		}
 		for (int j = 0; j < MAXDUNY; j++) {
 			for (int i = 0; i < MAXDUNX; i++)                                 // NOLINT(modernize-loop-convert)
-				file.WriteLE<int8_t>(TileContainsMissile({ i, j }) ? -1 : 0); // For backwards compatability
+				file.WriteLE<int8_t>(TileContainsMissile({ i, j }) ? -1 : 0); // For backwards compatibility
 		}
 	}
 
-	file.WriteBE<int32_t>(numpremium);
-	file.WriteBE<int32_t>(premiumlevel);
+	file.WriteBE<int32_t>(PremiumItemCount);
+	file.WriteBE<int32_t>(PremiumItemLevel);
 
 	for (int i = 0; i < giNumberOfSmithPremiumItems; i++)
-		SaveItem(file, premiumitems[i]);
+		SaveItem(file, PremiumItems[i]);
 
 	file.WriteLE<uint8_t>(AutomapActive ? 1 : 0);
 	file.WriteBE<int32_t>(AutoMapScale);
 
 	SaveAdditionalMissiles(saveWriter);
+	SaveLevelSeeds(saveWriter);
 }
 
 void SaveGame()
@@ -2549,176 +2806,12 @@ void SaveGame()
 
 void SaveLevel(SaveWriter &saveWriter)
 {
-	Player &myPlayer = *MyPlayer;
-
-	DoUnVision(myPlayer.position.tile, myPlayer._pLightRad); // fix for vision staying on the level
-
-	if (leveltype == DTYPE_TOWN)
-		glSeedTbl[0] = AdvanceRndSeed();
-
-	char szName[MaxMpqPathSize];
-	GetTempLevelNames(szName);
-	SaveHelper file(saveWriter, szName, 256 * 1024);
-
-	if (leveltype != DTYPE_TOWN) {
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteLE<int8_t>(dCorpse[i][j]);
-		}
-	}
-
-	file.WriteBE(static_cast<int32_t>(ActiveMonsterCount));
-	file.WriteBE<int32_t>(ActiveItemCount);
-	file.WriteBE<int32_t>(ActiveObjectCount);
-
-	if (leveltype != DTYPE_TOWN) {
-		for (unsigned monsterId : ActiveMonsters)
-			file.WriteBE<uint32_t>(monsterId);
-		for (size_t i = 0; i < ActiveMonsterCount; i++)
-			SaveMonster(&file, Monsters[ActiveMonsters[i]]);
-		for (int objectId : ActiveObjects)
-			file.WriteLE<int8_t>(objectId);
-		for (int objectId : AvailableObjects)
-			file.WriteLE<int8_t>(objectId);
-		for (int i = 0; i < ActiveObjectCount; i++) {
-			SaveObject(file, Objects[ActiveObjects[i]]);
-		}
-	}
-
-	auto itemIndexes = SaveDroppedItems(file);
-
-	for (int j = 0; j < MAXDUNY; j++) {
-		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-			file.WriteLE<uint8_t>(static_cast<uint8_t>(dFlags[i][j] & DungeonFlag::SavedFlags));
-	}
-	SaveDroppedItemLocations(file, itemIndexes);
-
-	if (leveltype != DTYPE_TOWN) {
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteBE<int32_t>(dMonster[i][j]);
-		}
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteLE<int8_t>(dObject[i][j]);
-		}
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteLE<uint8_t>(dLight[i][j]);
-		}
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteLE<uint8_t>(dPreLight[i][j]);
-		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) // NOLINT(modernize-loop-convert)
-				file.WriteLE<uint8_t>(AutomapView[i][j]);
-		}
-	}
-
-	if (!setlevel)
-		myPlayer._pLvlVisited[currlevel] = true;
-	else
-		myPlayer._pSLvlVisited[setlvlnum] = true;
+	SaveLevel(saveWriter, nullptr);
 }
 
-void LoadLevel()
+tl::expected<void, std::string> LoadLevel()
 {
-	char szName[MaxMpqPathSize];
-	std::optional<SaveReader> archive = OpenSaveArchive(gSaveNumber);
-	GetTempLevelNames(szName);
-	if (!archive || !archive->HasFile(szName))
-		GetPermLevelNames(szName);
-	LoadHelper file(std::move(archive), szName);
-	if (!file.IsValid())
-		app_fatal(_("Unable to open save file archive"));
-
-	if (leveltype != DTYPE_TOWN) {
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dCorpse[i][j] = file.NextLE<int8_t>();
-		}
-		MoveLightsToCorpses();
-	}
-
-	ActiveMonsterCount = file.NextBE<int32_t>();
-	auto savedItemCount = file.NextBE<uint32_t>();
-	ActiveObjectCount = file.NextBE<int32_t>();
-
-	if (leveltype != DTYPE_TOWN) {
-		for (unsigned &monsterId : ActiveMonsters)
-			monsterId = file.NextBE<uint32_t>();
-		for (size_t i = 0; i < ActiveMonsterCount; i++) {
-			Monster &monster = Monsters[ActiveMonsters[i]];
-			LoadMonster(&file, monster);
-			if (monster.isUnique() && monster.lightId != NO_LIGHT)
-				Lights[monster.lightId].isInvalid = false;
-		}
-		if (!gbSkipSync) {
-			for (size_t i = 0; i < ActiveMonsterCount; i++)
-				SyncMonsterAnim(Monsters[ActiveMonsters[i]]);
-		}
-		for (int &objectId : ActiveObjects)
-			objectId = file.NextLE<int8_t>();
-		for (int &objectId : AvailableObjects)
-			objectId = file.NextLE<int8_t>();
-		for (int i = 0; i < ActiveObjectCount; i++)
-			LoadObject(file, Objects[ActiveObjects[i]]);
-		if (!gbSkipSync) {
-			for (int i = 0; i < ActiveObjectCount; i++)
-				SyncObjectAnim(Objects[ActiveObjects[i]]);
-		}
-	}
-
-	LoadDroppedItems(file, savedItemCount);
-
-	for (int j = 0; j < MAXDUNY; j++) {
-		for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-			dFlags[i][j] = static_cast<DungeonFlag>(file.NextLE<uint8_t>()) & DungeonFlag::LoadedFlags;
-	}
-
-	// skip dItem indexes, this gets populated in LoadDroppedItems
-	file.Skip<uint8_t>(MAXDUNX * MAXDUNY);
-
-	if (leveltype != DTYPE_TOWN) {
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dMonster[i][j] = file.NextBE<int32_t>();
-		}
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dObject[i][j] = file.NextLE<int8_t>();
-		}
-		file.Skip<uint8_t>(MAXDUNY * MAXDUNX); // dLight
-		for (int j = 0; j < MAXDUNY; j++) {
-			for (int i = 0; i < MAXDUNX; i++) // NOLINT(modernize-loop-convert)
-				dPreLight[i][j] = file.NextLE<uint8_t>();
-		}
-		for (int j = 0; j < DMAXY; j++) {
-			for (int i = 0; i < DMAXX; i++) { // NOLINT(modernize-loop-convert)
-				const auto automapView = static_cast<MapExplorationType>(file.NextLE<uint8_t>());
-				AutomapView[i][j] = automapView == MAP_EXP_OLD ? MAP_EXP_SELF : automapView;
-			}
-		}
-
-		// No need to load dLight, we can recreate it accurately from LightList
-		memcpy(dLight, dPreLight, sizeof(dLight));                                     // resets the light on entering a level to get rid of incorrect light
-		ChangeLightXY(Players[MyPlayerId].lightId, Players[MyPlayerId].position.tile); // forces player light refresh
-	} else {
-		memset(dLight, 0, sizeof(dLight));
-	}
-
-	if (!gbSkipSync) {
-		AutomapZoomReset();
-		ResyncQuests();
-		RedoMissileFlags();
-		UpdateLighting = true;
-	}
-
-	for (Player &player : Players) {
-		if (player.plractive && player.isOnActiveLevel())
-			Lights[player.lightId].hasChanged = true;
-	}
+	return LoadLevel(nullptr);
 }
 
 } // namespace devilution

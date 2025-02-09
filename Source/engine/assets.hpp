@@ -3,18 +3,30 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include <SDL.h>
 #include <expected.hpp>
 
+#include <fmt/format.h>
+
 #include "appfat.h"
-#include "diablo.h"
-#include "mpq/mpq_reader.hpp"
+#include "game_mode.hpp"
+#include "headless_mode.hpp"
 #include "utils/file_util.h"
+#include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "utils/string_or_view.hpp"
+
+#ifndef UNPACKED_MPQS
+#include "mpq/mpq_reader.hpp"
+#endif
+
+#ifdef USE_SDL1
+#include "utils/sdl2_to_1_2_backports.h"
+#endif
 
 namespace devilution {
 
@@ -218,9 +230,11 @@ struct AssetHandle {
 };
 #endif
 
+std::string FailedToOpenFileErrorMessage(std::string_view path, std::string_view error);
+
 [[noreturn]] inline void FailedToOpenFileError(std::string_view path, std::string_view error)
 {
-	app_fatal(StrCat("Failed to open file:\n", path, "\n\n", error));
+	app_fatal(FailedToOpenFileErrorMessage(path, error));
 }
 
 inline bool ValidatAssetRef(std::string_view path, const AssetRef &ref)
@@ -262,5 +276,50 @@ struct AssetData {
 };
 
 tl::expected<AssetData, std::string> LoadAsset(std::string_view path);
+
+#ifdef UNPACKED_MPQS
+extern DVL_API_FOR_TEST std::optional<std::string> spawn_data_path;
+extern DVL_API_FOR_TEST std::optional<std::string> diabdat_data_path;
+extern std::optional<std::string> hellfire_data_path;
+extern std::optional<std::string> font_data_path;
+extern std::optional<std::string> lang_data_path;
+#else
+/** A handle to the spawn.mpq archive. */
+extern DVL_API_FOR_TEST std::optional<MpqArchive> spawn_mpq;
+/** A handle to the diabdat.mpq archive. */
+extern DVL_API_FOR_TEST std::optional<MpqArchive> diabdat_mpq;
+/** A handle to an hellfire.mpq archive. */
+extern std::optional<MpqArchive> hellfire_mpq;
+extern std::optional<MpqArchive> hfmonk_mpq;
+extern std::optional<MpqArchive> hfbard_mpq;
+extern std::optional<MpqArchive> hfbarb_mpq;
+extern std::optional<MpqArchive> hfmusic_mpq;
+extern std::optional<MpqArchive> hfvoice_mpq;
+extern std::optional<MpqArchive> font_mpq;
+extern std::optional<MpqArchive> lang_mpq;
+extern std::optional<MpqArchive> devilutionx_mpq;
+#endif
+
+void LoadCoreArchives();
+void LoadLanguageArchive();
+void LoadGameArchives();
+
+#ifdef UNPACKED_MPQS
+[[nodiscard]] inline bool HaveSpawn() { return spawn_data_path.has_value(); }
+[[nodiscard]] inline bool HaveDiabdat() { return diabdat_data_path.has_value(); }
+[[nodiscard]] inline bool HaveHellfire() { return hellfire_data_path.has_value(); }
+[[nodiscard]] inline bool HaveExtraFonts() { return font_data_path.has_value(); }
+
+// Bard and barbarian are not currently supported in unpacked mode.
+[[nodiscard]] inline bool HaveBardAssets() { return false; }
+[[nodiscard]] inline bool HaveBarbarianAssets() { return false; }
+#else
+[[nodiscard]] inline bool HaveSpawn() { return spawn_mpq.has_value(); }
+[[nodiscard]] inline bool HaveDiabdat() { return diabdat_mpq.has_value(); }
+[[nodiscard]] inline bool HaveHellfire() { return hellfire_mpq.has_value(); }
+[[nodiscard]] inline bool HaveExtraFonts() { return font_mpq.has_value(); }
+[[nodiscard]] inline bool HaveBardAssets() { return hfbard_mpq.has_value(); }
+[[nodiscard]] inline bool HaveBarbarianAssets() { return hfbarb_mpq.has_value(); }
+#endif
 
 } // namespace devilution

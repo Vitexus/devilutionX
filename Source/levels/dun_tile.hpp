@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "utils/enum_traits.h"
+
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 32
 
@@ -34,8 +36,9 @@ enum class TileType : uint8_t {
 
 	/**
 	 *🭮 Left-pointing 32x31 triangle. Encoded as 31 varying-width rows with 2 padding bytes before every even row.
+	 * We remove the padding bytes in `ReencodeDungeonCels`.
 	 *
-	 * The smallest rows (bottom and top) are 2px wide, the largest row is 16px wide (middle row).
+	 * The smallest rows (bottom and top) are 2px wide, the largest row is 32px wide (middle row).
 	 *
 	 * Encoding:
 	 * for i in [0, 30]:
@@ -46,8 +49,9 @@ enum class TileType : uint8_t {
 
 	/**
 	 * 🭬Right-pointing 32x31 triangle.  Encoded as 31 varying-width rows with 2 padding bytes after every even row.
+	 * We remove the padding bytes in `ReencodeDungeonCels`.
 	 *
-	 * The smallest rows (bottom and top) are 2px wide, the largest row is 16px wide (middle row).
+	 * The smallest rows (bottom and top) are 2px wide, the largest row is 32px wide (middle row).
 	 *
 	 * Encoding:
 	 * for i in [0, 30]:
@@ -98,10 +102,41 @@ struct LevelCelBlock {
 	}
 };
 
+enum class TileProperties : uint8_t {
+	// clang-format off
+	None             = 0,
+	Solid            = 1 << 0,
+	BlockLight       = 1 << 1,
+	BlockMissile     = 1 << 2,
+	Transparent      = 1 << 3,
+	TransparentLeft  = 1 << 4,
+	TransparentRight = 1 << 5,
+	Trap             = 1 << 7,
+	// clang-format on
+};
+use_enum_as_flags(TileProperties);
+
+struct MICROS {
+	LevelCelBlock mt[16];
+};
+
 /** Width of a tile rendering primitive. */
 constexpr int_fast16_t DunFrameWidth = TILE_WIDTH / 2;
 
 /** Height of a tile rendering primitive (except triangles). */
 constexpr int_fast16_t DunFrameHeight = TILE_HEIGHT;
+
+constexpr int_fast16_t DunFrameTriangleHeight = 31;
+
+constexpr size_t ReencodedTriangleFrameSize = 544 - 32;
+constexpr size_t ReencodedTrapezoidFrameSize = 800 - 16;
+
+/**
+ * @return Returns the center of the sprite relative to the center of the tile.
+ */
+constexpr int CalculateSpriteTileCenterX(int width)
+{
+	return (width - TILE_WIDTH) / 2;
+}
 
 } // namespace devilution

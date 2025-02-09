@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "appfat.h"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -18,6 +19,16 @@ namespace devilution {
 template <class T, size_t N>
 class StaticVector {
 public:
+	using value_type = T;
+	using reference = T &;
+	using const_reference = const T &;
+	using pointer = T *;
+	using const_pointer = const T *;
+	using size_type = size_t;
+	using iterator = T *;
+	using const_iterator = const T *;
+	using difference_type = std::ptrdiff_t;
+
 	StaticVector() = default;
 
 	template <typename U>
@@ -28,34 +39,26 @@ public:
 		}
 	}
 
-	[[nodiscard]] const T *begin() const
-	{
-		return &(*this)[0];
-	}
+	[[nodiscard]] const T *begin() const { return &(*this)[0]; }
+	[[nodiscard]] T *begin() { return &(*this)[0]; }
 
-	[[nodiscard]] const T *end() const
-	{
-		return begin() + size_;
-	}
+	[[nodiscard]] const T *end() const { return begin() + size_; }
+	[[nodiscard]] T *end() { return begin() + size_; }
 
-	[[nodiscard]] size_t size() const
-	{
-		return size_;
-	}
+	[[nodiscard]] size_t size() const { return size_; }
 
-	[[nodiscard]] bool empty() const
-	{
-		return size_ == 0;
-	}
+	[[nodiscard]] bool empty() const DVL_PURE { return size_ == 0; }
 
-	[[nodiscard]] T &back()
-	{
-		return (*this)[size_ - 1];
-	}
+	[[nodiscard]] const T &front() const { return (*this)[0]; }
+	[[nodiscard]] T &front() { return (*this)[0]; }
 
-	[[nodiscard]] const T &back() const
+	[[nodiscard]] const T &back() const { return (*this)[size_ - 1]; }
+	[[nodiscard]] T &back() { return (*this)[size_ - 1]; }
+
+	template <typename... Args>
+	void push_back(Args &&...args) // NOLINT(readability-identifier-naming)
 	{
-		return (*this)[size_ - 1];
+		emplace_back(std::forward<Args>(args)...);
 	}
 
 	template <typename... Args>
@@ -65,14 +68,26 @@ public:
 		return *::new (&data_[size_++]) T(std::forward<Args>(args)...);
 	}
 
-	T &operator[](std::size_t pos)
+	const T &operator[](std::size_t pos) const { return *data_[pos].ptr(); }
+	T &operator[](std::size_t pos) { return *data_[pos].ptr(); }
+
+	void erase(const T *begin, const T *end)
 	{
-		return *data_[pos].ptr();
+		for (const T *it = begin; it < end; ++it) {
+			std::destroy_at(it);
+		}
+		size_ -= end - begin;
 	}
 
-	const T &operator[](std::size_t pos) const
+	void pop_back() // NOLINT(readability-identifier-naming)
 	{
-		return *data_[pos].ptr();
+		std::destroy_at(&back());
+		--size_;
+	}
+
+	void clear()
+	{
+		erase(begin(), end());
 	}
 
 	~StaticVector()

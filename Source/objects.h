@@ -7,16 +7,22 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
 
+#include <expected.hpp>
+
+#include "cursor.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/world_tile.hpp"
 #include "itemdat.h"
+#include "levels/dun_tile.hpp"
 #include "monster.h"
 #include "objdat.h"
 #include "textdat.h"
 #include "utils/attributes.h"
+#include "utils/is_of.hpp"
 #include "utils/string_or_view.hpp"
 
 namespace devilution {
@@ -46,7 +52,7 @@ struct Object {
 	bool _oSolidFlag = false;
 	/** True if the object allows missiles to pass through, false if it collides with missiles */
 	bool _oMissFlag = false;
-	uint8_t _oSelFlag = 0;
+	SelectionRegion selectionRegion = SelectionRegion::None;
 	bool _oPreFlag = false;
 	int _olid = 0;
 	/**
@@ -164,6 +170,11 @@ struct Object {
 	 */
 	[[nodiscard]] bool IsDisabled() const;
 
+	[[nodiscard]] constexpr bool canInteractWith() const
+	{
+		return selectionRegion != SelectionRegion::None;
+	}
+
 	/**
 	 * @brief Check if this object is barrel (or explosive barrel)
 	 * @return True if the object is one of the barrel types (see _object_id)
@@ -260,7 +271,7 @@ struct Object {
 	}
 	[[nodiscard]] Displacement getRenderingOffset(const ClxSprite sprite, Point tilePosition) const
 	{
-		Displacement offset = Displacement { -CalculateWidth2(sprite.width()), 0 };
+		Displacement offset = Displacement { -CalculateSpriteTileCenterX(sprite.width()), 0 };
 		if (position != tilePosition) {
 			// drawing a large or offset object, calculate the correct position for the center of the sprite
 			Displacement worldOffset = position - tilePosition;
@@ -316,7 +327,7 @@ inline Object &ObjectAtPosition(Point position)
  */
 bool IsItemBlockingObjectAtPosition(Point position);
 
-void InitObjectGFX();
+tl::expected<void, std::string> InitObjectGFX();
 void FreeObjectGFX();
 void AddL1Objs(int x1, int y1, int x2, int y2);
 void AddL2Objs(int x1, int y1, int x2, int y2);

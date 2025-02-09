@@ -11,9 +11,11 @@
 #include "utils/sdl2_to_1_2_backports.h"
 #endif
 
+#include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
 #include "engine/events.hpp"
 #include "gmenu.h"
+#include "headless_mode.hpp"
 #include "menu.h"
 #include "nthread.h"
 #include "options.h"
@@ -21,6 +23,7 @@
 #include "utils/console.h"
 #include "utils/display.h"
 #include "utils/endian_stream.hpp"
+#include "utils/is_of.hpp"
 #include "utils/paths.h"
 #include "utils/str_cat.hpp"
 
@@ -213,29 +216,30 @@ void WriteSettings(FILE *out)
 {
 	WriteLE16(out, gnScreenWidth);
 	WriteLE16(out, gnScreenHeight);
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.runInTown));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.theoQuest));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.cowQuest));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoGoldPickup));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoElixirPickup));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoOilPickup));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoPickupInTown));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.adriaRefillsMana));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoEquipWeapons));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoEquipArmor));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoEquipHelms));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoEquipShields));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoEquipJewelry));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.randomizeQuests));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.showItemLabels));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.autoRefillBelt));
-	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.disableCripplingShrines));
-	WriteByte(out, *sgOptions.Gameplay.numHealPotionPickup);
-	WriteByte(out, *sgOptions.Gameplay.numFullHealPotionPickup);
-	WriteByte(out, *sgOptions.Gameplay.numManaPotionPickup);
-	WriteByte(out, *sgOptions.Gameplay.numFullManaPotionPickup);
-	WriteByte(out, *sgOptions.Gameplay.numRejuPotionPickup);
-	WriteByte(out, *sgOptions.Gameplay.numFullRejuPotionPickup);
+	const Options &options = GetOptions();
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.runInTown));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.theoQuest));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.cowQuest));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoGoldPickup));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoElixirPickup));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoOilPickup));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoPickupInTown));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.adriaRefillsMana));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoEquipWeapons));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoEquipArmor));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoEquipHelms));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoEquipShields));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoEquipJewelry));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.randomizeQuests));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.showItemLabels));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.autoRefillBelt));
+	WriteByte(out, static_cast<uint8_t>(*options.Gameplay.disableCripplingShrines));
+	WriteByte(out, *options.Gameplay.numHealPotionPickup);
+	WriteByte(out, *options.Gameplay.numFullHealPotionPickup);
+	WriteByte(out, *options.Gameplay.numManaPotionPickup);
+	WriteByte(out, *options.Gameplay.numFullManaPotionPickup);
+	WriteByte(out, *options.Gameplay.numRejuPotionPickup);
+	WriteByte(out, *options.Gameplay.numFullRejuPotionPickup);
 }
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -270,6 +274,7 @@ bool CreateSdlEvent(const DemoMsg &dmsg, SDL_Event &event, uint16_t &modState)
 	case DemoMsg::KeyUpEvent:
 		event.type = type == DemoMsg::KeyDownEvent ? SDL_KEYDOWN : SDL_KEYUP;
 		event.key.state = type == DemoMsg::KeyDownEvent ? SDL_PRESSED : SDL_RELEASED;
+		event.key.keysym.scancode = SDL_GetScancodeFromKey(dmsg.key.sym);
 		event.key.keysym.sym = dmsg.key.sym;
 		event.key.keysym.mod = dmsg.key.mod;
 		return true;
@@ -586,42 +591,40 @@ void InitRecording(int recordNumber, bool createDemoReference)
 void OverrideOptions()
 {
 #ifndef USE_SDL1
-	sgOptions.Graphics.fitToScreen.SetValue(false);
+	GetOptions().Graphics.fitToScreen.SetValue(false);
 #endif
 #if SDL_VERSION_ATLEAST(2, 0, 0)
-	sgOptions.Graphics.hardwareCursor.SetValue(false);
+	GetOptions().Graphics.hardwareCursor.SetValue(false);
 #endif
 	if (Timedemo) {
-#ifndef USE_SDL1
-		sgOptions.Graphics.vSync.SetValue(false);
-#endif
-		sgOptions.Graphics.limitFPS.SetValue(false);
+		GetOptions().Graphics.frameRateControl.SetValue(FrameRateControl::None);
 	}
 	forceResolution = Size(DemoGraphicsWidth, DemoGraphicsHeight);
 
-	sgOptions.Gameplay.runInTown.SetValue(DemoSettings.runInTown);
-	sgOptions.Gameplay.theoQuest.SetValue(DemoSettings.theoQuest);
-	sgOptions.Gameplay.cowQuest.SetValue(DemoSettings.cowQuest);
-	sgOptions.Gameplay.autoGoldPickup.SetValue(DemoSettings.autoGoldPickup);
-	sgOptions.Gameplay.autoElixirPickup.SetValue(DemoSettings.autoElixirPickup);
-	sgOptions.Gameplay.autoOilPickup.SetValue(DemoSettings.autoOilPickup);
-	sgOptions.Gameplay.autoPickupInTown.SetValue(DemoSettings.autoPickupInTown);
-	sgOptions.Gameplay.adriaRefillsMana.SetValue(DemoSettings.adriaRefillsMana);
-	sgOptions.Gameplay.autoEquipWeapons.SetValue(DemoSettings.autoEquipWeapons);
-	sgOptions.Gameplay.autoEquipArmor.SetValue(DemoSettings.autoEquipArmor);
-	sgOptions.Gameplay.autoEquipHelms.SetValue(DemoSettings.autoEquipHelms);
-	sgOptions.Gameplay.autoEquipShields.SetValue(DemoSettings.autoEquipShields);
-	sgOptions.Gameplay.autoEquipJewelry.SetValue(DemoSettings.autoEquipJewelry);
-	sgOptions.Gameplay.randomizeQuests.SetValue(DemoSettings.randomizeQuests);
-	sgOptions.Gameplay.showItemLabels.SetValue(DemoSettings.showItemLabels);
-	sgOptions.Gameplay.autoRefillBelt.SetValue(DemoSettings.autoRefillBelt);
-	sgOptions.Gameplay.disableCripplingShrines.SetValue(DemoSettings.disableCripplingShrines);
-	sgOptions.Gameplay.numHealPotionPickup.SetValue(DemoSettings.numHealPotionPickup);
-	sgOptions.Gameplay.numFullHealPotionPickup.SetValue(DemoSettings.numFullHealPotionPickup);
-	sgOptions.Gameplay.numManaPotionPickup.SetValue(DemoSettings.numManaPotionPickup);
-	sgOptions.Gameplay.numFullManaPotionPickup.SetValue(DemoSettings.numFullManaPotionPickup);
-	sgOptions.Gameplay.numRejuPotionPickup.SetValue(DemoSettings.numRejuPotionPickup);
-	sgOptions.Gameplay.numFullRejuPotionPickup.SetValue(DemoSettings.numFullRejuPotionPickup);
+	Options &options = GetOptions();
+	options.Gameplay.runInTown.SetValue(DemoSettings.runInTown);
+	options.Gameplay.theoQuest.SetValue(DemoSettings.theoQuest);
+	options.Gameplay.cowQuest.SetValue(DemoSettings.cowQuest);
+	options.Gameplay.autoGoldPickup.SetValue(DemoSettings.autoGoldPickup);
+	options.Gameplay.autoElixirPickup.SetValue(DemoSettings.autoElixirPickup);
+	options.Gameplay.autoOilPickup.SetValue(DemoSettings.autoOilPickup);
+	options.Gameplay.autoPickupInTown.SetValue(DemoSettings.autoPickupInTown);
+	options.Gameplay.adriaRefillsMana.SetValue(DemoSettings.adriaRefillsMana);
+	options.Gameplay.autoEquipWeapons.SetValue(DemoSettings.autoEquipWeapons);
+	options.Gameplay.autoEquipArmor.SetValue(DemoSettings.autoEquipArmor);
+	options.Gameplay.autoEquipHelms.SetValue(DemoSettings.autoEquipHelms);
+	options.Gameplay.autoEquipShields.SetValue(DemoSettings.autoEquipShields);
+	options.Gameplay.autoEquipJewelry.SetValue(DemoSettings.autoEquipJewelry);
+	options.Gameplay.randomizeQuests.SetValue(DemoSettings.randomizeQuests);
+	options.Gameplay.showItemLabels.SetValue(DemoSettings.showItemLabels);
+	options.Gameplay.autoRefillBelt.SetValue(DemoSettings.autoRefillBelt);
+	options.Gameplay.disableCripplingShrines.SetValue(DemoSettings.disableCripplingShrines);
+	options.Gameplay.numHealPotionPickup.SetValue(DemoSettings.numHealPotionPickup);
+	options.Gameplay.numFullHealPotionPickup.SetValue(DemoSettings.numFullHealPotionPickup);
+	options.Gameplay.numManaPotionPickup.SetValue(DemoSettings.numManaPotionPickup);
+	options.Gameplay.numFullManaPotionPickup.SetValue(DemoSettings.numFullManaPotionPickup);
+	options.Gameplay.numRejuPotionPickup.SetValue(DemoSettings.numRejuPotionPickup);
+	options.Gameplay.numFullRejuPotionPickup.SetValue(DemoSettings.numFullRejuPotionPickup);
 }
 
 bool IsRunning()
@@ -647,7 +650,7 @@ bool GetRunGameLoop(bool &drawGame, bool &processInput)
 		app_fatal("Unexpected event demo message in GetRunGameLoop");
 	LogDemoMessage(dmsg);
 	if (Timedemo) {
-		// disable additonal rendering to speedup replay
+		// disable additional rendering to speedup replay
 		drawGame = dmsg.type == DemoMsg::GameTick && !HeadlessMode;
 	} else {
 		int currentTickCount = SDL_GetTicks();
@@ -700,12 +703,12 @@ bool FetchMessage(SDL_Event *event, uint16_t *modState)
 		}
 		if (e.type == SDL_KEYDOWN && IsAnyOf(e.key.keysym.sym, SDLK_KP_PLUS, SDLK_PLUS) && sgGameInitInfo.nTickRate < 255) {
 			sgGameInitInfo.nTickRate++;
-			sgOptions.Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
+			GetOptions().Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
 			gnTickDelay = 1000 / sgGameInitInfo.nTickRate;
 		}
 		if (e.type == SDL_KEYDOWN && IsAnyOf(e.key.keysym.sym, SDLK_KP_MINUS, SDLK_MINUS) && sgGameInitInfo.nTickRate > 1) {
 			sgGameInitInfo.nTickRate--;
-			sgOptions.Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
+			GetOptions().Gameplay.tickRate.SetValue(sgGameInitInfo.nTickRate);
 			gnTickDelay = 1000 / sgGameInitInfo.nTickRate;
 		}
 	}
@@ -848,7 +851,7 @@ void NotifyGameLoopEnd()
 		HeroCompareResult compareResult = pfile_compare_hero_demo(DemoNumber, false);
 		switch (compareResult.status) {
 		case HeroCompareResult::ReferenceNotFound:
-			SDL_Log("Timedemo: No final comparison cause reference is not present.");
+			SDL_Log("Timedemo: No final comparison because reference is not present.");
 			break;
 		case HeroCompareResult::Same:
 			SDL_Log("Timedemo: Same outcome as initial run. :)");

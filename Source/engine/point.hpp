@@ -42,6 +42,13 @@ struct PointOf {
 	}
 
 	template <typename PointCoordT>
+	DVL_ALWAYS_INLINE explicit constexpr PointOf(DisplacementOf<PointCoordT> other)
+	    : x(other.deltaX)
+	    , y(other.deltaY)
+	{
+	}
+
+	template <typename PointCoordT>
 	DVL_ALWAYS_INLINE constexpr bool operator==(const PointOf<PointCoordT> &other) const
 	{
 		return x == other.x && y == other.y;
@@ -228,6 +235,49 @@ template <typename PointCoordT>
 DVL_ALWAYS_INLINE constexpr PointOf<PointCoordT> abs(PointOf<PointCoordT> a)
 {
 	return { std::abs(a.x), std::abs(a.y) };
+}
+
+/**
+ * @brief Calculate the best fit direction between two points
+ * @param start Tile coordinate
+ * @param destination Tile coordinate
+ * @return A value from the direction enum
+ */
+inline Direction GetDirection(Point start, Point destination)
+{
+	Direction md;
+
+	int mx = destination.x - start.x;
+	int my = destination.y - start.y;
+	if (mx >= 0) {
+		if (my >= 0) {
+			if (5 * mx <= (my * 2)) // mx/my <= 0.4, approximation of tan(22.5)
+				return Direction::SouthWest;
+			md = Direction::South;
+		} else {
+			my = -my;
+			if (5 * mx <= (my * 2))
+				return Direction::NorthEast;
+			md = Direction::East;
+		}
+		if (5 * my <= (mx * 2)) // my/mx <= 0.4
+			md = Direction::SouthEast;
+	} else {
+		mx = -mx;
+		if (my >= 0) {
+			if (5 * mx <= (my * 2))
+				return Direction::SouthWest;
+			md = Direction::West;
+		} else {
+			my = -my;
+			if (5 * mx <= (my * 2))
+				return Direction::NorthEast;
+			md = Direction::North;
+		}
+		if (5 * my <= (mx * 2))
+			md = Direction::NorthWest;
+	}
+	return md;
 }
 
 } // namespace devilution

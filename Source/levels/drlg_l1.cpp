@@ -11,6 +11,7 @@
 #include "player.h"
 #include "quests.h"
 #include "utils/bitset2d.hpp"
+#include "utils/is_of.hpp"
 
 namespace devilution {
 
@@ -349,7 +350,7 @@ bool CanReplaceTile(uint8_t replace, Point tile)
 		return true;
 	}
 
-	// BUGFIX: p2 is a workaround for a bug, only p1 should have been used (fixing this breaks compatability)
+	// BUGFIX: p2 is a workaround for a bug, only p1 should have been used (fixing this breaks compatibility)
 	constexpr auto ComparisonWithBoundsCheck = [](Point p1, Point p2) {
 		return (p1.x >= 0 && p1.x < DMAXX && p1.y >= 0 && p1.y < DMAXY)
 		    && (p2.x >= 0 && p2.x < DMAXX && p2.y >= 0 && p2.y < DMAXY)
@@ -1165,6 +1166,9 @@ bool PlaceStairs(lvl_entry entry)
 
 void GenerateLevel(lvl_entry entry)
 {
+	if (LevelSeeds[currlevel])
+		SetRndSeed(*LevelSeeds[currlevel]);
+
 	size_t minarea = 761;
 	switch (currlevel) {
 	case 1:
@@ -1181,6 +1185,7 @@ void GenerateLevel(lvl_entry entry)
 		DRLG_InitTrans();
 
 		do {
+			LevelSeeds[currlevel] = GetLCGEngineState();
 			FirstRoom();
 		} while (FindArea() < minarea);
 

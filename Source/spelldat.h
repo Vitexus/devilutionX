@@ -13,7 +13,7 @@
 
 #include <expected.hpp>
 
-#include "effects.h"
+#include "sound_effect_enums.h"
 #include "utils/enum_traits.h"
 
 namespace devilution {
@@ -208,6 +208,8 @@ enum class MissileID : int8_t {
 	BlueExplosion,
 	BlueExplosion2,
 	OrangeExplosion,
+
+	LAST = OrangeExplosion,
 	Null = -1,
 	// clang-format on
 };

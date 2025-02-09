@@ -115,9 +115,9 @@ void UiInitGameSelectionList(std::string_view search)
 	}
 
 	if (provider == SELCONN_ZT) {
-		CopyUtf8(selgame_Ip, sgOptions.Network.szPreviousZTGame, sizeof(selgame_Ip));
+		CopyUtf8(selgame_Ip, GetOptions().Network.szPreviousZTGame, sizeof(selgame_Ip));
 	} else {
-		CopyUtf8(selgame_Ip, sgOptions.Network.szPreviousHost, sizeof(selgame_Ip));
+		CopyUtf8(selgame_Ip, GetOptions().Network.szPreviousHost, sizeof(selgame_Ip));
 	}
 
 	selgame_FreeVectors();
@@ -151,7 +151,7 @@ void UiInitGameSelectionList(std::string_view search)
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Join Game"), 2, UiFlags::ColorUiGold));
 
 	if (provider == SELCONN_ZT) {
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>("", -1, UiFlags::ElementDisabled));
+		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(std::string_view {}, -1, UiFlags::ElementDisabled));
 		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Public Games"), -1, UiFlags::ElementDisabled | UiFlags::ColorWhitegold));
 
 		if (Gamelist.empty()) {
@@ -162,7 +162,7 @@ void UiInitGameSelectionList(std::string_view search)
 				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("None"), -1, UiFlags::ElementDisabled | UiFlags::ColorUiSilver));
 		} else {
 			for (unsigned i = 0; i < Gamelist.size(); i++) {
-				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(Gamelist[i].name, i + 3, UiFlags::ColorUiGold));
+				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(std::string_view(Gamelist[i].name), i + 3, UiFlags::ColorUiGold));
 			}
 		}
 	}
@@ -257,7 +257,7 @@ void selgame_GameSelection_Focus(size_t value)
 				infoString.append(_("Speed: Fastest"));
 				break;
 			default:
-				// This should not occure, so no translations is needed
+				// This should not occur, so no translation is needed
 				infoString.append(StrCat("Speed: ", gameInfo.gameData.nTickRate));
 				break;
 			}
@@ -622,9 +622,9 @@ void selgame_Password_Select(size_t /*value*/)
 			for (unsigned int i = 0; i < (sizeof(selgame_Ip) / sizeof(selgame_Ip[0])); i++) {
 				selgame_Ip[i] = (selgame_Ip[i] >= 'A' && selgame_Ip[i] <= 'Z') ? selgame_Ip[i] + 'a' - 'A' : selgame_Ip[i];
 			}
-			strcpy(sgOptions.Network.szPreviousZTGame, selgame_Ip);
+			strcpy(GetOptions().Network.szPreviousZTGame, selgame_Ip);
 		} else {
-			strcpy(sgOptions.Network.szPreviousHost, selgame_Ip);
+			strcpy(GetOptions().Network.szPreviousHost, selgame_Ip);
 		}
 		if (allowJoin && SNetJoinGame(selgame_Ip, gamePassword, gdwPlayerId)) {
 			if (!IsGameCompatibleWithErrorMessage(*m_game_data)) {
@@ -657,11 +657,13 @@ void selgame_Password_Select(size_t /*value*/)
 
 	m_game_data->nDifficulty = nDifficulty;
 	m_game_data->nTickRate = nTickRate;
-	m_game_data->bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
-	m_game_data->bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
-	m_game_data->bCowQuest = *sgOptions.Gameplay.cowQuest ? 1 : 0;
+	m_game_data->bRunInTown = *GetOptions().Gameplay.runInTown ? 1 : 0;
+	m_game_data->bTheoQuest = *GetOptions().Gameplay.theoQuest ? 1 : 0;
+	m_game_data->bCowQuest = *GetOptions().Gameplay.cowQuest ? 1 : 0;
 
-	if (SNetCreateGame(nullptr, gamePassword, (char *)m_game_data, sizeof(*m_game_data), gdwPlayerId)) {
+	GameData gameInitInfo = *m_game_data;
+	gameInitInfo.swapLE();
+	if (SNetCreateGame(nullptr, gamePassword, reinterpret_cast<char *>(&gameInitInfo), sizeof(gameInitInfo), gdwPlayerId)) {
 		UiInitList_clear();
 		selgame_endMenu = true;
 	} else {

@@ -168,7 +168,7 @@ void SDL_LogMessage(int category, SDL_LogPriority priority, const char *fmt, ...
 
 void SDL_LogMessageV(int category, SDL_LogPriority priority, const char *fmt, va_list ap)
 {
-	if (static_cast<int>(priority) < 0 || priority >= SDL_NUM_LOG_PRIORITIES || priority < SDL_LogGetPriority(category))
+	if (static_cast<int>(priority) < 0 || priority >= SDL_NUM_LOG_PRIORITIES || SDL_LogGetPriority(category) > priority)
 		return;
 
 	::devilution::printfInConsole("%s: ", SDL_priority_prefixes[priority]);
@@ -341,10 +341,10 @@ int SDL_BlitScaled(SDL_Surface *src, SDL_Rect *srcrect,
 		return SDL_BlitSurface(src, srcrect, dst, dstrect);
 	}
 
-	double src_x0, src_y0, src_x1, src_y1;
-	double dst_x0, dst_y0, dst_x1, dst_y1;
+	float src_x0, src_y0, src_x1, src_y1;
+	float dst_x0, dst_y0, dst_x1, dst_y1;
 	SDL_Rect final_src, final_dst;
-	double scaling_w, scaling_h;
+	float scaling_w, scaling_h;
 	int src_w, src_h;
 	int dst_w, dst_h;
 
@@ -379,8 +379,8 @@ int SDL_BlitScaled(SDL_Surface *src, SDL_Rect *srcrect,
 		return SDL_BlitSurface(src, srcrect, dst, dstrect);
 	}
 
-	scaling_w = (double)dst_w / src_w;
-	scaling_h = (double)dst_h / src_h;
+	scaling_w = (float)dst_w / src_w;
+	scaling_h = (float)dst_h / src_h;
 
 	if (NULL == dstrect) {
 		dst_x0 = 0;
@@ -544,7 +544,7 @@ int WIN_SetError(const char *prefix)
 
 } // namespace
 
-char *SDL_GetBasePath(void)
+extern "C" char *SDL_GetBasePath(void)
 {
 	// From sdl2-2.0.9/src/filesystem/windows/SDL_sysfilesystem.c
 
@@ -611,7 +611,7 @@ char *SDL_GetBasePath(void)
 	return retval;
 }
 
-char *SDL_GetPrefPath(const char *org, const char *app)
+extern "C" char *SDL_GetPrefPath(const char *org, const char *app)
 {
 	// From sdl2-2.0.9/src/filesystem/windows/SDL_sysfilesystem.c
 
@@ -699,7 +699,8 @@ char *SDL_GetPrefPath(const char *org, const char *app)
 	return retval;
 }
 
-#else
+// For Apple, definitions are in Source/platform/macos_sdl1/SDL_filesystem.m
+#elif !defined(__APPLE__)
 
 namespace {
 #if !defined(__QNXNTO__) && !defined(__amigaos__) && !(defined(WINVER) && WINVER <= 0x0500 && (!defined(_WIN32_WINNT) || _WIN32_WINNT == 0))
@@ -736,7 +737,7 @@ char *readSymLink(const char *path)
 #endif
 } // namespace
 
-char *SDL_GetBasePath()
+extern "C" char *SDL_GetBasePath()
 {
 	// From sdl2-2.0.9/src/filesystem/unix/SDL_sysfilesystem.c
 
@@ -851,7 +852,7 @@ char *SDL_GetBasePath()
 	return retval;
 }
 
-char *SDL_GetPrefPath(const char *org, const char *app)
+extern "C" char *SDL_GetPrefPath(const char *org, const char *app)
 {
 	// From sdl2-2.0.9/src/filesystem/unix/SDL_sysfilesystem.c
 	/*

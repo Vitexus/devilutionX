@@ -9,11 +9,14 @@
 #include <optional>
 
 #include "DiabloUI/ui_flags.hpp"
-#include "engine.h"
+#include "cursor.h"
 #include "engine/animationinfo.h"
 #include "engine/point.hpp"
+#include "engine/surface.hpp"
 #include "itemdat.h"
+#include "levels/dun_tile.hpp"
 #include "monster.h"
+#include "utils/is_of.hpp"
 #include "utils/string_or_view.hpp"
 
 namespace devilution {
@@ -27,6 +30,11 @@ namespace devilution {
 
 // Item indestructible durability
 #define DUR_INDESTRUCTIBLE 255
+
+constexpr int MaxVendorValue = 140000;
+constexpr int MaxVendorValueHf = 200000;
+constexpr int MaxBoyValue = 90000;
+constexpr int MaxBoyValueHf = 200000;
 
 enum item_quality : uint8_t {
 	ITEM_QUALITY_NORMAL,
@@ -165,7 +173,8 @@ enum icreateinfo_flag {
 
 enum icreateinfo_flag2 {
 	// clang-format off
-	CF_HELLFIRE = 1,
+	CF_HELLFIRE = 1 << 0,
+	CF_UIDOFFSET = ((1 << 4) - 1) << 1,
 	// clang-format on
 };
 
@@ -187,7 +196,7 @@ struct Item {
 	 */
 	AnimationInfo AnimInfo;
 	bool _iDelFlag = false; // set when item is flagged for deletion, deprecated in 1.02
-	uint8_t _iSelFlag = 0;
+	SelectionRegion selectionRegion = SelectionRegion::None;
 	bool _iPostDraw = false;
 	bool _iIdentified = false;
 	item_quality _iMagical = ITEM_QUALITY_NORMAL;
@@ -454,7 +463,7 @@ struct Item {
 
 	[[nodiscard]] Displacement getRenderingOffset(const ClxSprite sprite) const
 	{
-		return { -CalculateWidth2(sprite.width()), 0 };
+		return { -CalculateSpriteTileCenterX(sprite.width()), 0 };
 	}
 };
 
@@ -480,11 +489,12 @@ extern uint8_t ActiveItemCount;
 extern int8_t dItem[MAXDUNX][MAXDUNY];
 extern bool ShowUniqueItemInfoBox;
 extern CornerStoneStruct CornerStone;
-extern bool UniqueItemFlags[128];
+extern DVL_API_FOR_TEST bool UniqueItemFlags[128];
 
 uint8_t GetOutlineColor(const Item &item, bool checkReq);
 bool IsItemAvailable(int i);
 bool IsUniqueAvailable(int i);
+void ClearUniqueItemFlags();
 void InitItemGFX();
 void InitItems();
 void CalcPlrItemVals(Player &player, bool Loadgfx);
@@ -512,6 +522,10 @@ Point GetSuperItemLoc(Point position);
 void GetItemAttrs(Item &item, _item_indexes itemData, int lvl);
 void SetupItem(Item &item);
 Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level = std::nullopt, bool sendmsg = true, bool exactPosition = false);
+void GetSuperItemSpace(Point position, int8_t inum);
+_item_indexes RndItemForMonsterLevel(int8_t monsterLevel);
+void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool pregen, int uidOffset = 0, bool forceNotUnique = false);
+void TryRandomUniqueItem(Item &item, _item_indexes idx, int8_t mLevel, int uper, bool onlygood, bool pregen);
 void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn = false);
 void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta);
 void CreateRndUseful(Point position, bool sendmsg);
@@ -520,7 +534,7 @@ void RecreateItem(const Player &player, Item &item, _item_indexes idx, uint16_t 
 void RecreateEar(Item &item, uint16_t ic, uint32_t iseed, uint8_t bCursval, std::string_view heroName);
 void CornerstoneSave();
 void CornerstoneLoad(Point position);
-void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int selflag, bool sendmsg);
+void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, SelectionRegion selectionRegion, bool sendmsg);
 void SpawnRewardItem(_item_indexes itemid, Point position, bool sendmsg);
 void SpawnMapOfDoom(Point position, bool sendmsg);
 void SpawnRuneBomb(Point position, bool sendmsg);
@@ -570,10 +584,6 @@ bool ApplyOilToItem(Item &item, Player &player);
  */
 void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 
-#ifdef _DEBUG
-std::string DebugSpawnItem(std::string itemName);
-std::string DebugSpawnUniqueItem(std::string itemName);
-#endif
 /* data */
 
 extern int MaxGold;

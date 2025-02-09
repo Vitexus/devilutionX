@@ -4,7 +4,7 @@
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "diablo.h"
-#include "engine.h"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/scrollrt.h"
 #include "gmenu.h"
 #include "inv.h"
@@ -12,6 +12,7 @@
 #include "panels/spell_list.hpp"
 #include "qol/stash.h"
 #include "stores.h"
+#include "utils/is_of.hpp"
 #include "utils/ui_fwd.h"
 
 namespace devilution {
@@ -36,10 +37,10 @@ void SimulateMouseMovement(const SDL_Event &event)
 	bool isInLeftPanel = GetLeftPanel().contains(position);
 	bool isInRightPanel = GetRightPanel().contains(position);
 	if (IsStashOpen) {
-		if (!spselflag && !isInMainPanel && !isInLeftPanel && !isInRightPanel)
+		if (!SpellSelectFlag && !isInMainPanel && !isInLeftPanel && !isInRightPanel)
 			return;
 	} else if (invflag) {
-		if (!spselflag && !isInMainPanel && !isInRightPanel)
+		if (!SpellSelectFlag && !isInMainPanel && !isInRightPanel)
 			return;
 	}
 
@@ -63,7 +64,7 @@ bool HandleGameMenuInteraction(const SDL_Event &event)
 
 bool HandleStoreInteraction(const SDL_Event &event)
 {
-	if (stextflag == TalkID::None)
+	if (ActiveStore == TalkID::None)
 		return false;
 	if (event.type == SDL_FINGERDOWN)
 		CheckStoreBtn();
@@ -72,7 +73,7 @@ bool HandleStoreInteraction(const SDL_Event &event)
 
 void HandleSpellBookInteraction(const SDL_Event &event)
 {
-	if (!sbookflag)
+	if (!SpellbookFlag)
 		return;
 
 	if (event.type == SDL_FINGERUP)
@@ -81,7 +82,7 @@ void HandleSpellBookInteraction(const SDL_Event &event)
 
 bool HandleSpeedBookInteraction(const SDL_Event &event)
 {
-	if (!spselflag)
+	if (!SpellSelectFlag)
 		return false;
 	if (event.type == SDL_FINGERUP)
 		SetSpell();
@@ -93,27 +94,27 @@ void HandleBottomPanelInteraction(const SDL_Event &event)
 	if (!gbRunGame || !MyPlayer->HoldItem.isEmpty())
 		return;
 
-	ClearPanBtn();
+	ResetMainPanelButtons();
 
 	if (event.type != SDL_FINGERUP) {
-		spselflag = true;
-		DoPanBtn();
-		spselflag = false;
+		SpellSelectFlag = true;
+		CheckMainPanelButton();
+		SpellSelectFlag = false;
 	} else {
-		DoPanBtn();
-		if (panbtndown)
-			CheckBtnUp();
+		CheckMainPanelButton();
+		if (MainPanelButtonDown)
+			CheckMainPanelButtonUp();
 	}
 }
 
 void HandleCharacterPanelInteraction(const SDL_Event &event)
 {
-	if (!chrflag)
+	if (!CharFlag)
 		return;
 
 	if (event.type == SDL_FINGERDOWN)
 		CheckChrBtns();
-	else if (event.type == SDL_FINGERUP && chrbtnactive)
+	else if (event.type == SDL_FINGERUP && CharPanelButtonActive)
 		ReleaseChrBtns(false);
 }
 

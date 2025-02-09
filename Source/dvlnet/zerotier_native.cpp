@@ -1,8 +1,9 @@
 #include "dvlnet/zerotier_native.h"
 
-#include <SDL.h>
 #include <atomic>
-#include <unordered_map>
+
+#include <SDL.h>
+#include <ankerl/unordered_dense.h>
 
 #ifdef USE_SDL1
 #include "utils/sdl2_to_1_2_backports.h"
@@ -46,7 +47,7 @@ std::atomic_bool zt_network_ready(false);
 std::atomic_bool zt_node_online(false);
 std::atomic_bool zt_joined(false);
 
-std::unordered_map<uint64_t, zts_event_t> ztPeerEvents;
+ankerl::unordered_dense::map<uint64_t, zts_event_t> ztPeerEvents;
 
 #ifdef DVL_ZT_SYMLINK
 bool HasMultiByteChars(std::string_view path)
@@ -95,7 +96,8 @@ std::string ToZTCompliantPath(std::string_view configPath)
 	}
 
 	std::string symlinkPath = StrCat(alternateConfigPath, "\\", alternateFolderName);
-	bool symlinkExists = std::filesystem::exists(std::filesystem::u8path(symlinkPath), err);
+	bool symlinkExists = std::filesystem::exists(
+	    std::u8string_view(reinterpret_cast<const char8_t *>(symlinkPath.data()), symlinkPath.size()), err);
 	if (err) {
 		LogVerbose("Failed to determine if symlink for ZT-compliant config path exists");
 		return std::string(configPath);
@@ -103,8 +105,8 @@ std::string ToZTCompliantPath(std::string_view configPath)
 
 	if (!symlinkExists) {
 		std::filesystem::create_directory_symlink(
-		    std::filesystem::u8path(configPath),
-		    std::filesystem::u8path(symlinkPath),
+		    std::u8string_view(reinterpret_cast<const char8_t *>(configPath.data()), configPath.size()),
+		    std::u8string_view(reinterpret_cast<const char8_t *>(symlinkPath.data()), symlinkPath.size()),
 		    err);
 
 		if (err) {

@@ -3,16 +3,19 @@
 #include <cmath>
 
 #include "control.h"
+#include "controls/control_mode.hpp"
 #include "controls/controller.h"
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
 #endif
 #include "controls/devices/joystick.h"
 #include "controls/game_controls.h"
+#include "controls/padmapper.hpp"
 #include "controls/plrctrls.h"
 #include "controls/touch/gamepad.h"
 #include "engine/demomode.h"
 #include "options.h"
+#include "utils/is_of.hpp"
 #include "utils/log.hpp"
 
 namespace devilution {
@@ -70,15 +73,15 @@ void ScaleJoystickAxes(float *x, float *y, float deadzone)
 bool IsMovementOverriddenByPadmapper(ControllerButton button)
 {
 	ControllerButtonEvent releaseEvent { button, true };
-	std::string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(releaseEvent);
-	ControllerButtonCombo buttonCombo = sgOptions.Padmapper.ButtonComboForAction(actionName);
+	std::string_view actionName = PadmapperActionNameTriggeredByButtonEvent(releaseEvent);
+	ControllerButtonCombo buttonCombo = GetOptions().Padmapper.ButtonComboForAction(actionName);
 	return buttonCombo.modifier != ControllerButton_NONE;
 }
 
 bool TriggersQuickSpellAction(ControllerButton button)
 {
 	ControllerButtonEvent releaseEvent { button, true };
-	std::string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(releaseEvent);
+	std::string_view actionName = PadmapperActionNameTriggeredByButtonEvent(releaseEvent);
 
 	std::string_view prefix { "QuickSpell" };
 	if (actionName.size() < prefix.size())
@@ -92,7 +95,7 @@ bool IsPressedForMovement(ControllerButton button)
 	return !PadMenuNavigatorActive
 	    && IsControllerButtonPressed(button)
 	    && !IsMovementOverriddenByPadmapper(button)
-	    && !(spselflag && TriggersQuickSpellAction(button));
+	    && !(SpellSelectFlag && TriggersQuickSpellAction(button));
 }
 
 void SetSimulatingMouseWithPadmapper(bool value)
@@ -117,8 +120,9 @@ namespace {
 
 void ScaleJoysticks()
 {
-	const float rightDeadzone = sgOptions.Controller.fDeadzone;
-	const float leftDeadzone = sgOptions.Controller.fDeadzone;
+	const Options &options = GetOptions();
+	const float rightDeadzone = options.Controller.fDeadzone;
+	const float leftDeadzone = options.Controller.fDeadzone;
 
 	if (leftStickNeedsScaling) {
 		leftStickX = leftStickXUnscaled;
@@ -208,10 +212,10 @@ AxisDirection GetLeftStickOrDpadDirection(bool usePadmapper)
 	bool isRightPressed = stickX >= 0.5;
 
 	if (usePadmapper) {
-		isUpPressed |= sgOptions.Padmapper.IsActive("MoveUp");
-		isDownPressed |= sgOptions.Padmapper.IsActive("MoveDown");
-		isLeftPressed |= sgOptions.Padmapper.IsActive("MoveLeft");
-		isRightPressed |= sgOptions.Padmapper.IsActive("MoveRight");
+		isUpPressed |= PadmapperIsActionActive("MoveUp");
+		isDownPressed |= PadmapperIsActionActive("MoveDown");
+		isLeftPressed |= PadmapperIsActionActive("MoveLeft");
+		isRightPressed |= PadmapperIsActionActive("MoveRight");
 	} else if (!SimulatingMouseWithPadmapper) {
 		isUpPressed |= IsPressedForMovement(ControllerButton_BUTTON_DPAD_UP);
 		isDownPressed |= IsPressedForMovement(ControllerButton_BUTTON_DPAD_DOWN);
@@ -250,7 +254,7 @@ void SimulateRightStickWithPadmapper(ControllerButtonEvent ctrlEvent)
 	if (!ctrlEvent.up && ctrlEvent.button == SuppressedButton)
 		return;
 
-	std::string_view actionName = sgOptions.Padmapper.ActionNameTriggeredByButtonEvent(ctrlEvent);
+	std::string_view actionName = PadmapperActionNameTriggeredByButtonEvent(ctrlEvent);
 	bool upTriggered = actionName == "MouseUp";
 	bool downTriggered = actionName == "MouseDown";
 	bool leftTriggered = actionName == "MouseLeft";
@@ -261,10 +265,10 @@ void SimulateRightStickWithPadmapper(ControllerButtonEvent ctrlEvent)
 		return;
 	}
 
-	bool upActive = (upTriggered && !ctrlEvent.up) || (!upTriggered && sgOptions.Padmapper.IsActive("MouseUp"));
-	bool downActive = (downTriggered && !ctrlEvent.up) || (!downTriggered && sgOptions.Padmapper.IsActive("MouseDown"));
-	bool leftActive = (leftTriggered && !ctrlEvent.up) || (!leftTriggered && sgOptions.Padmapper.IsActive("MouseLeft"));
-	bool rightActive = (rightTriggered && !ctrlEvent.up) || (!rightTriggered && sgOptions.Padmapper.IsActive("MouseRight"));
+	bool upActive = (upTriggered && !ctrlEvent.up) || (!upTriggered && PadmapperIsActionActive("MouseUp"));
+	bool downActive = (downTriggered && !ctrlEvent.up) || (!downTriggered && PadmapperIsActionActive("MouseDown"));
+	bool leftActive = (leftTriggered && !ctrlEvent.up) || (!leftTriggered && PadmapperIsActionActive("MouseLeft"));
+	bool rightActive = (rightTriggered && !ctrlEvent.up) || (!rightTriggered && PadmapperIsActionActive("MouseRight"));
 
 	rightStickX = 0;
 	rightStickY = 0;

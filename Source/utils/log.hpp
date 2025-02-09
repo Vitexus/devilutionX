@@ -4,6 +4,7 @@
 
 #include <SDL.h>
 #include <fmt/core.h>
+#include <fmt/format.h>
 #include <fmt/ranges.h>
 
 #include "utils/str_cat.hpp"
@@ -15,7 +16,7 @@
 namespace devilution {
 
 // Local definition to fix compilation issue due to header conflict.
-[[noreturn]] void app_fatal(std::string_view);
+[[noreturn]] extern void app_fatal(std::string_view);
 
 enum class LogCategory {
 	Application = SDL_LOG_CATEGORY_APPLICATION,
@@ -63,6 +64,11 @@ std::string format(std::string_view fmt, Args &&...args)
 
 } // namespace detail
 
+inline void Log(std::string_view str)
+{
+	SDL_Log("%.*s", static_cast<int>(str.size()), str.data());
+}
+
 template <typename... Args>
 void Log(std::string_view fmt, Args &&...args)
 {
@@ -70,9 +76,15 @@ void Log(std::string_view fmt, Args &&...args)
 	SDL_Log("%s", str.c_str());
 }
 
+inline void LogVerbose(LogCategory category, std::string_view str)
+{
+	SDL_LogVerbose(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
+}
+
 template <typename... Args>
 void LogVerbose(LogCategory category, std::string_view fmt, Args &&...args)
 {
+	if (SDL_LogGetPriority(static_cast<int>(category)) > SDL_LOG_PRIORITY_VERBOSE) return;
 	auto str = detail::format(fmt, std::forward<Args>(args)...);
 	SDL_LogVerbose(static_cast<int>(category), "%s", str.c_str());
 }
@@ -83,9 +95,15 @@ void LogVerbose(std::string_view fmt, Args &&...args)
 	LogVerbose(defaultCategory, fmt, std::forward<Args>(args)...);
 }
 
+inline void LogDebug(LogCategory category, std::string_view str)
+{
+	SDL_LogDebug(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
+}
+
 template <typename... Args>
 void LogDebug(LogCategory category, std::string_view fmt, Args &&...args)
 {
+	if (SDL_LogGetPriority(static_cast<int>(category)) > SDL_LOG_PRIORITY_DEBUG) return;
 	auto str = detail::format(fmt, std::forward<Args>(args)...);
 	SDL_LogDebug(static_cast<int>(category), "%s", str.c_str());
 }
@@ -94,6 +112,11 @@ template <typename... Args>
 void LogDebug(std::string_view fmt, Args &&...args)
 {
 	LogDebug(defaultCategory, fmt, std::forward<Args>(args)...);
+}
+
+inline void LogInfo(LogCategory category, std::string_view str)
+{
+	SDL_LogInfo(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
 }
 
 template <typename... Args>
@@ -109,6 +132,11 @@ void LogInfo(std::string_view fmt, Args &&...args)
 	LogInfo(defaultCategory, fmt, std::forward<Args>(args)...);
 }
 
+inline void LogWarn(LogCategory category, std::string_view str)
+{
+	SDL_LogWarn(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
+}
+
 template <typename... Args>
 void LogWarn(LogCategory category, std::string_view fmt, Args &&...args)
 {
@@ -120,6 +148,11 @@ template <typename... Args>
 void LogWarn(std::string_view fmt, Args &&...args)
 {
 	LogWarn(defaultCategory, fmt, std::forward<Args>(args)...);
+}
+
+inline void LogError(LogCategory category, std::string_view str)
+{
+	SDL_LogError(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
 }
 
 template <typename... Args>
@@ -135,6 +168,11 @@ void LogError(std::string_view fmt, Args &&...args)
 	LogError(defaultCategory, fmt, std::forward<Args>(args)...);
 }
 
+inline void LogCritical(LogCategory category, std::string_view str)
+{
+	SDL_LogCritical(static_cast<int>(category), "%.*s", static_cast<int>(str.size()), str.data());
+}
+
 template <typename... Args>
 void LogCritical(LogCategory category, std::string_view fmt, Args &&...args)
 {
@@ -146,6 +184,12 @@ template <typename... Args>
 void LogCritical(std::string_view fmt, Args &&...args)
 {
 	LogCritical(defaultCategory, fmt, std::forward<Args>(args)...);
+}
+
+inline void LogMessageV(LogCategory category, LogPriority priority, std::string_view str)
+{
+	SDL_LogMessage(static_cast<int>(category), static_cast<SDL_LogPriority>(priority),
+	    "%.*s", static_cast<int>(str.size()), str.data());
 }
 
 template <typename... Args>

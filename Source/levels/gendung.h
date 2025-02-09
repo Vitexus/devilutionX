@@ -8,6 +8,11 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
+
+#include <SDL_endian.h>
+#include <expected.hpp>
 
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
@@ -71,6 +76,8 @@ enum dungeon_type : int8_t {
 	DTYPE_NONE = -1,
 };
 
+tl::expected<dungeon_type, std::string> ParseDungeonType(std::string_view value);
+
 enum lvl_entry : uint8_t {
 	ENTRY_MAIN,
 	ENTRY_PREV,
@@ -99,20 +106,6 @@ enum class DungeonFlag : uint8_t {
 };
 use_enum_as_flags(DungeonFlag);
 
-enum class TileProperties : uint8_t {
-	// clang-format off
-	None             = 0,
-	Solid            = 1 << 0,
-	BlockLight       = 1 << 1,
-	BlockMissile     = 1 << 2,
-	Transparent      = 1 << 3,
-	TransparentLeft  = 1 << 4,
-	TransparentRight = 1 << 5,
-	Trap             = 1 << 7,
-	// clang-format on
-};
-use_enum_as_flags(TileProperties);
-
 enum _difficulty : uint8_t {
 	DIFF_NORMAL,
 	DIFF_NIGHTMARE,
@@ -131,10 +124,6 @@ struct MegaTile {
 	uint16_t micro2;
 	uint16_t micro3;
 	uint16_t micro4;
-};
-
-struct MICROS {
-	LevelCelBlock mt[16];
 };
 
 struct ShadowStruct {
@@ -161,7 +150,7 @@ extern WorldTileRectangle SetPiece;
 extern OptionalOwnedClxSpriteList pSpecialCels;
 /** Specifies the tile definitions of the active dungeon type; (e.g. levels/l1data/l1.til). */
 extern DVL_API_FOR_TEST std::unique_ptr<MegaTile[]> pMegaTiles;
-extern std::unique_ptr<std::byte[]> pDungeonCels;
+extern DVL_API_FOR_TEST std::unique_ptr<std::byte[]> pDungeonCels;
 /**
  * List tile properties
  */
@@ -188,7 +177,7 @@ extern std::array<bool, 256> TransList;
 /** Contains the piece IDs of each tile on the map. */
 extern DVL_API_FOR_TEST uint16_t dPiece[MAXDUNX][MAXDUNY];
 /** Map of micros that comprises a full tile for any given dungeon piece. */
-extern MICROS DPieceMicros[MAXTILES];
+extern DVL_API_FOR_TEST MICROS DPieceMicros[MAXTILES];
 /** Specifies the transparency at each coordinate of the map. */
 extern DVL_API_FOR_TEST int8_t dTransVal[MAXDUNX][MAXDUNY];
 /** Current realtime lighting. Per tile. */
@@ -332,12 +321,12 @@ struct Miniset {
 	}
 };
 
-[[nodiscard]] DVL_ALWAYS_INLINE bool TileHasAny(int tileId, TileProperties property)
+[[nodiscard]] DVL_ALWAYS_INLINE bool TileHasAny(Point coords, TileProperties property)
 {
-	return HasAnyOf(SOLData[tileId], property);
+	return HasAnyOf(SOLData[dPiece[coords.x][coords.y]], property);
 }
 
-void LoadLevelSOLData();
+tl::expected<void, std::string> LoadLevelSOLData();
 void SetDungeonMicros();
 void DRLG_InitTrans();
 void DRLG_MRectTrans(WorldTilePosition origin, WorldTilePosition extent);
@@ -357,7 +346,7 @@ void PlaceDunTiles(const uint16_t *dunData, Point position, int floorId = 0);
 void DRLG_PlaceThemeRooms(int minSize, int maxSize, int floor, int freq, bool rndSize);
 void DRLG_HoldThemeRooms();
 /**
- * @brief Returns ths size in tiles of the specified ".dun" Data
+ * @brief Returns the size in tiles of the specified ".dun" Data
  */
 WorldTileSize GetDunSize(const uint16_t *dunData);
 void DRLG_LPass3(int lv);
@@ -370,5 +359,16 @@ void DRLG_LPass3(int lv);
 bool IsNearThemeRoom(WorldTilePosition position);
 void InitLevels();
 void FloodTransparencyValues(uint8_t floorID);
+
+DVL_ALWAYS_INLINE const uint8_t *GetDunFrame(uint32_t frame)
+{
+	const auto *pFrameTable = reinterpret_cast<const uint32_t *>(pDungeonCels.get());
+	return reinterpret_cast<const uint8_t *>(&pDungeonCels[SDL_SwapLE32(pFrameTable[frame])]);
+}
+
+DVL_ALWAYS_INLINE const uint8_t *GetDunFrameFoliage(uint32_t frame)
+{
+	return GetDunFrame(frame) + ReencodedTriangleFrameSize;
+}
 
 } // namespace devilution

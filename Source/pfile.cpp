@@ -8,21 +8,22 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
+#include <ankerl/unordered_dense.h>
+#include <expected.hpp>
 #include <fmt/core.h>
 
 #include "codec.h"
-#include "engine.h"
 #include "engine/load_file.hpp"
-#include "init.h"
+#include "engine/render/primitive_render.hpp"
+#include "game_mode.hpp"
 #include "loadsave.h"
 #include "menu.h"
 #include "mpq/mpq_common.hpp"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
-#include "utils/endian.hpp"
+#include "utils/endian_read.hpp"
 #include "utils/file_util.h"
 #include "utils/language.h"
 #include "utils/parse_int.hpp"
@@ -273,7 +274,7 @@ inline bool string_ends_with(std::string_view value, std::string_view suffix)
 	return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
 }
 
-void CreateDetailDiffs(std::string_view prefix, std::string_view memoryMapFile, CompareInfo &compareInfoReference, CompareInfo &compareInfoActual, std::unordered_map<std::string, size_t> &foundDiffs)
+void CreateDetailDiffs(std::string_view prefix, std::string_view memoryMapFile, CompareInfo &compareInfoReference, CompareInfo &compareInfoActual, ankerl::unordered_dense::segmented_map<std::string, size_t> &foundDiffs)
 {
 	// Note: Detail diffs are currently only supported in unit tests
 	std::string memoryMapFileAssetName = StrCat(paths::BasePath(), "/test/fixtures/memory_map/", memoryMapFile, ".txt");
@@ -295,7 +296,7 @@ void CreateDetailDiffs(std::string_view prefix, std::string_view memoryMapFile, 
 
 	const std::string_view buffer(reinterpret_cast<const char *>(memoryMapFileData.get()), readBytes);
 
-	std::unordered_map<std::string, CompareCounter> counter;
+	ankerl::unordered_dense::segmented_map<std::string, CompareCounter> counter;
 
 	auto getCounter = [&](const std::string &counterAsString) {
 		auto it = counter.find(counterAsString);
@@ -482,14 +483,14 @@ HeroCompareResult CompareSaves(const std::string &actualSavePath, const std::str
 			StrAppend(message, "file \"", compareTarget.fileName, "\" has different content.");
 		if (!logDetails)
 			continue;
-		std::unordered_map<std::string, size_t> foundDiffs;
+		ankerl::unordered_dense::segmented_map<std::string, size_t> foundDiffs;
 		CompareInfo compareInfoReference = { fileDataReference, 0, fileSizeReference, compareTarget.isTownLevel, fileSizeReference != 0 };
 		CompareInfo compareInfoActual = { fileDataActual, 0, fileSizeActual, compareTarget.isTownLevel, fileSizeActual != 0 };
 		CreateDetailDiffs(compareTarget.fileName, compareTarget.memoryMapFileName, compareInfoReference, compareInfoActual, foundDiffs);
 		if (compareInfoReference.currentPosition != fileSizeReference)
-			app_fatal(StrCat("Comparsion failed. Uncompared bytes in reference. File: ", compareTarget.fileName));
+			app_fatal(StrCat("Comparison failed. Uncompared bytes in reference. File: ", compareTarget.fileName));
 		if (compareInfoActual.currentPosition != fileSizeActual)
-			app_fatal(StrCat("Comparsion failed. Uncompared bytes in actual. File: ", compareTarget.fileName));
+			app_fatal(StrCat("Comparison failed. Uncompared bytes in actual. File: ", compareTarget.fileName));
 		for (const auto &[location, count] : foundDiffs) {
 			StrAppend(message, "\nDiff found in ", location, " count: ", count);
 		}
@@ -778,10 +779,10 @@ void pfile_save_level()
 	SaveLevel(saveWriter);
 }
 
-void pfile_convert_levels()
+tl::expected<void, std::string> pfile_convert_levels()
 {
 	SaveWriter saveWriter = GetSaveWriter(gSaveNumber);
-	ConvertLevels(saveWriter);
+	return ConvertLevels(saveWriter);
 }
 
 void pfile_remove_temp_files()

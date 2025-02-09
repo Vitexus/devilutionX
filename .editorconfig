@@ -11,6 +11,9 @@ insert_final_newline = true
 # Visual C++ Code Style settings
 cpp_generate_documentation_comments = doxygen_slash_star
 
+[*.java]
+end_of_line = lf
+
 [*.pot]
 end_of_line = lf
 
@@ -37,6 +40,9 @@ end_of_line = lf
 [*.sh]
 end_of_line = lf
 
+[*.xml]
+end_of_line = lf
+
 [.clang-format]
 end_of_line = lf
 
@@ -61,6 +67,9 @@ end_of_line = crlf
 [*.tsv]
 trim_trailing_whitespace = false
 
+[*.plist]
+end_of_line = lf
+
 [AppRun]
 end_of_line = lf
 
@@ -73,4 +82,10 @@ end_of_line = crlf
 end_of_line = lf
 
 [devilutionx.spec]
+end_of_line = lf
+
+[Dockerfile]
+end_of_line = lf
+
+[ASSETS_VERSION]
 end_of_line = lf
